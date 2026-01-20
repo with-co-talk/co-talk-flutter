@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
+import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -34,7 +35,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(const AuthState.unauthenticated());
       }
     } catch (e) {
-      emit(const AuthState.unauthenticated());
+      // 인증 확인 실패 시 사용자 친화적인 메시지 제공
+      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
+      emit(AuthState.failure(message));
     }
   }
 
@@ -57,7 +60,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(const AuthState.failure('사용자 정보를 가져올 수 없습니다'));
       }
     } catch (e) {
-      emit(AuthState.failure(e.toString()));
+      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
+      emit(AuthState.failure(message));
     }
   }
 
@@ -87,7 +91,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(const AuthState.failure('사용자 정보를 가져올 수 없습니다'));
       }
     } catch (e) {
-      emit(AuthState.failure(e.toString()));
+      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
+      emit(AuthState.failure(message));
     }
   }
 
@@ -101,7 +106,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _authRepository.logout();
       emit(const AuthState.unauthenticated());
     } catch (e) {
-      emit(AuthState.failure(e.toString()));
+      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
+      emit(AuthState.failure(message));
     }
   }
 }
