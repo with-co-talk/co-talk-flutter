@@ -1,4 +1,6 @@
 import 'package:injectable/injectable.dart';
+import '../../core/errors/exceptions.dart';
+import '../../core/utils/exception_to_failure_mapper.dart';
 import '../../domain/entities/auth_token.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -48,17 +50,25 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthToken> refreshToken() async {
     final currentRefreshToken = await _localDataSource.getRefreshToken();
     if (currentRefreshToken == null) {
-      throw Exception('No refresh token found');
+      throw const AuthException(
+        message: '리프레시 토큰을 찾을 수 없습니다',
+        type: AuthErrorType.tokenInvalid,
+      );
     }
 
-    final response = await _remoteDataSource.refreshToken(currentRefreshToken);
+    try {
+      final response = await _remoteDataSource.refreshToken(currentRefreshToken);
 
-    await _localDataSource.saveTokens(
-      accessToken: response.accessToken,
-      refreshToken: response.refreshToken,
-    );
+      await _localDataSource.saveTokens(
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+      );
 
-    return response.toEntity();
+      return response.toEntity();
+    } catch (e) {
+      // Exception을 Failure로 변환하여 throw
+      throw ExceptionToFailureMapper.toFailure(e);
+    }
   }
 
   @override
@@ -87,7 +97,9 @@ class AuthRepositoryImpl implements AuthRepository {
       await _localDataSource.saveUserId(userModel.id);
       return userModel.toEntity();
     } catch (e) {
-      return null;
+      // 사용자 정보를 가져오지 못한 경우, Exception을 Failure로 변환하여 throw
+      // null을 반환하는 대신 명시적으로 에러를 전달
+      throw ExceptionToFailureMapper.toFailure(e);
     }
   }
 

@@ -17,6 +17,7 @@ import '../../presentation/pages/main/main_page.dart';
 import '../../presentation/pages/profile/profile_page.dart';
 import '../../presentation/pages/settings/settings_page.dart';
 import '../../presentation/pages/splash/splash_page.dart';
+import '../../presentation/pages/error/error_page.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -108,7 +109,16 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.chatRoom,
         builder: (context, state) {
-          final roomId = int.parse(state.pathParameters['roomId']!);
+          final roomIdStr = state.pathParameters['roomId'];
+          if (roomIdStr == null) {
+            return const ErrorPage(message: '채팅방 ID가 없습니다');
+          }
+
+          final roomId = int.tryParse(roomIdStr);
+          if (roomId == null) {
+            return const ErrorPage(message: '유효하지 않은 채팅방 ID입니다');
+          }
+
           return BlocProvider(
             create: (_) => getIt<ChatRoomBloc>(),
             child: ChatRoomPage(roomId: roomId),
