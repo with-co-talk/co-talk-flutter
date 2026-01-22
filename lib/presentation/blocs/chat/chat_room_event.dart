@@ -51,3 +51,43 @@ class MessageDeleted extends ChatRoomEvent {
   @override
   List<Object?> get props => [messageId];
 }
+
+/// 읽음 상태 업데이트 이벤트
+class MessagesReadUpdated extends ChatRoomEvent {
+  final int userId;
+  final int? lastReadMessageId;
+
+  const MessagesReadUpdated({
+    required this.userId,
+    this.lastReadMessageId,
+  });
+
+  @override
+  List<Object?> get props => [userId, lastReadMessageId];
+}
+
+/// 타이핑 상태 변경 이벤트 (WebSocket 수신)
+class TypingStatusChanged extends ChatRoomEvent {
+  final int userId;
+  final String? userNickname;
+  final bool isTyping;
+
+  const TypingStatusChanged({
+    required this.userId,
+    this.userNickname,
+    required this.isTyping,
+  });
+
+  @override
+  List<Object?> get props => [userId, userNickname, isTyping];
+}
+
+/// 사용자가 타이핑 시작 이벤트
+class UserStartedTyping extends ChatRoomEvent {
+  const UserStartedTyping();
+}
+
+/// 사용자가 타이핑 중단 이벤트
+class UserStoppedTyping extends ChatRoomEvent {
+  const UserStoppedTyping();
+}

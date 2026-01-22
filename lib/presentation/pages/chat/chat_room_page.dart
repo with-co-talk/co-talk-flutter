@@ -4,6 +4,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../domain/entities/message.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import '../../blocs/chat/chat_list_bloc.dart';
+import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_room_bloc.dart';
 import '../../blocs/chat/chat_room_event.dart';
 import '../../blocs/chat/chat_room_state.dart';
@@ -60,19 +62,30 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   Widget build(BuildContext context) {
     final currentUserId = context.read<AuthBloc>().state.user?.id;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('채팅'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () {
-              // TODO: Show chat room options
-            },
-          ),
-        ],
-      ),
-      body: Column(
+    return BlocListener<ChatRoomBloc, ChatRoomState>(
+      // 채팅방이 성공적으로 열리면 즉시 읽음 처리 완료 이벤트 발생 (실시간 업데이트)
+      listenWhen: (previous, current) =>
+          previous.status != current.status &&
+          current.status == ChatRoomStatus.success &&
+          current.roomId != null,
+      listener: (context, state) {
+        // ignore: avoid_print
+        print('[ChatRoomPage] Chat room opened successfully, marking as read in ChatListBloc: roomId=${state.roomId}');
+        context.read<ChatListBloc>().add(ChatRoomReadCompleted(state.roomId!));
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('채팅'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.more_vert),
+              onPressed: () {
+                // TODO: Show chat room options
+              },
+            ),
+          ],
+        ),
+        body: Column(
         children: [
           Expanded(
             child: BlocBuilder<ChatRoomBloc, ChatRoomState>(
@@ -87,28 +100,49 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   );
                 }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: state.messages.length,
-                  itemBuilder: (context, index) {
-                    final message = state.messages[index];
-                    final isMe = message.senderId == currentUserId;
+                return Column(
+                  children: [
+                    Expanded(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        reverse: true,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: state.messages.length,
+                        itemBuilder: (context, index) {
+                          final message = state.messages[index];
+                          final isMe = message.senderId == currentUserId;
 
-                    final showDateSeparator = index == state.messages.length - 1 ||
-                        !AppDateUtils.isSameDay(
-                          message.createdAt,
-                          state.messages[index + 1].createdAt,
-                        );
+                          final showDateSeparator = index == state.messages.length - 1 ||
+                              !AppDateUtils.isSameDay(
+                                message.createdAt,
+                                state.messages[index + 1].createdAt,
+                              );
 
-                    return Column(
-                      children: [
-                        if (showDateSeparator) _DateSeparator(date: message.createdAt),
-                        _MessageBubble(message: message, isMe: isMe),
-                      ],
-                    );
-                  },
+                          return Column(
+                            children: [
+                              if (showDateSeparator) _DateSeparator(date: message.createdAt),
+                              _MessageBubble(message: message, isMe: isMe),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    // 타이핑 인디케이터
+                    if (state.isAnyoneTyping)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            state.typingIndicatorText,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                          ),
+                        ),
+                      ),
+                  ],
                 );
               },
             ),
@@ -116,8 +150,13 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           _MessageInput(
             controller: _messageController,
             onSend: _sendMessage,
+            onChanged: () {
+              // 타이핑 시작 이벤트 발생
+              context.read<ChatRoomBloc>().add(const UserStartedTyping());
+            },
           ),
         ],
+      ),
       ),
     );
   }
@@ -184,13 +223,23 @@ class _MessageBubble extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          if (isMe)
+          if (isMe) ...[
+            if (message.unreadCount > 0)
+              Text(
+                '${message.unreadCount}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            const SizedBox(width: 4),
             Text(
               AppDateUtils.formatMessageTime(message.createdAt),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
             ),
+          ],
           const SizedBox(width: 4),
           Flexible(
             child: Container(
@@ -215,13 +264,24 @@ class _MessageBubble extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          if (!isMe)
+          if (!isMe) ...[
             Text(
               AppDateUtils.formatMessageTime(message.createdAt),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
             ),
+            if (message.unreadCount > 0) ...[
+              const SizedBox(width: 4),
+              Text(
+                '${message.unreadCount}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -231,10 +291,12 @@ class _MessageBubble extends StatelessWidget {
 class _MessageInput extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback? onChanged;
 
   const _MessageInput({
     required this.controller,
     required this.onSend,
+    this.onChanged,
   });
 
   @override
@@ -279,6 +341,7 @@ class _MessageInput extends StatelessWidget {
                 maxLines: 4,
                 minLines: 1,
                 textInputAction: TextInputAction.send,
+                onChanged: (_) => onChanged?.call(),
                 onSubmitted: (_) => onSend(),
               ),
             ),

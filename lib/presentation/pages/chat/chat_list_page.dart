@@ -5,6 +5,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/chat_room.dart';
+import '../../blocs/auth/auth_bloc.dart';
+import '../../blocs/auth/auth_state.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_list_state.dart';
@@ -17,10 +19,26 @@ class ChatListPage extends StatefulWidget {
 }
 
 class _ChatListPageState extends State<ChatListPage> {
+  late final ChatListBloc _chatListBloc;
+
   @override
   void initState() {
     super.initState();
-    context.read<ChatListBloc>().add(const ChatListLoadRequested());
+    _chatListBloc = context.read<ChatListBloc>();
+    _chatListBloc.add(const ChatListLoadRequested());
+
+    // WebSocket 구독 시작 (사용자 채널)
+    final authState = context.read<AuthBloc>().state;
+    if (authState.status == AuthStatus.authenticated && authState.user != null) {
+      _chatListBloc.add(ChatListSubscriptionStarted(authState.user!.id));
+    }
+  }
+
+  @override
+  void dispose() {
+    // WebSocket 구독 해제
+    _chatListBloc.add(const ChatListSubscriptionStopped());
+    super.dispose();
   }
 
   @override
