@@ -2,20 +2,15 @@ import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import '../constants/api_constants.dart';
 import '../../data/datasources/local/auth_local_datasource.dart';
-import '../../data/datasources/remote/auth_remote_datasource.dart';
 
 @lazySingleton
-class AuthInterceptor extends Interceptor {
+class AuthInterceptor extends QueuedInterceptor {
   final AuthLocalDataSource _authLocalDataSource;
-  final AuthRemoteDataSource _authRemoteDataSource;
-  
+
   // 토큰 갱신 전용 Dio 인스턴스 (순환 참조 방지)
   late final Dio _refreshDio;
 
-  AuthInterceptor(
-    this._authLocalDataSource,
-    this._authRemoteDataSource,
-  ) {
+  AuthInterceptor(this._authLocalDataSource) {
     // 토큰 갱신 전용 클라이언트 생성 (인터셉터 없이)
     _refreshDio = Dio(
       BaseOptions(
@@ -32,7 +27,7 @@ class AuthInterceptor extends Interceptor {
   }
 
   @override
-  void onRequest(
+  Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
@@ -52,8 +47,13 @@ class AuthInterceptor extends Interceptor {
   }
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401) {
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    // Auth 엔드포인트는 토큰 갱신 로직 제외
+    final isAuthEndpoint = err.requestOptions.path.contains('/auth/login') ||
+        err.requestOptions.path.contains('/auth/signup') ||
+        err.requestOptions.path.contains('/auth/refresh');
+
+    if (err.response?.statusCode == 401 && !isAuthEndpoint) {
       // Token expired, try to refresh
       final refreshToken = await _authLocalDataSource.getRefreshToken();
       if (refreshToken != null) {
@@ -86,11 +86,16 @@ class AuthInterceptor extends Interceptor {
 
   Future<Map<String, String>?> _refreshToken(String refreshToken) async {
     try {
-      final tokenResponse = await _authRemoteDataSource.refreshToken(refreshToken);
-      
+      // 순환 참조 방지를 위해 직접 Dio로 토큰 갱신 요청
+      final response = await _refreshDio.post(
+        ApiConstants.refresh,
+        data: {'refreshToken': refreshToken},
+      );
+
+      final data = response.data;
       return {
-        'accessToken': tokenResponse.accessToken,
-        'refreshToken': tokenResponse.refreshToken,
+        'accessToken': data['accessToken'] as String,
+        'refreshToken': data['refreshToken'] as String,
       };
     } catch (e) {
       // Refresh failed - tokens will be cleared in onError handler
