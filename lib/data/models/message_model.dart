@@ -50,6 +50,8 @@ class MessageModel {
   @NullableDateTimeConverter()
   final DateTime? updatedAt;
   final List<MessageReactionModel>? reactions;
+  @JsonKey(defaultValue: 0)
+  final int unreadCount;
 
   const MessageModel({
     required this.id,
@@ -71,6 +73,7 @@ class MessageModel {
     required this.createdAt,
     this.updatedAt,
     this.reactions,
+    this.unreadCount = 0,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) =>
@@ -101,6 +104,7 @@ class MessageModel {
       createdAt: createdAt,
       updatedAt: updatedAt,
       reactions: reactions?.map((r) => r.toEntity()).toList() ?? [],
+      unreadCount: unreadCount,
     );
   }
 
@@ -150,12 +154,11 @@ class MessageReactionModel {
 
 @JsonSerializable()
 class SendMessageRequest {
-  final int senderId;
   final int chatRoomId;
   final String content;
 
   const SendMessageRequest({
-    required this.senderId,
+    // senderId는 JWT 토큰에서 추출하므로 제거
     required this.chatRoomId,
     required this.content,
   });

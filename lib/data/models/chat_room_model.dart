@@ -114,11 +114,10 @@ class ChatRoomMemberModel {
 
 @JsonSerializable()
 class CreateChatRoomRequest {
-  final int userId1;
+  // userId1은 JWT 토큰에서 추출하므로 제거
   final int userId2;
 
   const CreateChatRoomRequest({
-    required this.userId1,
     required this.userId2,
   });
 
@@ -130,13 +129,12 @@ class CreateChatRoomRequest {
 
 @JsonSerializable()
 class CreateGroupChatRoomRequest {
-  final int creatorId;
+  // creatorId는 JWT 토큰에서 추출하므로 제거
   @JsonKey(name: 'roomName')
   final String? name;
   final List<int> memberIds;
 
   const CreateGroupChatRoomRequest({
-    required this.creatorId,
     this.name,
     required this.memberIds,
   });

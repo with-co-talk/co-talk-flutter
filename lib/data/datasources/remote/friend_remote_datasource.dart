@@ -8,14 +8,14 @@ import '../../models/user_model.dart';
 import '../base_remote_datasource.dart';
 
 abstract class FriendRemoteDataSource {
-  Future<List<FriendModel>> getFriends(int userId);
-  Future<void> sendFriendRequest(int requesterId, int receiverId);
-  Future<void> acceptFriendRequest(int requestId, int userId);
-  Future<void> rejectFriendRequest(int requestId, int userId);
-  Future<void> removeFriend(int userId, int friendId);
+  Future<List<FriendModel>> getFriends();
+  Future<void> sendFriendRequest(int receiverId);
+  Future<void> acceptFriendRequest(int requestId);
+  Future<void> rejectFriendRequest(int requestId);
+  Future<void> removeFriend(int friendId);
   Future<List<UserModel>> searchUsers(String query);
-  Future<List<FriendRequestModel>> getReceivedFriendRequests(int userId);
-  Future<List<FriendRequestModel>> getSentFriendRequests(int userId);
+  Future<List<FriendRequestModel>> getReceivedFriendRequests();
+  Future<List<FriendRequestModel>> getSentFriendRequests();
 }
 
 @LazySingleton(as: FriendRemoteDataSource)
@@ -26,11 +26,11 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
   FriendRemoteDataSourceImpl(this._dioClient);
 
   @override
-  Future<List<FriendModel>> getFriends(int userId) async {
+  Future<List<FriendModel>> getFriends() async {
     try {
+      // JWT 토큰에서 userId를 추출하므로 query parameter 불필요
       final response = await _dioClient.get(
         ApiConstants.friends,
-        queryParameters: {'userId': userId},
       );
 
       // BaseRemoteDataSource의 extractListFromResponse 사용
@@ -93,14 +93,11 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> sendFriendRequest(int requesterId, int receiverId) async {
+  Future<void> sendFriendRequest(int receiverId) async {
     try {
       await _dioClient.post(
         ApiConstants.friendRequests,
-        data: SendFriendRequestRequest(
-          requesterId: requesterId,
-          receiverId: receiverId,
-        ).toJson(),
+        data: {'receiverId': receiverId},
       );
     } on DioException catch (e) {
       throw handleDioError(e);
@@ -108,11 +105,10 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> acceptFriendRequest(int requestId, int userId) async {
+  Future<void> acceptFriendRequest(int requestId) async {
     try {
       await _dioClient.post(
         '${ApiConstants.friendRequests}/$requestId/accept',
-        queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
       throw handleDioError(e);
@@ -120,11 +116,10 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> rejectFriendRequest(int requestId, int userId) async {
+  Future<void> rejectFriendRequest(int requestId) async {
     try {
       await _dioClient.post(
         '${ApiConstants.friendRequests}/$requestId/reject',
-        queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
       throw handleDioError(e);
@@ -132,11 +127,10 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> removeFriend(int userId, int friendId) async {
+  Future<void> removeFriend(int friendId) async {
     try {
       await _dioClient.delete(
         '${ApiConstants.friends}/$friendId',
-        queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
       throw handleDioError(e);
@@ -160,11 +154,11 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<List<FriendRequestModel>> getReceivedFriendRequests(int userId) async {
+  Future<List<FriendRequestModel>> getReceivedFriendRequests() async {
     try {
+      // JWT 토큰에서 userId를 추출하므로 query parameter 불필요
       final response = await _dioClient.get(
         '${ApiConstants.friendRequests}/received',
-        queryParameters: {'userId': userId},
       );
 
       // API 스펙: 응답 키는 'requests'
@@ -197,11 +191,11 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<List<FriendRequestModel>> getSentFriendRequests(int userId) async {
+  Future<List<FriendRequestModel>> getSentFriendRequests() async {
     try {
+      // JWT 토큰에서 userId를 추출하므로 query parameter 불필요
       final response = await _dioClient.get(
         '${ApiConstants.friendRequests}/sent',
-        queryParameters: {'userId': userId},
       );
 
       // API 스펙: 응답 키는 'requests'

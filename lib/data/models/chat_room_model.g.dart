@@ -58,21 +58,18 @@ Map<String, dynamic> _$ChatRoomMemberModelToJson(
 CreateChatRoomRequest _$CreateChatRoomRequestFromJson(
   Map<String, dynamic> json,
 ) => CreateChatRoomRequest(
-  userId1: (json['userId1'] as num).toInt(),
   userId2: (json['userId2'] as num).toInt(),
 );
 
 Map<String, dynamic> _$CreateChatRoomRequestToJson(
   CreateChatRoomRequest instance,
 ) => <String, dynamic>{
-  'userId1': instance.userId1,
   'userId2': instance.userId2,
 };
 
 CreateGroupChatRoomRequest _$CreateGroupChatRoomRequestFromJson(
   Map<String, dynamic> json,
 ) => CreateGroupChatRoomRequest(
-  creatorId: (json['creatorId'] as num).toInt(),
   name: json['roomName'] as String?,
   memberIds: (json['memberIds'] as List<dynamic>)
       .map((e) => (e as num).toInt())
@@ -82,7 +79,6 @@ CreateGroupChatRoomRequest _$CreateGroupChatRoomRequestFromJson(
 Map<String, dynamic> _$CreateGroupChatRoomRequestToJson(
   CreateGroupChatRoomRequest instance,
 ) => <String, dynamic>{
-  'creatorId': instance.creatorId,
   'roomName': instance.name,
   'memberIds': instance.memberIds,
 };

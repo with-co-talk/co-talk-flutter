@@ -22,6 +22,7 @@ class Message extends Equatable {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final List<MessageReaction> reactions;
+  final int unreadCount;
 
   const Message({
     required this.id,
@@ -43,6 +44,7 @@ class Message extends Equatable {
     required this.createdAt,
     this.updatedAt,
     this.reactions = const [],
+    this.unreadCount = 0,
   });
 
   bool get isFile => type == MessageType.file || type == MessageType.image;
@@ -74,6 +76,7 @@ class Message extends Equatable {
     DateTime? createdAt,
     DateTime? updatedAt,
     List<MessageReaction>? reactions,
+    int? unreadCount,
   }) {
     return Message(
       id: id ?? this.id,
@@ -95,6 +98,7 @@ class Message extends Equatable {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       reactions: reactions ?? this.reactions,
+      unreadCount: unreadCount ?? this.unreadCount,
     );
   }
 
@@ -119,6 +123,7 @@ class Message extends Equatable {
         createdAt,
         updatedAt,
         reactions,
+        unreadCount,
       ];
 }
 

@@ -30,6 +30,7 @@ MessageModel _$MessageModelFromJson(Map<String, dynamic> json) => MessageModel(
   reactions: (json['reactions'] as List<dynamic>?)
       ?.map((e) => MessageReactionModel.fromJson(e as Map<String, dynamic>))
       .toList(),
+  unreadCount: (json['unreadCount'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$MessageModelToJson(MessageModel instance) =>
@@ -53,6 +54,7 @@ Map<String, dynamic> _$MessageModelToJson(MessageModel instance) =>
       'createdAt': const DateTimeConverter().toJson(instance.createdAt),
       'updatedAt': const NullableDateTimeConverter().toJson(instance.updatedAt),
       'reactions': instance.reactions,
+      'unreadCount': instance.unreadCount,
     };
 
 MessageReactionModel _$MessageReactionModelFromJson(
@@ -77,14 +79,12 @@ Map<String, dynamic> _$MessageReactionModelToJson(
 
 SendMessageRequest _$SendMessageRequestFromJson(Map<String, dynamic> json) =>
     SendMessageRequest(
-      senderId: (json['senderId'] as num).toInt(),
       chatRoomId: (json['chatRoomId'] as num).toInt(),
       content: json['content'] as String,
     );
 
 Map<String, dynamic> _$SendMessageRequestToJson(SendMessageRequest instance) =>
     <String, dynamic>{
-      'senderId': instance.senderId,
       'chatRoomId': instance.chatRoomId,
       'content': instance.content,
     };

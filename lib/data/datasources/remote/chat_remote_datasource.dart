@@ -9,20 +9,19 @@ import '../../models/message_model.dart';
 import '../base_remote_datasource.dart';
 
 abstract class ChatRemoteDataSource {
-  Future<List<ChatRoomModel>> getChatRooms(int userId);
-  Future<ChatRoomModel> createDirectChatRoom(int userId1, int userId2);
-  Future<ChatRoomModel> createGroupChatRoom(int creatorId, String? name, List<int> memberIds);
-  Future<void> leaveChatRoom(int roomId, int userId);
-  Future<void> markAsRead(int roomId, int userId);
+  Future<List<ChatRoomModel>> getChatRooms();
+  Future<ChatRoomModel> createDirectChatRoom(int otherUserId);
+  Future<ChatRoomModel> createGroupChatRoom(String? name, List<int> memberIds);
+  Future<void> leaveChatRoom(int roomId);
+  Future<void> markAsRead(int roomId);
   Future<MessageHistoryResponse> getMessages(
-    int roomId,
-    int userId, {
+    int roomId, {
     int? size,
     int? beforeMessageId,
   });
   Future<MessageModel> sendMessage(SendMessageRequest request);
-  Future<MessageModel> updateMessage(int messageId, int userId, String content);
-  Future<void> deleteMessage(int messageId, int userId);
+  Future<MessageModel> updateMessage(int messageId, String content);
+  Future<void> deleteMessage(int messageId);
 }
 
 @LazySingleton(as: ChatRemoteDataSource)
@@ -33,11 +32,11 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   ChatRemoteDataSourceImpl(this._dioClient);
 
   @override
-  Future<List<ChatRoomModel>> getChatRooms(int userId) async {
+  Future<List<ChatRoomModel>> getChatRooms() async {
     try {
+      // JWT 토큰에서 userId를 추출하므로 query parameter 불필요
       final response = await _dioClient.get(
         ApiConstants.chatRooms,
-        queryParameters: {'userId': userId},
       );
 
       // BaseRemoteDataSource의 extractListFromResponse 사용
@@ -53,6 +52,10 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
           if (json is! Map<String, dynamic>) {
             throw FormatException('Expected Map<String, dynamic>, got ${json.runtimeType}');
           }
+          
+          // API 응답 형식은 ChatRoomModel과 호환됨
+          // createdAt과 lastMessageAt은 DateParser가 자동으로 처리
+          // lastMessage는 String?으로 그대로 사용
           return ChatRoomModel.fromJson(json);
         } catch (e) {
           throw ServerException(
@@ -75,11 +78,12 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<ChatRoomModel> createDirectChatRoom(int userId1, int userId2) async {
+  Future<ChatRoomModel> createDirectChatRoom(int otherUserId) async {
     try {
+      // userId1은 JWT 토큰에서 추출하므로 otherUserId만 전달
       final response = await _dioClient.post(
         ApiConstants.chatRooms,
-        data: CreateChatRoomRequest(userId1: userId1, userId2: userId2).toJson(),
+        data: CreateChatRoomRequest(userId2: otherUserId).toJson(),
       );
       
       // API 응답 형식: {"roomId":..., "message":"..."}
@@ -121,15 +125,14 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
 
   @override
   Future<ChatRoomModel> createGroupChatRoom(
-    int creatorId,
     String? name,
     List<int> memberIds,
   ) async {
     try {
+      // creatorId는 JWT 토큰에서 추출하므로 제거
       final response = await _dioClient.post(
         '${ApiConstants.chatRooms}/group',
         data: CreateGroupChatRoomRequest(
-          creatorId: creatorId,
           name: name,
           memberIds: memberIds,
         ).toJson(),
@@ -168,11 +171,11 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> leaveChatRoom(int roomId, int userId) async {
+  Future<void> leaveChatRoom(int roomId) async {
     try {
+      // JWT 토큰에서 userId를 추출하므로 query parameter 불필요
       await _dioClient.post(
         '${ApiConstants.chatRooms}/$roomId/leave',
-        queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
       throw handleDioError(e);
@@ -180,11 +183,11 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> markAsRead(int roomId, int userId) async {
+  Future<void> markAsRead(int roomId) async {
     try {
+      // JWT 토큰에서 userId를 추출하므로 query parameter 불필요
       await _dioClient.post(
         '${ApiConstants.chatRooms}/$roomId/read',
-        queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
       throw handleDioError(e);
@@ -193,13 +196,13 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
 
   @override
   Future<MessageHistoryResponse> getMessages(
-    int roomId,
-    int userId, {
+    int roomId, {
     int? size,
     int? beforeMessageId,
   }) async {
     try {
-      final queryParams = <String, dynamic>{'userId': userId};
+      // JWT 토큰에서 userId를 추출하므로 query parameter에서 userId 제거
+      final queryParams = <String, dynamic>{};
       if (size != null) queryParams['size'] = size;
       if (beforeMessageId != null) queryParams['beforeMessageId'] = beforeMessageId;
 
@@ -237,7 +240,8 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
         'id': responseData['messageId'] ?? responseData['id'],
         // 요청에서 가져온 정보
         'chatRoomId': request.chatRoomId,
-        'senderId': request.senderId,
+        // senderId는 서버 응답에서 가져오거나 JWT에서 추출
+        'senderId': responseData['senderId'] ?? 0,
         'content': responseData['content'] ?? request.content,
         'type': responseData['type'],
         'fileUrl': responseData['fileUrl'],
@@ -276,13 +280,13 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   @override
   Future<MessageModel> updateMessage(
     int messageId,
-    int userId,
     String content,
   ) async {
     try {
+      // JWT 토큰에서 userId를 추출하므로 body에서 userId 제거
       final response = await _dioClient.put(
         '${ApiConstants.chatMessages}/$messageId',
-        data: {'userId': userId, 'content': content},
+        data: {'content': content},
       );
       return MessageModel.fromJson(response.data);
     } on DioException catch (e) {
@@ -291,11 +295,11 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> deleteMessage(int messageId, int userId) async {
+  Future<void> deleteMessage(int messageId) async {
     try {
+      // JWT 토큰에서 userId를 추출하므로 query parameter 불필요
       await _dioClient.delete(
         '${ApiConstants.chatMessages}/$messageId',
-        queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
       throw handleDioError(e);
