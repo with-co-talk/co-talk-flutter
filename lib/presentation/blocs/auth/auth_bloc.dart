@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
+import '../../../core/network/websocket_service.dart';
 import '../../../core/utils/error_message_mapper.dart';
+import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -8,8 +10,10 @@ import 'auth_state.dart';
 @injectable
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
+  final WebSocketService _webSocketService;
 
-  AuthBloc(this._authRepository) : super(const AuthState.initial()) {
+  AuthBloc(this._authRepository, this._webSocketService)
+      : super(const AuthState.initial()) {
     on<AuthCheckRequested>(_onCheckRequested);
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthSignUpRequested>(_onSignUpRequested);
@@ -27,6 +31,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (isLoggedIn) {
         final user = await _authRepository.getCurrentUser();
         if (user != null) {
+          // WebSocket 연결
+          _webSocketService.connect();
           emit(AuthState.authenticated(user));
         } else {
           emit(const AuthState.unauthenticated());
@@ -54,10 +60,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       final user = await _authRepository.getCurrentUser();
+      // WebSocket 연결
+      _webSocketService.connect();
       if (user != null) {
         emit(AuthState.authenticated(user));
       } else {
-        emit(const AuthState.failure('사용자 정보를 가져올 수 없습니다'));
+        // 로그인은 성공했지만 사용자 정보를 가져올 수 없는 경우
+        // 임시 사용자 정보로 authenticated 상태 전환
+        final userId = await _authRepository.getCurrentUserId();
+        final placeholderUser = User(
+          id: userId ?? 0,
+          email: event.email,
+          nickname: event.email.split('@').first,
+        );
+        emit(AuthState.authenticated(placeholderUser));
       }
     } catch (e) {
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
@@ -85,10 +101,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       final user = await _authRepository.getCurrentUser();
+      // WebSocket 연결
+      _webSocketService.connect();
       if (user != null) {
         emit(AuthState.authenticated(user));
       } else {
-        emit(const AuthState.failure('사용자 정보를 가져올 수 없습니다'));
+        // 회원가입 후 사용자 정보를 가져올 수 없는 경우
+        // 임시 사용자 정보로 authenticated 상태 전환
+        final userId = await _authRepository.getCurrentUserId();
+        final placeholderUser = User(
+          id: userId ?? 0,
+          email: event.email,
+          nickname: event.nickname,
+        );
+        emit(AuthState.authenticated(placeholderUser));
       }
     } catch (e) {
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
@@ -103,6 +129,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthState.loading());
 
     try {
+      // WebSocket 연결 해제
+      _webSocketService.disconnect();
       await _authRepository.logout();
       emit(const AuthState.unauthenticated());
     } catch (e) {

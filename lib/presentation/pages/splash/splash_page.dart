@@ -27,7 +27,8 @@ class _SplashPageState extends State<SplashPage> {
       listener: (context, state) {
         if (state.status == AuthStatus.authenticated) {
           context.go(AppRoutes.main);
-        } else if (state.status == AuthStatus.unauthenticated) {
+        } else if (state.status == AuthStatus.unauthenticated ||
+            state.status == AuthStatus.failure) {
           context.go(AppRoutes.login);
         }
       },

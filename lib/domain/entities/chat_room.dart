@@ -1,6 +1,4 @@
 import 'package:equatable/equatable.dart';
-import 'message.dart';
-import 'user.dart';
 
 enum ChatRoomType { direct, group }
 
@@ -8,56 +6,64 @@ class ChatRoom extends Equatable {
   final int id;
   final String? name;
   final ChatRoomType type;
-  final String? announcement;
-  final List<ChatRoomMember> members;
-  final Message? lastMessage;
-  final int unreadCount;
   final DateTime createdAt;
-  final DateTime? updatedAt;
+  final String? lastMessage;
+  final DateTime? lastMessageAt;
+  final int unreadCount;
+  // 1:1 채팅방에서 상대방 정보 (그룹은 null)
+  final int? otherUserId;
+  final String? otherUserNickname;
+  final String? otherUserAvatarUrl;
 
   const ChatRoom({
     required this.id,
     this.name,
     required this.type,
-    this.announcement,
-    this.members = const [],
-    this.lastMessage,
-    this.unreadCount = 0,
     required this.createdAt,
-    this.updatedAt,
+    this.lastMessage,
+    this.lastMessageAt,
+    this.unreadCount = 0,
+    this.otherUserId,
+    this.otherUserNickname,
+    this.otherUserAvatarUrl,
   });
 
+  /// 채팅방 표시 이름
+  /// 1:1 채팅방: 상대방 닉네임
+  /// 그룹 채팅방: 채팅방 이름
   String get displayName {
     if (name != null && name!.isNotEmpty) {
       return name!;
     }
-    if (type == ChatRoomType.direct && members.isNotEmpty) {
-      return members.first.user.nickname;
+    if (type == ChatRoomType.direct && otherUserNickname != null) {
+      return otherUserNickname!;
     }
-    return members.map((m) => m.user.nickname).join(', ');
+    return '채팅방';
   }
 
   ChatRoom copyWith({
     int? id,
     String? name,
     ChatRoomType? type,
-    String? announcement,
-    List<ChatRoomMember>? members,
-    Message? lastMessage,
-    int? unreadCount,
     DateTime? createdAt,
-    DateTime? updatedAt,
+    String? lastMessage,
+    DateTime? lastMessageAt,
+    int? unreadCount,
+    int? otherUserId,
+    String? otherUserNickname,
+    String? otherUserAvatarUrl,
   }) {
     return ChatRoom(
       id: id ?? this.id,
       name: name ?? this.name,
       type: type ?? this.type,
-      announcement: announcement ?? this.announcement,
-      members: members ?? this.members,
-      lastMessage: lastMessage ?? this.lastMessage,
-      unreadCount: unreadCount ?? this.unreadCount,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      unreadCount: unreadCount ?? this.unreadCount,
+      otherUserId: otherUserId ?? this.otherUserId,
+      otherUserNickname: otherUserNickname ?? this.otherUserNickname,
+      otherUserAvatarUrl: otherUserAvatarUrl ?? this.otherUserAvatarUrl,
     );
   }
 
@@ -66,28 +72,34 @@ class ChatRoom extends Equatable {
         id,
         name,
         type,
-        announcement,
-        members,
-        lastMessage,
-        unreadCount,
         createdAt,
-        updatedAt,
+        lastMessage,
+        lastMessageAt,
+        unreadCount,
+        otherUserId,
+        otherUserNickname,
+        otherUserAvatarUrl,
       ];
 }
 
+/// 채팅방 멤버 (멤버 목록 조회 API용)
 class ChatRoomMember extends Equatable {
-  final int id;
-  final User user;
-  final bool isAdmin;
-  final DateTime joinedAt;
+  final int userId;
+  final String nickname;
+  final String? avatarUrl;
+  final ChatRoomMemberRole role;
 
   const ChatRoomMember({
-    required this.id,
-    required this.user,
-    this.isAdmin = false,
-    required this.joinedAt,
+    required this.userId,
+    required this.nickname,
+    this.avatarUrl,
+    this.role = ChatRoomMemberRole.member,
   });
 
+  bool get isAdmin => role == ChatRoomMemberRole.admin;
+
   @override
-  List<Object?> get props => [id, user, isAdmin, joinedAt];
+  List<Object?> get props => [userId, nickname, avatarUrl, role];
 }
+
+enum ChatRoomMemberRole { admin, member }

@@ -20,11 +20,13 @@ class ChatRoomPage extends StatefulWidget {
 class _ChatRoomPageState extends State<ChatRoomPage> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  late final ChatRoomBloc _chatRoomBloc;
 
   @override
   void initState() {
     super.initState();
-    context.read<ChatRoomBloc>().add(ChatRoomOpened(widget.roomId));
+    _chatRoomBloc = context.read<ChatRoomBloc>();
+    _chatRoomBloc.add(ChatRoomOpened(widget.roomId));
 
     _scrollController.addListener(_onScroll);
   }
@@ -33,7 +35,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    context.read<ChatRoomBloc>().add(const ChatRoomClosed());
+    if (!_chatRoomBloc.isClosed) {
+      _chatRoomBloc.add(const ChatRoomClosed());
+    }
     super.dispose();
   }
 

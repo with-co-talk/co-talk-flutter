@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/constants/api_constants.dart';
-import '../../../core/errors/exceptions.dart';
 import '../../../core/network/dio_client.dart';
 import '../../models/auth_models.dart';
 import '../../models/user_model.dart';
+import '../base_remote_datasource.dart';
 
 abstract class AuthRemoteDataSource {
   Future<SignUpResponse> signUp(SignUpRequest request);
@@ -15,7 +15,8 @@ abstract class AuthRemoteDataSource {
 }
 
 @LazySingleton(as: AuthRemoteDataSource)
-class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
+class AuthRemoteDataSourceImpl extends BaseRemoteDataSource
+    implements AuthRemoteDataSource {
   final DioClient _dioClient;
 
   AuthRemoteDataSourceImpl(this._dioClient);
@@ -29,7 +30,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
       return SignUpResponse.fromJson(response.data);
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
@@ -42,7 +43,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
       return AuthTokenResponse.fromJson(response.data);
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
@@ -55,19 +56,17 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
       return AuthTokenResponse.fromJson(response.data);
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
   @override
   Future<void> logout(String refreshToken) async {
     try {
-      await _dioClient.post(
-        ApiConstants.logout,
-        data: {'refreshToken': refreshToken},
-      );
+      // API 스펙: 로그아웃은 Authorization 헤더만 사용, body 없음
+      await _dioClient.post(ApiConstants.logout);
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
@@ -77,33 +76,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       final response = await _dioClient.get('/users/me');
       return UserModel.fromJson(response.data);
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
-  }
-
-  Exception _handleDioError(DioException e) {
-    if (e.response != null) {
-      final statusCode = e.response!.statusCode;
-      final message = e.response!.data?['message'] ?? 'Unknown error';
-
-      if (statusCode == 401) {
-        return AuthException(
-          message: message,
-          type: AuthErrorType.invalidCredentials,
-        );
-      }
-
-      return ServerException(
-        message: message,
-        statusCode: statusCode,
-      );
-    }
-
-    if (e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException(message: '네트워크 연결 시간이 초과되었습니다');
-    }
-
-    return const NetworkException(message: '네트워크 오류가 발생했습니다');
   }
 }

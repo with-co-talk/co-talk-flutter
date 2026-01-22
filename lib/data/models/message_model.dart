@@ -1,11 +1,35 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../../core/utils/date_parser.dart';
 import '../../domain/entities/message.dart';
 
 part 'message_model.g.dart';
 
+/// 서버에서 반환하는 다양한 날짜 형식을 DateTime으로 변환하는 컨버터
+class DateTimeConverter implements JsonConverter<DateTime, dynamic> {
+  const DateTimeConverter();
+
+  @override
+  DateTime fromJson(dynamic json) => DateParser.parse(json);
+
+  @override
+  dynamic toJson(DateTime object) => object.toIso8601String();
+}
+
+/// nullable DateTime용 컨버터
+class NullableDateTimeConverter implements JsonConverter<DateTime?, dynamic> {
+  const NullableDateTimeConverter();
+
+  @override
+  DateTime? fromJson(dynamic json) => json == null ? null : DateParser.parse(json);
+
+  @override
+  dynamic toJson(DateTime? object) => object?.toIso8601String();
+}
+
 @JsonSerializable()
 class MessageModel {
   final int id;
+  @JsonKey(defaultValue: 0)
   final int chatRoomId;
   final int senderId;
   final String? senderNickname;
@@ -21,13 +45,15 @@ class MessageModel {
   final MessageModel? replyToMessage;
   final int? forwardedFromMessageId;
   final bool? isDeleted;
+  @DateTimeConverter()
   final DateTime createdAt;
+  @NullableDateTimeConverter()
   final DateTime? updatedAt;
   final List<MessageReactionModel>? reactions;
 
   const MessageModel({
     required this.id,
-    required this.chatRoomId,
+    this.chatRoomId = 0,
     required this.senderId,
     this.senderNickname,
     this.senderAvatarUrl,
@@ -52,10 +78,12 @@ class MessageModel {
 
   Map<String, dynamic> toJson() => _$MessageModelToJson(this);
 
-  Message toEntity() {
+  /// roomId를 외부에서 주입할 수 있도록 파라미터 추가
+  /// (메시지 조회 시 roomId가 응답에 포함되지 않는 경우를 위함)
+  Message toEntity({int? overrideChatRoomId}) {
     return Message(
       id: id,
-      chatRoomId: chatRoomId,
+      chatRoomId: overrideChatRoomId ?? chatRoomId,
       senderId: senderId,
       senderNickname: senderNickname,
       senderAvatarUrl: senderAvatarUrl,
@@ -67,7 +95,7 @@ class MessageModel {
       fileContentType: fileContentType,
       thumbnailUrl: thumbnailUrl,
       replyToMessageId: replyToMessageId,
-      replyToMessage: replyToMessage?.toEntity(),
+      replyToMessage: replyToMessage?.toEntity(overrideChatRoomId: overrideChatRoomId),
       forwardedFromMessageId: forwardedFromMessageId,
       isDeleted: isDeleted ?? false,
       createdAt: createdAt,
@@ -141,7 +169,7 @@ class SendMessageRequest {
 @JsonSerializable()
 class MessageHistoryResponse {
   final List<MessageModel> messages;
-  final String? nextCursor;
+  final int? nextCursor;
   final bool hasMore;
 
   const MessageHistoryResponse({

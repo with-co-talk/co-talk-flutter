@@ -35,7 +35,6 @@ void main() {
     id: 1,
     name: 'Test Room',
     type: 'DIRECT',
-    members: [],
     unreadCount: 0,
     createdAt: DateTime(2024, 1, 1),
   );
@@ -109,20 +108,21 @@ void main() {
           id: 2,
           name: '그룹 채팅방',
           type: 'GROUP',
-          members: [],
           unreadCount: 0,
           createdAt: DateTime(2024, 1, 1),
         );
 
-        when(() => mockRemoteDataSource.createGroupChatRoom(any(), any()))
+        when(() => mockLocalDataSource.getUserId())
+            .thenAnswer((_) async => 1);
+        when(() => mockRemoteDataSource.createGroupChatRoom(any(), any(), any()))
             .thenAnswer((_) async => groupChatRoomModel);
 
-        final result = await repository.createGroupChatRoom('그룹 채팅방', [1, 2, 3]);
+        final result = await repository.createGroupChatRoom('그룹 채팅방', [2, 3]);
 
         expect(result, isA<ChatRoom>());
         expect(result.id, 2);
         expect(result.type, ChatRoomType.group);
-        verify(() => mockRemoteDataSource.createGroupChatRoom('그룹 채팅방', [1, 2, 3]))
+        verify(() => mockRemoteDataSource.createGroupChatRoom(1, '그룹 채팅방', [2, 3]))
             .called(1);
       });
     });
@@ -177,7 +177,7 @@ void main() {
       test('returns messages with pagination info', () async {
         final messagesResponse = MessageHistoryResponse(
           messages: [testMessageModel],
-          nextCursor: 'cursor123',
+          nextCursor: 123,
           hasMore: true,
         );
 
@@ -187,16 +187,16 @@ void main() {
               any(),
               any(),
               size: any(named: 'size'),
-              cursor: any(named: 'cursor'),
+              beforeMessageId: any(named: 'beforeMessageId'),
             )).thenAnswer((_) async => messagesResponse);
 
-        final result = await repository.getMessages(1, size: 50, cursor: null);
+        final result = await repository.getMessages(1, size: 50, beforeMessageId: null);
 
         expect(result.$1, isA<List<Message>>());
         expect(result.$1.length, 1);
-        expect(result.$2, 'cursor123');
+        expect(result.$2, 123);
         expect(result.$3, true);
-        verify(() => mockRemoteDataSource.getMessages(1, 1, size: 50, cursor: null))
+        verify(() => mockRemoteDataSource.getMessages(1, 1, size: 50, beforeMessageId: null))
             .called(1);
       });
 

@@ -9,14 +9,22 @@ import '../mocks/fake_entities.dart';
 
 void main() {
   late MockAuthRepository mockAuthRepository;
+  late MockWebSocketService mockWebSocketService;
 
   setUp(() {
     mockAuthRepository = MockAuthRepository();
+    mockWebSocketService = MockWebSocketService();
+
+    // WebSocketService mock 기본 설정
+    when(() => mockWebSocketService.connect()).thenAnswer((_) async {});
+    when(() => mockWebSocketService.disconnect()).thenReturn(null);
   });
+
+  AuthBloc createBloc() => AuthBloc(mockAuthRepository, mockWebSocketService);
 
   group('AuthBloc', () {
     test('initial state is AuthState.initial', () {
-      final bloc = AuthBloc(mockAuthRepository);
+      final bloc = createBloc();
       expect(bloc.state, const AuthState.initial());
     });
 
@@ -28,7 +36,7 @@ void main() {
               .thenAnswer((_) async => true);
           when(() => mockAuthRepository.getCurrentUser())
               .thenAnswer((_) async => FakeEntities.user);
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthCheckRequested()),
         expect: () => [
@@ -38,6 +46,7 @@ void main() {
         verify: (_) {
           verify(() => mockAuthRepository.isLoggedIn()).called(1);
           verify(() => mockAuthRepository.getCurrentUser()).called(1);
+          verify(() => mockWebSocketService.connect()).called(1);
         },
       );
 
@@ -46,7 +55,7 @@ void main() {
         build: () {
           when(() => mockAuthRepository.isLoggedIn())
               .thenAnswer((_) async => false);
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthCheckRequested()),
         expect: () => [
@@ -56,6 +65,7 @@ void main() {
         verify: (_) {
           verify(() => mockAuthRepository.isLoggedIn()).called(1);
           verifyNever(() => mockAuthRepository.getCurrentUser());
+          verifyNever(() => mockWebSocketService.connect());
         },
       );
 
@@ -66,12 +76,30 @@ void main() {
               .thenAnswer((_) async => true);
           when(() => mockAuthRepository.getCurrentUser())
               .thenAnswer((_) async => null);
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthCheckRequested()),
         expect: () => [
           const AuthState.loading(),
           const AuthState.unauthenticated(),
+        ],
+      );
+
+      blocTest<AuthBloc, AuthState>(
+        'emits [loading, failure] when isLoggedIn throws exception',
+        build: () {
+          when(() => mockAuthRepository.isLoggedIn())
+              .thenThrow(Exception('Network error'));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const AuthCheckRequested()),
+        expect: () => [
+          const AuthState.loading(),
+          isA<AuthState>().having(
+            (s) => s.status,
+            'status',
+            AuthStatus.failure,
+          ),
         ],
       );
     });
@@ -86,7 +114,7 @@ void main() {
               )).thenAnswer((_) async => FakeEntities.authToken);
           when(() => mockAuthRepository.getCurrentUser())
               .thenAnswer((_) async => FakeEntities.user);
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthLoginRequested(
           email: 'test@example.com',
@@ -102,6 +130,7 @@ void main() {
                 password: 'password123',
               )).called(1);
           verify(() => mockAuthRepository.getCurrentUser()).called(1);
+          verify(() => mockWebSocketService.connect()).called(1);
         },
       );
 
@@ -112,7 +141,7 @@ void main() {
                 email: any(named: 'email'),
                 password: any(named: 'password'),
               )).thenThrow(Exception('Invalid credentials'));
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthLoginRequested(
           email: 'test@example.com',
@@ -129,7 +158,7 @@ void main() {
       );
 
       blocTest<AuthBloc, AuthState>(
-        'emits [loading, failure] when getCurrentUser returns null after login',
+        'emits [loading, authenticated] with placeholder user when getCurrentUser returns null after login',
         build: () {
           when(() => mockAuthRepository.login(
                 email: any(named: 'email'),
@@ -137,7 +166,9 @@ void main() {
               )).thenAnswer((_) async => FakeEntities.authToken);
           when(() => mockAuthRepository.getCurrentUser())
               .thenAnswer((_) async => null);
-          return AuthBloc(mockAuthRepository);
+          when(() => mockAuthRepository.getCurrentUserId())
+              .thenAnswer((_) async => 1);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthLoginRequested(
           email: 'test@example.com',
@@ -145,7 +176,11 @@ void main() {
         )),
         expect: () => [
           const AuthState.loading(),
-          const AuthState.failure('사용자 정보를 가져올 수 없습니다'),
+          isA<AuthState>().having(
+            (s) => s.status,
+            'status',
+            AuthStatus.authenticated,
+          ),
         ],
       );
     });
@@ -165,7 +200,7 @@ void main() {
               )).thenAnswer((_) async => FakeEntities.authToken);
           when(() => mockAuthRepository.getCurrentUser())
               .thenAnswer((_) async => FakeEntities.user);
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthSignUpRequested(
           email: 'test@example.com',
@@ -186,6 +221,7 @@ void main() {
                 email: 'test@example.com',
                 password: 'password123',
               )).called(1);
+          verify(() => mockWebSocketService.connect()).called(1);
         },
       );
 
@@ -197,7 +233,7 @@ void main() {
                 password: any(named: 'password'),
                 nickname: any(named: 'nickname'),
               )).thenThrow(Exception('Email already exists'));
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthSignUpRequested(
           email: 'existing@example.com',
@@ -213,6 +249,39 @@ void main() {
           ),
         ],
       );
+
+      blocTest<AuthBloc, AuthState>(
+        'emits [loading, authenticated] with placeholder user when getCurrentUser returns null after signup',
+        build: () {
+          when(() => mockAuthRepository.signUp(
+                email: any(named: 'email'),
+                password: any(named: 'password'),
+                nickname: any(named: 'nickname'),
+              )).thenAnswer((_) async => 1);
+          when(() => mockAuthRepository.login(
+                email: any(named: 'email'),
+                password: any(named: 'password'),
+              )).thenAnswer((_) async => FakeEntities.authToken);
+          when(() => mockAuthRepository.getCurrentUser())
+              .thenAnswer((_) async => null);
+          when(() => mockAuthRepository.getCurrentUserId())
+              .thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const AuthSignUpRequested(
+          email: 'test@example.com',
+          password: 'password123',
+          nickname: 'TestUser',
+        )),
+        expect: () => [
+          const AuthState.loading(),
+          isA<AuthState>().having(
+            (s) => s.status,
+            'status',
+            AuthStatus.authenticated,
+          ),
+        ],
+      );
     });
 
     group('AuthLogoutRequested', () {
@@ -220,7 +289,7 @@ void main() {
         'emits [loading, unauthenticated] when logout succeeds',
         build: () {
           when(() => mockAuthRepository.logout()).thenAnswer((_) async {});
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthLogoutRequested()),
         expect: () => [
@@ -228,6 +297,7 @@ void main() {
           const AuthState.unauthenticated(),
         ],
         verify: (_) {
+          verify(() => mockWebSocketService.disconnect()).called(1);
           verify(() => mockAuthRepository.logout()).called(1);
         },
       );
@@ -237,7 +307,7 @@ void main() {
         build: () {
           when(() => mockAuthRepository.logout())
               .thenThrow(Exception('Logout failed'));
-          return AuthBloc(mockAuthRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const AuthLogoutRequested()),
         expect: () => [

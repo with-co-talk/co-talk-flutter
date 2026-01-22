@@ -19,6 +19,13 @@ void main() {
   );
 
   group('FriendEvent', () {
+    group('base class', () {
+      test('props returns empty list for base event', () {
+        const event = FriendListLoadRequested();
+        expect(event.props, isEmpty);
+      });
+    });
+
     group('FriendListLoadRequested', () {
       test('creates event', () {
         const event = FriendListLoadRequested();
@@ -29,6 +36,12 @@ void main() {
         const event1 = FriendListLoadRequested();
         const event2 = FriendListLoadRequested();
         expect(event1, equals(event2));
+      });
+
+      test('hashCode is consistent', () {
+        const event1 = FriendListLoadRequested();
+        const event2 = FriendListLoadRequested();
+        expect(event1.hashCode, equals(event2.hashCode));
       });
     });
 
@@ -51,6 +64,12 @@ void main() {
         const event = FriendRequestSent(2);
         expect(event.props, contains(2));
       });
+
+      test('hashCode differs for different receiverIds', () {
+        const event1 = FriendRequestSent(2);
+        const event2 = FriendRequestSent(3);
+        expect(event1.hashCode, isNot(equals(event2.hashCode)));
+      });
     });
 
     group('FriendRequestAccepted', () {
@@ -63,6 +82,17 @@ void main() {
         const event1 = FriendRequestAccepted(1);
         const event2 = FriendRequestAccepted(1);
         expect(event1, equals(event2));
+      });
+
+      test('props contains requestId', () {
+        const event = FriendRequestAccepted(5);
+        expect(event.props, contains(5));
+      });
+
+      test('different requestIds are not equal', () {
+        const event1 = FriendRequestAccepted(1);
+        const event2 = FriendRequestAccepted(2);
+        expect(event1, isNot(equals(event2)));
       });
     });
 
@@ -77,6 +107,17 @@ void main() {
         const event2 = FriendRequestRejected(1);
         expect(event1, equals(event2));
       });
+
+      test('props contains requestId', () {
+        const event = FriendRequestRejected(10);
+        expect(event.props, contains(10));
+      });
+
+      test('different requestIds are not equal', () {
+        const event1 = FriendRequestRejected(1);
+        const event2 = FriendRequestRejected(2);
+        expect(event1, isNot(equals(event2)));
+      });
     });
 
     group('FriendRemoved', () {
@@ -89,6 +130,17 @@ void main() {
         const event1 = FriendRemoved(1);
         const event2 = FriendRemoved(1);
         expect(event1, equals(event2));
+      });
+
+      test('props contains friendId', () {
+        const event = FriendRemoved(15);
+        expect(event.props, contains(15));
+      });
+
+      test('different friendIds are not equal', () {
+        const event1 = FriendRemoved(1);
+        const event2 = FriendRemoved(2);
+        expect(event1, isNot(equals(event2)));
       });
     });
 
@@ -111,6 +163,17 @@ void main() {
         const event = UserSearchRequested('test');
         expect(event.props, contains('test'));
       });
+
+      test('handles empty query', () {
+        const event = UserSearchRequested('');
+        expect(event.query, '');
+        expect(event.props, contains(''));
+      });
+
+      test('handles special characters in query', () {
+        const event = UserSearchRequested('test@#\$%');
+        expect(event.query, 'test@#\$%');
+      });
     });
   });
 
@@ -120,9 +183,13 @@ void main() {
 
       expect(state.status, FriendStatus.initial);
       expect(state.friends, isEmpty);
+      expect(state.receivedRequests, isEmpty);
+      expect(state.sentRequests, isEmpty);
       expect(state.searchResults, isEmpty);
       expect(state.isSearching, false);
       expect(state.errorMessage, isNull);
+      expect(state.hasSearched, false);
+      expect(state.searchQuery, isNull);
     });
 
     test('creates state with all fields', () {
@@ -139,28 +206,72 @@ void main() {
       expect(state.searchResults.length, 1);
     });
 
-    test('copyWith creates new state', () {
-      const state = FriendState();
-
-      final newState = state.copyWith(
-        status: FriendStatus.loading,
+    test('creates state with error message', () {
+      const state = FriendState(
+        status: FriendStatus.failure,
+        errorMessage: 'Something went wrong',
       );
 
-      expect(newState.status, FriendStatus.loading);
-      expect(newState.friends, isEmpty);
+      expect(state.status, FriendStatus.failure);
+      expect(state.errorMessage, 'Something went wrong');
     });
 
-    test('copyWith preserves unchanged fields', () {
-      final state = FriendState(
-        status: FriendStatus.success,
-        friends: [testFriend],
-        searchResults: [testUser],
+    test('creates state with isSearching true', () {
+      const state = FriendState(
+        isSearching: true,
       );
 
-      final newState = state.copyWith(status: FriendStatus.loading);
+      expect(state.isSearching, isTrue);
+    });
 
-      expect(newState.friends.length, 1);
-      expect(newState.searchResults.length, 1);
+    group('copyWith', () {
+      test('creates new state', () {
+        const state = FriendState();
+
+        final newState = state.copyWith(
+          status: FriendStatus.loading,
+        );
+
+        expect(newState.status, FriendStatus.loading);
+        expect(newState.friends, isEmpty);
+      });
+
+      test('preserves unchanged fields', () {
+        final state = FriendState(
+          status: FriendStatus.success,
+          friends: [testFriend],
+          searchResults: [testUser],
+        );
+
+        final newState = state.copyWith(status: FriendStatus.loading);
+
+        expect(newState.friends.length, 1);
+        expect(newState.searchResults.length, 1);
+      });
+
+      test('can update friends', () {
+        const state = FriendState();
+        final newState = state.copyWith(friends: [testFriend]);
+        expect(newState.friends.length, 1);
+      });
+
+      test('can update searchResults', () {
+        const state = FriendState();
+        final newState = state.copyWith(searchResults: [testUser]);
+        expect(newState.searchResults.length, 1);
+      });
+
+      test('can update isSearching', () {
+        const state = FriendState();
+        final newState = state.copyWith(isSearching: true);
+        expect(newState.isSearching, isTrue);
+      });
+
+      test('can update errorMessage', () {
+        const state = FriendState();
+        final newState = state.copyWith(errorMessage: 'Error');
+        expect(newState.errorMessage, 'Error');
+      });
     });
 
     test('equality works', () {
@@ -179,9 +290,29 @@ void main() {
         searchResults: [testUser],
         isSearching: true,
         errorMessage: 'Error',
+        hasSearched: true,
+        searchQuery: 'test',
       );
 
-      expect(state.props.length, 5);
+      expect(state.props.length, 9);
+    });
+
+    test('can update hasSearched', () {
+      const state = FriendState();
+      final newState = state.copyWith(hasSearched: true);
+      expect(newState.hasSearched, isTrue);
+    });
+
+    test('can update searchQuery', () {
+      const state = FriendState();
+      final newState = state.copyWith(searchQuery: 'query');
+      expect(newState.searchQuery, 'query');
+    });
+
+    test('hashCode is consistent for equal states', () {
+      const state1 = FriendState();
+      const state2 = FriendState();
+      expect(state1.hashCode, equals(state2.hashCode));
     });
   });
 
@@ -192,6 +323,10 @@ void main() {
       expect(FriendStatus.values, contains(FriendStatus.loading));
       expect(FriendStatus.values, contains(FriendStatus.success));
       expect(FriendStatus.values, contains(FriendStatus.failure));
+    });
+
+    test('initial is first value', () {
+      expect(FriendStatus.values.first, FriendStatus.initial);
     });
   });
 }

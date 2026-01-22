@@ -216,5 +216,90 @@ void main() {
 
       expect(json['friends'], isA<List>());
     });
+
+    test('fromJson creates response correctly', () {
+      final json = {
+        'friends': [
+          {
+            'id': 1,
+            'user': {
+              'id': 1,
+              'email': 'test@test.com',
+              'nickname': 'Test',
+              'createdAt': '2024-01-01T00:00:00.000',
+            },
+            'createdAt': '2024-01-01T00:00:00.000',
+          }
+        ]
+      };
+
+      final response = FriendListResponse.fromJson(json);
+
+      expect(response.friends.length, 1);
+      expect(response.friends.first.id, 1);
+    });
+  });
+
+  group('FriendModel fromJson', () {
+    test('parses json correctly', () {
+      final json = {
+        'id': 1,
+        'user': {
+          'id': 1,
+          'email': 'test@test.com',
+          'nickname': 'TestUser',
+          'createdAt': '2024-01-01T00:00:00.000',
+        },
+        'createdAt': '2024-01-01T00:00:00.000',
+      };
+
+      final model = FriendModel.fromJson(json);
+
+      expect(model.id, 1);
+      expect(model.user.nickname, 'TestUser');
+    });
+  });
+
+  group('FriendRequestModel fromJson', () {
+    test('parses json correctly', () {
+      final json = {
+        'id': 1,
+        'requester': {
+          'id': 1,
+          'email': 'requester@test.com',
+          'nickname': 'Requester',
+          'createdAt': '2024-01-01T00:00:00.000',
+        },
+        'receiver': {
+          'id': 2,
+          'email': 'receiver@test.com',
+          'nickname': 'Receiver',
+          'createdAt': '2024-01-01T00:00:00.000',
+        },
+        'status': 'PENDING',
+        'createdAt': '2024-01-01T00:00:00.000',
+      };
+
+      final model = FriendRequestModel.fromJson(json);
+
+      expect(model.id, 1);
+      expect(model.requester.nickname, 'Requester');
+      expect(model.receiver.nickname, 'Receiver');
+      expect(model.status, 'PENDING');
+    });
+  });
+
+  group('SendFriendRequestRequest fromJson', () {
+    test('parses json correctly', () {
+      final json = {
+        'requesterId': 1,
+        'receiverId': 2,
+      };
+
+      final request = SendFriendRequestRequest.fromJson(json);
+
+      expect(request.requesterId, 1);
+      expect(request.receiverId, 2);
+    });
   });
 }

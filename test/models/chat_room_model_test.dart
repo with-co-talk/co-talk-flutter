@@ -1,34 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:co_talk_flutter/data/models/chat_room_model.dart';
-import 'package:co_talk_flutter/data/models/user_model.dart';
-import 'package:co_talk_flutter/data/models/message_model.dart';
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
 
 void main() {
-  final testUserModel = UserModel(
-    id: 1,
-    email: 'test@example.com',
-    nickname: 'TestUser',
-    createdAt: DateTime(2024, 1, 1),
-  );
-
-  final testMemberModel = ChatRoomMemberModel(
-    id: 1,
-    user: testUserModel,
-    isAdmin: true,
-    joinedAt: DateTime(2024, 1, 1),
-  );
-
-  final testMessageModel = MessageModel(
-    id: 1,
-    chatRoomId: 1,
-    senderId: 1,
-    senderNickname: 'TestUser',
-    content: '안녕하세요',
-    type: 'TEXT',
-    createdAt: DateTime(2024, 1, 1),
-  );
-
   group('ChatRoomModel', () {
     test('creates model with required fields', () {
       final model = ChatRoomModel(
@@ -39,7 +13,8 @@ void main() {
       expect(model.id, 1);
       expect(model.name, isNull);
       expect(model.type, isNull);
-      expect(model.members, isNull);
+      expect(model.lastMessage, isNull);
+      expect(model.lastMessageAt, isNull);
     });
 
     test('creates model with all fields', () {
@@ -47,20 +22,23 @@ void main() {
         id: 1,
         name: 'Test Room',
         type: 'GROUP',
-        announcement: '공지사항',
-        members: [testMemberModel],
-        lastMessage: testMessageModel,
-        unreadCount: 5,
         createdAt: DateTime(2024, 1, 1),
-        updatedAt: DateTime(2024, 1, 2),
+        lastMessage: '안녕하세요',
+        lastMessageAt: DateTime(2024, 1, 1, 10, 30),
+        unreadCount: 5,
+        otherUserId: 2,
+        otherUserNickname: 'OtherUser',
+        otherUserAvatarUrl: 'https://example.com/avatar.png',
       );
 
       expect(model.name, 'Test Room');
       expect(model.type, 'GROUP');
-      expect(model.announcement, '공지사항');
-      expect(model.members!.length, 1);
-      expect(model.lastMessage, testMessageModel);
+      expect(model.lastMessage, '안녕하세요');
+      expect(model.lastMessageAt, DateTime(2024, 1, 1, 10, 30));
       expect(model.unreadCount, 5);
+      expect(model.otherUserId, 2);
+      expect(model.otherUserNickname, 'OtherUser');
+      expect(model.otherUserAvatarUrl, 'https://example.com/avatar.png');
     });
 
     group('toEntity', () {
@@ -69,9 +47,12 @@ void main() {
           id: 1,
           name: 'Test Room',
           type: 'DIRECT',
-          members: [testMemberModel],
-          unreadCount: 3,
           createdAt: DateTime(2024, 1, 1),
+          lastMessage: '마지막 메시지',
+          lastMessageAt: DateTime(2024, 1, 1, 10, 30),
+          unreadCount: 3,
+          otherUserId: 2,
+          otherUserNickname: 'OtherUser',
         );
 
         final entity = model.toEntity();
@@ -80,8 +61,10 @@ void main() {
         expect(entity.id, 1);
         expect(entity.name, 'Test Room');
         expect(entity.type, ChatRoomType.direct);
-        expect(entity.members.length, 1);
+        expect(entity.lastMessage, '마지막 메시지');
         expect(entity.unreadCount, 3);
+        expect(entity.otherUserId, 2);
+        expect(entity.otherUserNickname, 'OtherUser');
       });
 
       test('converts GROUP type correctly', () {
@@ -113,15 +96,6 @@ void main() {
         expect(model.toEntity().type, ChatRoomType.direct);
       });
 
-      test('handles null members as empty list', () {
-        final model = ChatRoomModel(
-          id: 1,
-          createdAt: DateTime(2024, 1, 1),
-        );
-
-        expect(model.toEntity().members, isEmpty);
-      });
-
       test('handles null unreadCount as 0', () {
         final model = ChatRoomModel(
           id: 1,
@@ -130,69 +104,70 @@ void main() {
 
         expect(model.toEntity().unreadCount, 0);
       });
-
-      test('converts lastMessage when present', () {
-        final model = ChatRoomModel(
-          id: 1,
-          lastMessage: testMessageModel,
-          createdAt: DateTime(2024, 1, 1),
-        );
-
-        final entity = model.toEntity();
-        expect(entity.lastMessage, isNotNull);
-        expect(entity.lastMessage!.content, '안녕하세요');
-      });
     });
   });
 
   group('ChatRoomMemberModel', () {
     test('creates model with required fields', () {
-      final model = ChatRoomMemberModel(
-        id: 1,
-        user: testUserModel,
-        joinedAt: DateTime(2024, 1, 1),
+      const model = ChatRoomMemberModel(
+        userId: 1,
+        nickname: 'TestUser',
       );
 
-      expect(model.id, 1);
-      expect(model.user, testUserModel);
-      expect(model.isAdmin, isNull);
+      expect(model.userId, 1);
+      expect(model.nickname, 'TestUser');
+      expect(model.avatarUrl, isNull);
+      expect(model.role, isNull);
     });
 
-    test('creates model with admin flag', () {
-      final model = ChatRoomMemberModel(
-        id: 1,
-        user: testUserModel,
-        isAdmin: true,
-        joinedAt: DateTime(2024, 1, 1),
+    test('creates model with all fields', () {
+      const model = ChatRoomMemberModel(
+        userId: 1,
+        nickname: 'TestUser',
+        avatarUrl: 'https://example.com/avatar.png',
+        role: 'ADMIN',
       );
 
-      expect(model.isAdmin, true);
+      expect(model.avatarUrl, 'https://example.com/avatar.png');
+      expect(model.role, 'ADMIN');
     });
 
     group('toEntity', () {
       test('converts to ChatRoomMember entity', () {
-        final model = ChatRoomMemberModel(
-          id: 1,
-          user: testUserModel,
-          isAdmin: true,
-          joinedAt: DateTime(2024, 1, 1),
+        const model = ChatRoomMemberModel(
+          userId: 1,
+          nickname: 'TestUser',
+          avatarUrl: 'https://example.com/avatar.png',
+          role: 'ADMIN',
         );
 
         final entity = model.toEntity();
 
-        expect(entity.id, 1);
-        expect(entity.user.nickname, 'TestUser');
+        expect(entity.userId, 1);
+        expect(entity.nickname, 'TestUser');
+        expect(entity.avatarUrl, 'https://example.com/avatar.png');
         expect(entity.isAdmin, true);
       });
 
-      test('handles null isAdmin as false', () {
-        final model = ChatRoomMemberModel(
-          id: 1,
-          user: testUserModel,
-          joinedAt: DateTime(2024, 1, 1),
+      test('handles null role as member', () {
+        const model = ChatRoomMemberModel(
+          userId: 1,
+          nickname: 'TestUser',
         );
 
         expect(model.toEntity().isAdmin, false);
+        expect(model.toEntity().role, ChatRoomMemberRole.member);
+      });
+
+      test('handles MEMBER role correctly', () {
+        const model = ChatRoomMemberModel(
+          userId: 1,
+          nickname: 'TestUser',
+          role: 'MEMBER',
+        );
+
+        expect(model.toEntity().isAdmin, false);
+        expect(model.toEntity().role, ChatRoomMemberRole.member);
       });
     });
   });
@@ -224,58 +199,153 @@ void main() {
   group('CreateGroupChatRoomRequest', () {
     test('creates request with required fields', () {
       const request = CreateGroupChatRoomRequest(
-        memberIds: [1, 2, 3],
+        creatorId: 1,
+        memberIds: [2, 3],
       );
 
+      expect(request.creatorId, 1);
       expect(request.name, isNull);
-      expect(request.memberIds, [1, 2, 3]);
+      expect(request.memberIds, [2, 3]);
     });
 
     test('creates request with name', () {
       const request = CreateGroupChatRoomRequest(
+        creatorId: 1,
         name: '그룹 채팅방',
-        memberIds: [1, 2, 3],
+        memberIds: [2, 3],
       );
 
       expect(request.name, '그룹 채팅방');
     });
 
-    test('toJson returns correct map', () {
+    test('toJson returns correct map with roomName key', () {
       const request = CreateGroupChatRoomRequest(
+        creatorId: 1,
         name: '그룹',
-        memberIds: [1, 2],
+        memberIds: [2],
       );
 
       final json = request.toJson();
 
-      expect(json['name'], '그룹');
-      expect(json['memberIds'], [1, 2]);
+      expect(json['creatorId'], 1);
+      expect(json['roomName'], '그룹');
+      expect(json['memberIds'], [2]);
     });
   });
 
-  group('ChatRoomsResponse', () {
-    test('creates response with chat rooms', () {
-      final chatRoom = ChatRoomModel(
-        id: 1,
-        createdAt: DateTime(2024, 1, 1),
-      );
+  group('ChatRoomModel fromJson', () {
+    test('parses json correctly', () {
+      final json = {
+        'id': 1,
+        'name': 'Test Room',
+        'type': 'GROUP',
+        'unreadCount': 5,
+        'createdAt': '2024-01-01T00:00:00.000',
+        'lastMessage': '마지막 메시지',
+        'lastMessageAt': '2024-01-01T10:30:00.000',
+        'otherUserId': 2,
+        'otherUserNickname': 'OtherUser',
+        'otherUserAvatarUrl': 'https://example.com/avatar.png',
+      };
 
-      final response = ChatRoomsResponse(chatRooms: [chatRoom]);
+      final model = ChatRoomModel.fromJson(json);
 
-      expect(response.chatRooms.length, 1);
-      expect(response.chatRooms.first.id, 1);
+      expect(model.id, 1);
+      expect(model.name, 'Test Room');
+      expect(model.type, 'GROUP');
+      expect(model.unreadCount, 5);
+      expect(model.lastMessage, '마지막 메시지');
+      expect(model.otherUserId, 2);
+      expect(model.otherUserNickname, 'OtherUser');
     });
 
-    test('toJson returns correct map', () {
-      final chatRoom = ChatRoomModel(
-        id: 1,
-        createdAt: DateTime(2024, 1, 1),
-      );
+    test('handles nullable fields', () {
+      final json = {
+        'id': 1,
+        'createdAt': '2024-01-01T00:00:00.000',
+      };
 
-      final response = ChatRoomsResponse(chatRooms: [chatRoom]);
-      final json = response.toJson();
+      final model = ChatRoomModel.fromJson(json);
 
-      expect(json['chatRooms'], isA<List>());
+      expect(model.name, isNull);
+      expect(model.type, isNull);
+      expect(model.lastMessage, isNull);
+      expect(model.lastMessageAt, isNull);
+      expect(model.otherUserId, isNull);
+      expect(model.otherUserNickname, isNull);
+      expect(model.otherUserAvatarUrl, isNull);
+    });
+  });
+
+  group('ChatRoomMemberModel fromJson', () {
+    test('parses json correctly', () {
+      final json = {
+        'userId': 1,
+        'nickname': 'TestUser',
+        'avatarUrl': 'https://example.com/avatar.png',
+        'role': 'ADMIN',
+      };
+
+      final model = ChatRoomMemberModel.fromJson(json);
+
+      expect(model.userId, 1);
+      expect(model.nickname, 'TestUser');
+      expect(model.avatarUrl, 'https://example.com/avatar.png');
+      expect(model.role, 'ADMIN');
+    });
+
+    test('handles nullable fields', () {
+      final json = {
+        'userId': 1,
+        'nickname': 'TestUser',
+      };
+
+      final model = ChatRoomMemberModel.fromJson(json);
+
+      expect(model.avatarUrl, isNull);
+      expect(model.role, isNull);
+    });
+  });
+
+  group('CreateChatRoomRequest fromJson', () {
+    test('parses json correctly', () {
+      final json = {
+        'userId1': 1,
+        'userId2': 2,
+      };
+
+      final request = CreateChatRoomRequest.fromJson(json);
+
+      expect(request.userId1, 1);
+      expect(request.userId2, 2);
+    });
+  });
+
+  group('CreateGroupChatRoomRequest fromJson', () {
+    test('parses json correctly with roomName', () {
+      final json = {
+        'creatorId': 1,
+        'roomName': '그룹',
+        'memberIds': [1, 2, 3],
+      };
+
+      final request = CreateGroupChatRoomRequest.fromJson(json);
+
+      expect(request.creatorId, 1);
+      expect(request.name, '그룹');
+      expect(request.memberIds.length, 3);
+    });
+
+    test('parses json without name', () {
+      final json = {
+        'creatorId': 1,
+        'memberIds': [1, 2],
+      };
+
+      final request = CreateGroupChatRoomRequest.fromJson(json);
+
+      expect(request.name, isNull);
+      expect(request.memberIds.length, 2);
     });
   });
 }

@@ -7,7 +7,7 @@ class ChatRoomState extends Equatable {
   final ChatRoomStatus status;
   final int? roomId;
   final List<Message> messages;
-  final String? nextCursor;
+  final int? nextCursor;
   final bool hasMore;
   final bool isSending;
   final String? errorMessage;
@@ -26,7 +26,7 @@ class ChatRoomState extends Equatable {
     ChatRoomStatus? status,
     int? roomId,
     List<Message>? messages,
-    String? nextCursor,
+    int? nextCursor,
     bool? hasMore,
     bool? isSending,
     String? errorMessage,

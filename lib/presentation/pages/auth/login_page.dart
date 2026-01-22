@@ -20,12 +20,29 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _showKoreanWarning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_checkKoreanInput);
+  }
 
   @override
   void dispose() {
+    _passwordController.removeListener(_checkKoreanInput);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _checkKoreanInput() {
+    final hasKorean = Validators.containsKorean(_passwordController.text);
+    if (hasKorean != _showKoreanWarning) {
+      setState(() {
+        _showKoreanWarning = hasKorean;
+      });
+    }
   }
 
   void _onLogin() {
@@ -44,7 +61,9 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state.status == AuthStatus.failure) {
+          if (state.status == AuthStatus.authenticated) {
+            context.go(AppRoutes.main);
+          } else if (state.status == AuthStatus.failure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.errorMessage ?? '로그인에 실패했습니다'),
@@ -115,6 +134,27 @@ class _LoginPageState extends State<LoginPage> {
                           validator: Validators.password,
                           onFieldSubmitted: (_) => _onLogin(),
                         ),
+                        if (_showKoreanWarning)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 16,
+                                  color: Colors.orange[700],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '한글이 입력되어 있습니다. 영문 키보드를 확인하세요.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         const SizedBox(height: 24),
                         SizedBox(
                           height: 48,

@@ -120,5 +120,37 @@ void main() {
         expect(Validators.required('value', '필드명'), isNull);
       });
     });
+
+    group('containsKorean', () {
+      test('returns false when value is null', () {
+        expect(Validators.containsKorean(null), isFalse);
+      });
+
+      test('returns false when value is empty', () {
+        expect(Validators.containsKorean(''), isFalse);
+      });
+
+      test('returns false for English only', () {
+        expect(Validators.containsKorean('password123'), isFalse);
+        expect(Validators.containsKorean('Test!@#\$%'), isFalse);
+      });
+
+      test('returns true for Korean complete characters (가-힣)', () {
+        expect(Validators.containsKorean('비밀번호'), isTrue);
+        expect(Validators.containsKorean('password한글'), isTrue);
+      });
+
+      test('returns true for Korean jamo (ㄱ-ㅎ, ㅏ-ㅣ)', () {
+        expect(Validators.containsKorean('ㅜㅗㅜ123'), isTrue);
+        expect(Validators.containsKorean('ㅋㅋㅋ'), isTrue);
+        expect(Validators.containsKorean('ㅎㅎ'), isTrue);
+        expect(Validators.containsKorean('passㅁword'), isTrue);
+      });
+
+      test('returns false for numbers and special characters only', () {
+        expect(Validators.containsKorean('123456'), isFalse);
+        expect(Validators.containsKorean('!@#\$%^&*()'), isFalse);
+      });
+    });
   });
 }

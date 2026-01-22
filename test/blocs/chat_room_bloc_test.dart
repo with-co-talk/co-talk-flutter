@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
+import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_bloc.dart';
@@ -9,14 +12,25 @@ import '../mocks/fake_entities.dart';
 
 void main() {
   late MockChatRepository mockChatRepository;
+  late MockWebSocketService mockWebSocketService;
 
   setUp(() {
     mockChatRepository = MockChatRepository();
+    mockWebSocketService = MockWebSocketService();
+
+    // WebSocketService mock 기본 설정
+    when(() => mockWebSocketService.subscribeToChatRoom(any())).thenReturn(null);
+    when(() => mockWebSocketService.unsubscribeFromChatRoom(any())).thenReturn(null);
+    when(() => mockWebSocketService.messages).thenAnswer(
+      (_) => const Stream<WebSocketChatMessage>.empty(),
+    );
   });
+
+  ChatRoomBloc createBloc() => ChatRoomBloc(mockChatRepository, mockWebSocketService);
 
   group('ChatRoomBloc', () {
     test('initial state is ChatRoomState with initial status', () {
-      final bloc = ChatRoomBloc(mockChatRepository);
+      final bloc = createBloc();
       expect(bloc.state.status, ChatRoomStatus.initial);
       expect(bloc.state.messages, isEmpty);
       expect(bloc.state.roomId, isNull);
@@ -27,10 +41,10 @@ void main() {
         'emits [loading, success] with messages when room opens',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
-              .thenAnswer((_) async => (FakeEntities.messages, 'cursor123', true));
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
           when(() => mockChatRepository.markAsRead(any()))
               .thenAnswer((_) async {});
-          return ChatRoomBloc(mockChatRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const ChatRoomOpened(1)),
         expect: () => [
@@ -43,13 +57,14 @@ void main() {
             status: ChatRoomStatus.success,
             roomId: 1,
             messages: FakeEntities.messages,
-            nextCursor: 'cursor123',
+            nextCursor: 123,
             hasMore: true,
           ),
         ],
         verify: (_) {
           verify(() => mockChatRepository.getMessages(1, size: 50)).called(1);
           verify(() => mockChatRepository.markAsRead(1)).called(1);
+          verify(() => mockWebSocketService.subscribeToChatRoom(1)).called(1);
         },
       );
 
@@ -58,7 +73,7 @@ void main() {
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
               .thenThrow(Exception('Failed to load messages'));
-          return ChatRoomBloc(mockChatRepository);
+          return createBloc();
         },
         act: (bloc) => bloc.add(const ChatRoomOpened(1)),
         expect: () => [
@@ -79,7 +94,7 @@ void main() {
     group('ChatRoomClosed', () {
       blocTest<ChatRoomBloc, ChatRoomState>(
         'resets state when room is closed',
-        build: () => ChatRoomBloc(mockChatRepository),
+        build: () => createBloc(),
         seed: () => ChatRoomState(
           status: ChatRoomStatus.success,
           roomId: 1,
@@ -87,6 +102,9 @@ void main() {
         ),
         act: (bloc) => bloc.add(const ChatRoomClosed()),
         expect: () => [const ChatRoomState()],
+        verify: (_) {
+          verify(() => mockWebSocketService.unsubscribeFromChatRoom(1)).called(1);
+        },
       );
     });
 
@@ -96,7 +114,7 @@ void main() {
         build: () {
           when(() => mockChatRepository.sendMessage(any(), any()))
               .thenAnswer((_) async => FakeEntities.textMessage);
-          return ChatRoomBloc(mockChatRepository);
+          return createBloc();
         },
         seed: () => const ChatRoomState(
           status: ChatRoomStatus.success,
@@ -128,7 +146,7 @@ void main() {
         build: () {
           when(() => mockChatRepository.sendMessage(any(), any()))
               .thenThrow(Exception('Failed to send'));
-          return ChatRoomBloc(mockChatRepository);
+          return createBloc();
         },
         seed: () => const ChatRoomState(
           status: ChatRoomStatus.success,
@@ -149,7 +167,7 @@ void main() {
 
       blocTest<ChatRoomBloc, ChatRoomState>(
         'does nothing when roomId is null',
-        build: () => ChatRoomBloc(mockChatRepository),
+        build: () => createBloc(),
         act: (bloc) => bloc.add(const MessageSent('test')),
         expect: () => [],
         verify: (_) {
@@ -161,7 +179,7 @@ void main() {
     group('MessageReceived', () {
       blocTest<ChatRoomBloc, ChatRoomState>(
         'adds message to list when received for current room',
-        build: () => ChatRoomBloc(mockChatRepository),
+        build: () => createBloc(),
         seed: () => const ChatRoomState(
           status: ChatRoomStatus.success,
           roomId: 1,
@@ -179,7 +197,7 @@ void main() {
 
       blocTest<ChatRoomBloc, ChatRoomState>(
         'ignores message for different room',
-        build: () => ChatRoomBloc(mockChatRepository),
+        build: () => createBloc(),
         seed: () => const ChatRoomState(
           status: ChatRoomStatus.success,
           roomId: 2,
@@ -191,7 +209,7 @@ void main() {
 
       blocTest<ChatRoomBloc, ChatRoomState>(
         'ignores duplicate message',
-        build: () => ChatRoomBloc(mockChatRepository),
+        build: () => createBloc(),
         seed: () => ChatRoomState(
           status: ChatRoomStatus.success,
           roomId: 1,
@@ -208,7 +226,7 @@ void main() {
         build: () {
           when(() => mockChatRepository.deleteMessage(any()))
               .thenAnswer((_) async {});
-          return ChatRoomBloc(mockChatRepository);
+          return createBloc();
         },
         seed: () => ChatRoomState(
           status: ChatRoomStatus.success,
@@ -236,15 +254,15 @@ void main() {
           when(() => mockChatRepository.getMessages(
                 any(),
                 size: any(named: 'size'),
-                cursor: any(named: 'cursor'),
+                beforeMessageId: any(named: 'beforeMessageId'),
               )).thenAnswer((_) async => ([FakeEntities.imageMessage], null, false));
-          return ChatRoomBloc(mockChatRepository);
+          return createBloc();
         },
         seed: () => ChatRoomState(
           status: ChatRoomStatus.success,
           roomId: 1,
           messages: [FakeEntities.textMessage],
-          nextCursor: 'cursor123',
+          nextCursor: 123,
           hasMore: true,
         ),
         act: (bloc) => bloc.add(const MessagesLoadMoreRequested()),
@@ -257,7 +275,7 @@ void main() {
 
       blocTest<ChatRoomBloc, ChatRoomState>(
         'does nothing when hasMore is false',
-        build: () => ChatRoomBloc(mockChatRepository),
+        build: () => createBloc(),
         seed: () => ChatRoomState(
           status: ChatRoomStatus.success,
           roomId: 1,
@@ -270,7 +288,7 @@ void main() {
           verifyNever(() => mockChatRepository.getMessages(
                 any(),
                 size: any(named: 'size'),
-                cursor: any(named: 'cursor'),
+                beforeMessageId: any(named: 'beforeMessageId'),
               ));
         },
       );

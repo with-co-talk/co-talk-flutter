@@ -46,8 +46,13 @@ class ErrorMessageMapper {
   }
   
   static String _getServerErrorMessage(ServerException error) {
+    // 서버에서 구체적인 에러 메시지를 보냈으면 우선 사용
+    if (error.message.isNotEmpty && error.message != 'Unknown error') {
+      return error.message;
+    }
+
     final statusCode = error.statusCode;
-    
+
     if (statusCode != null) {
       switch (statusCode) {
         case 400:
@@ -63,14 +68,10 @@ class ErrorMessageMapper {
         case 503:
           return '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요';
         default:
-          return error.message.isNotEmpty 
-              ? error.message 
-              : '서버 오류가 발생했습니다';
+          return '서버 오류가 발생했습니다';
       }
     }
-    
-    return error.message.isNotEmpty 
-        ? error.message 
-        : '서버 오류가 발생했습니다';
+
+    return '서버 오류가 발생했습니다';
   }
 }

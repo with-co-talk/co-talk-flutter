@@ -97,9 +97,9 @@ class AuthRepositoryImpl implements AuthRepository {
       await _localDataSource.saveUserId(userModel.id);
       return userModel.toEntity();
     } catch (e) {
-      // 사용자 정보를 가져오지 못한 경우, Exception을 Failure로 변환하여 throw
-      // null을 반환하는 대신 명시적으로 에러를 전달
-      throw ExceptionToFailureMapper.toFailure(e);
+      // 사용자 정보를 가져오지 못한 경우 null 반환
+      // 로그인은 성공했지만 사용자 정보 조회 실패는 치명적이지 않음
+      return null;
     }
   }
 

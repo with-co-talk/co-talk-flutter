@@ -7,10 +7,10 @@ abstract class ChatRepository {
   Future<ChatRoom> createGroupChatRoom(String? name, List<int> memberIds);
   Future<void> leaveChatRoom(int roomId);
   Future<void> markAsRead(int roomId);
-  Future<(List<Message>, String?, bool)> getMessages(
+  Future<(List<Message>, int?, bool)> getMessages(
     int roomId, {
     int? size,
-    String? cursor,
+    int? beforeMessageId,
   });
   Future<Message> sendMessage(int roomId, String content);
   Future<Message> updateMessage(int messageId, String content);

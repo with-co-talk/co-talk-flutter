@@ -69,4 +69,12 @@ class Validators {
     }
     return null;
   }
+
+  /// 한글(자모 포함)이 포함되어 있는지 확인
+  static bool containsKorean(String? value) {
+    if (value == null || value.isEmpty) return false;
+    // 한글 완성형 (가-힣) + 한글 자모 (ㄱ-ㅎ, ㅏ-ㅣ)
+    final koreanRegex = RegExp(r'[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]');
+    return koreanRegex.hasMatch(value);
+  }
 }

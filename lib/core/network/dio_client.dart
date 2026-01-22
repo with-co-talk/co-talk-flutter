@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
+import '../config/app_config.dart';
 import '../constants/api_constants.dart';
 import 'auth_interceptor.dart';
 
@@ -22,14 +23,18 @@ class DioClient {
       ),
     );
 
-    _dio.interceptors.addAll([
-      _authInterceptor,
+    _dio.interceptors.add(_authInterceptor);
+
+    // 프로덕션 환경에서는 민감한 정보 로깅 비활성화
+    _dio.interceptors.add(
       LogInterceptor(
-        requestBody: true,
-        responseBody: true,
+        requestBody: AppConfig.enableNetworkBodyLogging,
+        responseBody: AppConfig.enableNetworkBodyLogging,
+        requestHeader: AppConfig.enableVerboseLogging,
+        responseHeader: false,
         error: true,
       ),
-    ]);
+    );
   }
 
   Dio get dio => _dio;

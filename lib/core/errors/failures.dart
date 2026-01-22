@@ -44,3 +44,16 @@ class ValidationFailure extends Failure {
   @override
   List<Object?> get props => [message, fieldErrors];
 }
+
+/// 409 Conflict - 리소스 충돌 (중복 이메일, 이미 친구 관계 등)
+class ConflictFailure extends Failure {
+  final String? code;
+
+  const ConflictFailure({
+    required super.message,
+    this.code,
+  });
+
+  @override
+  List<Object?> get props => [message, code];
+}

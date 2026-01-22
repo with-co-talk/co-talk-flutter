@@ -271,7 +271,7 @@ void main() {
         status: ChatRoomStatus.success,
         roomId: 1,
         messages: [message],
-        nextCursor: 'cursor123',
+        nextCursor: 123,
         hasMore: false,
         isSending: true,
       );
@@ -279,7 +279,7 @@ void main() {
       expect(state.status, ChatRoomStatus.success);
       expect(state.roomId, 1);
       expect(state.messages.length, 1);
-      expect(state.nextCursor, 'cursor123');
+      expect(state.nextCursor, 123);
       expect(state.hasMore, false);
       expect(state.isSending, true);
     });

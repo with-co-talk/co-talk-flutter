@@ -13,7 +13,7 @@ class UserModel {
   final String? role;
   final String? onlineStatus;
   final DateTime? lastActiveAt;
-  final DateTime createdAt;
+  final DateTime? createdAt;
 
   const UserModel({
     required this.id,
@@ -24,7 +24,7 @@ class UserModel {
     this.role,
     this.onlineStatus,
     this.lastActiveAt,
-    required this.createdAt,
+    this.createdAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) =>
@@ -74,6 +74,9 @@ class UserModel {
         return OnlineStatus.online;
       case 'AWAY':
         return OnlineStatus.away;
+      case 'DO_NOT_DISTURB':
+        return OnlineStatus.doNotDisturb;
+      case 'OFFLINE':
       default:
         return OnlineStatus.offline;
     }

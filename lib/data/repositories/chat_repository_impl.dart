@@ -40,7 +40,9 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<ChatRoom> createGroupChatRoom(String? name, List<int> memberIds) async {
+    final userId = await _getUserId();
     final chatRoomModel = await _remoteDataSource.createGroupChatRoom(
+      userId,
       name,
       memberIds,
     );
@@ -60,20 +62,20 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<(List<Message>, String?, bool)> getMessages(
+  Future<(List<Message>, int?, bool)> getMessages(
     int roomId, {
     int? size,
-    String? cursor,
+    int? beforeMessageId,
   }) async {
     final userId = await _getUserId();
     final response = await _remoteDataSource.getMessages(
       roomId,
       userId,
       size: size,
-      cursor: cursor,
+      beforeMessageId: beforeMessageId,
     );
     return (
-      response.messages.map((m) => m.toEntity()).toList(),
+      response.messages.map((m) => m.toEntity(overrideChatRoomId: roomId)).toList(),
       response.nextCursor,
       response.hasMore,
     );
@@ -89,7 +91,7 @@ class ChatRepositoryImpl implements ChatRepository {
         content: content,
       ),
     );
-    return messageModel.toEntity();
+    return messageModel.toEntity(overrideChatRoomId: roomId);
   }
 
   @override
