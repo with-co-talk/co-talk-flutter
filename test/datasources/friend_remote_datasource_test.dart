@@ -4,25 +4,29 @@ import 'package:dio/dio.dart';
 import 'package:co_talk_flutter/core/network/dio_client.dart';
 import 'package:co_talk_flutter/core/errors/exceptions.dart';
 import 'package:co_talk_flutter/data/datasources/remote/friend_remote_datasource.dart';
+import 'package:co_talk_flutter/data/datasources/local/auth_local_datasource.dart';
 
 class MockDioClient extends Mock implements DioClient {}
+class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
 
 void main() {
   late MockDioClient mockDioClient;
+  late MockAuthLocalDataSource mockAuthLocalDataSource;
   late FriendRemoteDataSourceImpl dataSource;
 
   setUp(() {
     mockDioClient = MockDioClient();
-    dataSource = FriendRemoteDataSourceImpl(mockDioClient);
+    mockAuthLocalDataSource = MockAuthLocalDataSource();
+    dataSource = FriendRemoteDataSourceImpl(mockDioClient, mockAuthLocalDataSource);
+
+    // 기본 Mock 설정: userId 반환
+    when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
   });
 
   group('FriendRemoteDataSource', () {
     group('getFriends', () {
       test('returns list of FriendModel when succeeds', () async {
-        when(() => mockDioClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenAnswer((_) async => Response(
+        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               data: {
                 'friends': [
@@ -41,7 +45,7 @@ void main() {
               statusCode: 200,
             ));
 
-        final result = await dataSource.getFriends(1);
+        final result = await dataSource.getFriends();
 
         expect(result.length, 1);
         expect(result.first.id, 1);
@@ -49,10 +53,7 @@ void main() {
       });
 
       test('throws ServerException when fails', () async {
-        when(() => mockDioClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenThrow(DioException(
+        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -63,23 +64,29 @@ void main() {
         ));
 
         expect(
-          () => dataSource.getFriends(1),
+          () => dataSource.getFriends(),
           throwsA(isA<ServerException>()),
         );
       });
 
       test('throws NetworkException when network error', () async {
-        when(() => mockDioClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenThrow(DioException(
+        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           type: DioExceptionType.connectionError,
         ));
 
         expect(
-          () => dataSource.getFriends(1),
+          () => dataSource.getFriends(),
           throwsA(isA<NetworkException>()),
+        );
+      });
+
+      test('throws ServerException when userId is null', () async {
+        when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => null);
+
+        expect(
+          () => dataSource.getFriends(),
+          throwsA(isA<ServerException>()),
         );
       });
     });
@@ -95,7 +102,7 @@ void main() {
             ));
 
         await expectLater(
-          dataSource.sendFriendRequest(1, 2),
+          dataSource.sendFriendRequest(2),
           completes,
         );
       });
@@ -115,7 +122,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.sendFriendRequest(1, 2),
+          () => dataSource.sendFriendRequest(2),
           throwsA(isA<ConflictException>()),
         );
       });
@@ -123,25 +130,19 @@ void main() {
 
     group('acceptFriendRequest', () {
       test('completes successfully', () async {
-        when(() => mockDioClient.post(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenAnswer((_) async => Response(
+        when(() => mockDioClient.post(any())).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               statusCode: 200,
             ));
 
         await expectLater(
-          dataSource.acceptFriendRequest(1, 1),
+          dataSource.acceptFriendRequest(1),
           completes,
         );
       });
 
       test('throws ServerException when request not found', () async {
-        when(() => mockDioClient.post(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenThrow(DioException(
+        when(() => mockDioClient.post(any())).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -152,7 +153,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.acceptFriendRequest(999, 1),
+          () => dataSource.acceptFriendRequest(999),
           throwsA(isA<ServerException>()),
         );
       });
@@ -160,16 +161,13 @@ void main() {
 
     group('rejectFriendRequest', () {
       test('completes successfully', () async {
-        when(() => mockDioClient.post(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenAnswer((_) async => Response(
+        when(() => mockDioClient.post(any())).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               statusCode: 200,
             ));
 
         await expectLater(
-          dataSource.rejectFriendRequest(1, 1),
+          dataSource.rejectFriendRequest(1),
           completes,
         );
       });
@@ -177,25 +175,19 @@ void main() {
 
     group('removeFriend', () {
       test('completes successfully', () async {
-        when(() => mockDioClient.delete(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenAnswer((_) async => Response(
+        when(() => mockDioClient.delete(any())).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               statusCode: 204,
             ));
 
         await expectLater(
-          dataSource.removeFriend(1, 2),
+          dataSource.removeFriend(2),
           completes,
         );
       });
 
       test('throws ServerException when friend not found', () async {
-        when(() => mockDioClient.delete(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenThrow(DioException(
+        when(() => mockDioClient.delete(any())).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -206,7 +198,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.removeFriend(1, 999),
+          () => dataSource.removeFriend(999),
           throwsA(isA<ServerException>()),
         );
       });
@@ -278,10 +270,7 @@ void main() {
 
     group('getReceivedFriendRequests', () {
       test('returns list of FriendRequestModel when succeeds', () async {
-        when(() => mockDioClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenAnswer((_) async => Response(
+        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               data: {
                 'requests': [
@@ -307,7 +296,7 @@ void main() {
               statusCode: 200,
             ));
 
-        final result = await dataSource.getReceivedFriendRequests(1);
+        final result = await dataSource.getReceivedFriendRequests();
 
         expect(result.length, 1);
         expect(result.first.id, 1);
@@ -316,10 +305,7 @@ void main() {
       });
 
       test('throws ServerException when fails', () async {
-        when(() => mockDioClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenThrow(DioException(
+        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -330,7 +316,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.getReceivedFriendRequests(1),
+          () => dataSource.getReceivedFriendRequests(),
           throwsA(isA<ServerException>()),
         );
       });
@@ -338,10 +324,7 @@ void main() {
 
     group('getSentFriendRequests', () {
       test('returns list of FriendRequestModel when succeeds', () async {
-        when(() => mockDioClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenAnswer((_) async => Response(
+        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               data: {
                 'requests': [
@@ -367,7 +350,7 @@ void main() {
               statusCode: 200,
             ));
 
-        final result = await dataSource.getSentFriendRequests(1);
+        final result = await dataSource.getSentFriendRequests();
 
         expect(result.length, 1);
         expect(result.first.id, 1);
@@ -376,10 +359,7 @@ void main() {
       });
 
       test('throws ServerException when fails', () async {
-        when(() => mockDioClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-            )).thenThrow(DioException(
+        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -390,7 +370,16 @@ void main() {
         ));
 
         expect(
-          () => dataSource.getSentFriendRequests(1),
+          () => dataSource.getSentFriendRequests(),
+          throwsA(isA<ServerException>()),
+        );
+      });
+
+      test('throws ServerException when userId is null', () async {
+        when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => null);
+
+        expect(
+          () => dataSource.getSentFriendRequests(),
           throwsA(isA<ServerException>()),
         );
       });

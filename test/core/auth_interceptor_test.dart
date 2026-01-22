@@ -271,6 +271,8 @@ void main() {
       test('passes error when refresh token is null on 401', () async {
         when(() => mockLocalDataSource.getRefreshToken())
             .thenAnswer((_) async => null);
+        when(() => mockLocalDataSource.clearTokens())
+            .thenAnswer((_) async {});
 
         final error = DioException(
           requestOptions: RequestOptions(path: '/users/me'),

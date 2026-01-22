@@ -501,8 +501,8 @@ void main() {
         errorMessage: 'Error',
       );
 
-      // props: status, roomId, messages, nextCursor, hasMore, isSending, errorMessage
-      expect(state.props.length, 7);
+      // props: status, roomId, currentUserId, messages, nextCursor, hasMore, isSending, errorMessage, typingUsers
+      expect(state.props.length, 9);
     });
 
     test('equality works', () {

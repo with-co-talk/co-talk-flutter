@@ -3,18 +3,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:bloc_test/bloc_test.dart';
+import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
+import 'package:co_talk_flutter/presentation/blocs/auth/auth_event.dart';
+import 'package:co_talk_flutter/presentation/blocs/auth/auth_state.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_state.dart';
 import 'package:co_talk_flutter/presentation/pages/chat/chat_list_page.dart';
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
+import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 class MockChatListBloc extends MockBloc<ChatListEvent, ChatListState>
     implements ChatListBloc {}
 
+class MockAuthBloc extends MockBloc<AuthEvent, AuthState>
+    implements AuthBloc {}
+
 void main() {
   late MockChatListBloc mockChatListBloc;
+  late MockAuthBloc mockAuthBloc;
 
   setUpAll(() async {
     await initializeDateFormatting('ko_KR', null);
@@ -22,12 +30,25 @@ void main() {
 
   setUp(() {
     mockChatListBloc = MockChatListBloc();
+    mockAuthBloc = MockAuthBloc();
+
+    // AuthBloc 기본 상태 설정
+    when(() => mockAuthBloc.state).thenReturn(
+      AuthState.authenticated(const User(
+        id: 1,
+        email: 'test@test.com',
+        nickname: 'TestUser',
+      )),
+    );
   });
 
   Widget createWidgetUnderTest() {
     return MaterialApp(
-      home: BlocProvider<ChatListBloc>.value(
-        value: mockChatListBloc,
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+          BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+        ],
         child: const ChatListPage(),
       ),
     );
