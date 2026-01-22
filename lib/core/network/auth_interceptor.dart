@@ -2,10 +2,15 @@ import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import '../constants/api_constants.dart';
 import '../../data/datasources/local/auth_local_datasource.dart';
+import '../../presentation/blocs/auth/auth_bloc.dart';
+import '../../presentation/blocs/auth/auth_event.dart';
+import 'websocket_service.dart';
 
 @lazySingleton
 class AuthInterceptor extends QueuedInterceptor {
   final AuthLocalDataSource _authLocalDataSource;
+  AuthBloc? _authBloc;
+  WebSocketService? _webSocketService;
 
   // 토큰 갱신 전용 Dio 인스턴스 (순환 참조 방지)
   late final Dio _refreshDio;
@@ -24,6 +29,15 @@ class AuthInterceptor extends QueuedInterceptor {
         },
       ),
     );
+  }
+
+  /// AuthBloc과 WebSocketService를 설정 (순환 참조 방지를 위해 나중에 설정)
+  void setAuthBloc(AuthBloc authBloc) {
+    _authBloc = authBloc;
+  }
+
+  void setWebSocketService(WebSocketService webSocketService) {
+    _webSocketService = webSocketService;
   }
 
   @override
@@ -75,9 +89,20 @@ class AuthInterceptor extends QueuedInterceptor {
             return handler.resolve(response);
           }
         } catch (e) {
-          // Refresh failed, clear tokens and redirect to login
+          // Refresh failed, clear tokens and logout
           await _authLocalDataSource.clearTokens();
+          
+          // WebSocket 연결 해제
+          _webSocketService?.disconnect();
+          
+          // AuthBloc에 로그아웃 이벤트 전송
+          _authBloc?.add(const AuthLogoutRequested());
         }
+      } else {
+        // Refresh token이 없는 경우도 로그아웃 처리
+        await _authLocalDataSource.clearTokens();
+        _webSocketService?.disconnect();
+        _authBloc?.add(const AuthLogoutRequested());
       }
     }
 

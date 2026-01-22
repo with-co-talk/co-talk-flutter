@@ -132,8 +132,16 @@ class AppRouter {
             return const ErrorPage(message: '유효하지 않은 채팅방 ID입니다');
           }
 
-          return BlocProvider(
-            create: (_) => getIt<ChatRoomBloc>(),
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider(
+                create: (_) => getIt<ChatRoomBloc>(),
+              ),
+              // ChatRoomPage에서 ChatListBloc에 접근할 수 있도록 제공
+              BlocProvider(
+                create: (_) => getIt<ChatListBloc>(),
+              ),
+            ],
             child: ChatRoomPage(roomId: roomId),
           );
         },
