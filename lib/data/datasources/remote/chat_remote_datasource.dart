@@ -3,20 +3,22 @@ import 'package:injectable/injectable.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/utils/date_parser.dart';
 import '../../models/chat_room_model.dart';
 import '../../models/message_model.dart';
+import '../base_remote_datasource.dart';
 
 abstract class ChatRemoteDataSource {
   Future<List<ChatRoomModel>> getChatRooms(int userId);
   Future<ChatRoomModel> createDirectChatRoom(int userId1, int userId2);
-  Future<ChatRoomModel> createGroupChatRoom(String? name, List<int> memberIds);
+  Future<ChatRoomModel> createGroupChatRoom(int creatorId, String? name, List<int> memberIds);
   Future<void> leaveChatRoom(int roomId, int userId);
   Future<void> markAsRead(int roomId, int userId);
   Future<MessageHistoryResponse> getMessages(
     int roomId,
     int userId, {
     int? size,
-    String? cursor,
+    int? beforeMessageId,
   });
   Future<MessageModel> sendMessage(SendMessageRequest request);
   Future<MessageModel> updateMessage(int messageId, int userId, String content);
@@ -24,7 +26,8 @@ abstract class ChatRemoteDataSource {
 }
 
 @LazySingleton(as: ChatRemoteDataSource)
-class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
+class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
+    implements ChatRemoteDataSource {
   final DioClient _dioClient;
 
   ChatRemoteDataSourceImpl(this._dioClient);
@@ -36,10 +39,38 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         ApiConstants.chatRooms,
         queryParameters: {'userId': userId},
       );
-      final data = response.data['chatRooms'] as List;
-      return data.map((json) => ChatRoomModel.fromJson(json)).toList();
+
+      // BaseRemoteDataSource의 extractListFromResponse 사용
+      // API 스펙: 응답 키는 'rooms', 하위 호환을 위해 'chatRooms'도 지원
+      final data = extractListFromResponse(
+        response.data,
+        'rooms',
+        fallbackKeys: ['chatRooms'],
+      );
+      
+      return data.map((json) {
+        try {
+          if (json is! Map<String, dynamic>) {
+            throw FormatException('Expected Map<String, dynamic>, got ${json.runtimeType}');
+          }
+          return ChatRoomModel.fromJson(json);
+        } catch (e) {
+          throw ServerException(
+            message: '채팅방 목록 데이터 파싱 중 오류가 발생했습니다: ${e.toString()}. 데이터: $json',
+            statusCode: null,
+          );
+        }
+      }).toList();
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) {
+        rethrow;
+      }
+      throw ServerException(
+        message: '채팅방 목록을 불러오는 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
     }
   }
 
@@ -50,25 +81,89 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         ApiConstants.chatRooms,
         data: CreateChatRoomRequest(userId1: userId1, userId2: userId2).toJson(),
       );
-      return ChatRoomModel.fromJson(response.data);
+      
+      // API 응답 형식: {"roomId":..., "message":"..."}
+      // 또는 전체 ChatRoomModel 형식
+      final responseData = response.data;
+      
+      if (responseData is Map) {
+        // roomId만 있는 경우 (간단한 응답)
+        if (responseData.containsKey('roomId') && !responseData.containsKey('id')) {
+          final roomId = responseData['roomId'];
+          // 최소한의 ChatRoomModel 생성
+          // API 스펙: type은 대문자 ('DIRECT', 'GROUP')
+          return ChatRoomModel(
+            id: roomId is int ? roomId : int.parse(roomId.toString()),
+            type: 'DIRECT',
+            createdAt: DateTime.now(),
+          );
+        }
+        // 전체 ChatRoomModel 형식인 경우
+        return ChatRoomModel.fromJson(responseData as Map<String, dynamic>);
+      }
+      
+      throw ServerException(
+        message: '채팅방 생성 응답 형식이 올바르지 않습니다',
+        statusCode: null,
+      );
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) {
+        rethrow;
+      }
+      throw ServerException(
+        message: '채팅방 생성 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
     }
   }
 
   @override
   Future<ChatRoomModel> createGroupChatRoom(
+    int creatorId,
     String? name,
     List<int> memberIds,
   ) async {
     try {
       final response = await _dioClient.post(
         '${ApiConstants.chatRooms}/group',
-        data: CreateGroupChatRoomRequest(name: name, memberIds: memberIds).toJson(),
+        data: CreateGroupChatRoomRequest(
+          creatorId: creatorId,
+          name: name,
+          memberIds: memberIds,
+        ).toJson(),
       );
-      return ChatRoomModel.fromJson(response.data);
+
+      // API 응답 형식: {"roomId":..., "message":"..."}
+      final responseData = response.data;
+      if (responseData is Map) {
+        if (responseData.containsKey('roomId') && !responseData.containsKey('id')) {
+          final roomId = responseData['roomId'];
+          return ChatRoomModel(
+            id: roomId is int ? roomId : int.parse(roomId.toString()),
+            name: name,
+            type: 'GROUP',
+            createdAt: DateTime.now(),
+          );
+        }
+        return ChatRoomModel.fromJson(responseData as Map<String, dynamic>);
+      }
+
+      throw ServerException(
+        message: '그룹 채팅방 생성 응답 형식이 올바르지 않습니다',
+        statusCode: null,
+      );
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) {
+        rethrow;
+      }
+      throw ServerException(
+        message: '그룹 채팅방 생성 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
     }
   }
 
@@ -80,7 +175,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
@@ -92,7 +187,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
@@ -101,12 +196,12 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     int roomId,
     int userId, {
     int? size,
-    String? cursor,
+    int? beforeMessageId,
   }) async {
     try {
       final queryParams = <String, dynamic>{'userId': userId};
       if (size != null) queryParams['size'] = size;
-      if (cursor != null) queryParams['cursor'] = cursor;
+      if (beforeMessageId != null) queryParams['beforeMessageId'] = beforeMessageId;
 
       final response = await _dioClient.get(
         '${ApiConstants.chatMessages}/rooms/$roomId',
@@ -114,7 +209,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       );
       return MessageHistoryResponse.fromJson(response.data);
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
@@ -125,11 +220,58 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         ApiConstants.chatMessages,
         data: request.toJson(),
       );
-      return MessageModel.fromJson(response.data);
+      
+      final responseData = response.data;
+      if (responseData is! Map) {
+        throw ServerException(
+          message: '메시지 전송 응답 형식이 올바르지 않습니다',
+          statusCode: null,
+        );
+      }
+      
+      // API 응답 형식 변환
+      // 응답: {"messageId":..., "content":"...", "type":"TEXT", "createdAt":[2026,1,22,3,4,10,946596000], ...}
+      // 기대: {"id":..., "chatRoomId":..., "senderId":..., "content":"...", "createdAt":"2026-01-22T03:04:10.946596Z", ...}
+      final convertedData = <String, dynamic>{
+        // messageId -> id
+        'id': responseData['messageId'] ?? responseData['id'],
+        // 요청에서 가져온 정보
+        'chatRoomId': request.chatRoomId,
+        'senderId': request.senderId,
+        'content': responseData['content'] ?? request.content,
+        'type': responseData['type'],
+        'fileUrl': responseData['fileUrl'],
+        'fileName': responseData['fileName'],
+        'fileSize': responseData['fileSize'],
+        'fileContentType': responseData['contentType'],
+        'thumbnailUrl': responseData['thumbnailUrl'],
+        'replyToMessageId': responseData['replyToMessageId'],
+        'forwardedFromMessageId': responseData['forwardedFromMessageId'],
+        'isDeleted': responseData['isDeleted'] ?? false,
+        // createdAt 배열을 ISO 8601 문자열로 변환
+        'createdAt': DateParser.toIso8601String(DateParser.parse(responseData['createdAt'])),
+        'updatedAt': responseData['updatedAt'] != null
+            ? DateParser.toIso8601String(DateParser.parse(responseData['updatedAt']))
+            : null,
+        'senderNickname': responseData['senderNickname'],
+        'senderAvatarUrl': responseData['senderAvatarUrl'],
+        'reactions': responseData['reactions'],
+      };
+      
+      return MessageModel.fromJson(convertedData);
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) {
+        rethrow;
+      }
+      throw ServerException(
+        message: '메시지 전송 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
     }
   }
+  
 
   @override
   Future<MessageModel> updateMessage(
@@ -144,7 +286,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       );
       return MessageModel.fromJson(response.data);
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
@@ -156,17 +298,8 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         queryParameters: {'userId': userId},
       );
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      throw handleDioError(e);
     }
   }
 
-  Exception _handleDioError(DioException e) {
-    if (e.response != null) {
-      return ServerException(
-        message: e.response!.data?['message'] ?? 'Unknown error',
-        statusCode: e.response!.statusCode,
-      );
-    }
-    return const NetworkException(message: '네트워크 오류가 발생했습니다');
-  }
 }

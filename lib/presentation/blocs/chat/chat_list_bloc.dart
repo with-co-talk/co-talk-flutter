@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
+import '../../../core/errors/exceptions.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import 'chat_list_event.dart';
 import 'chat_list_state.dart';
@@ -30,7 +31,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } catch (e) {
       emit(state.copyWith(
         status: ChatListStatus.failure,
-        errorMessage: e.toString(),
+        errorMessage: _extractErrorMessage(e),
       ));
     }
   }
@@ -48,7 +49,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } catch (e) {
       emit(state.copyWith(
         status: ChatListStatus.failure,
-        errorMessage: e.toString(),
+        errorMessage: _extractErrorMessage(e),
       ));
     }
   }
@@ -63,7 +64,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } catch (e) {
       emit(state.copyWith(
         status: ChatListStatus.failure,
-        errorMessage: e.toString(),
+        errorMessage: _extractErrorMessage(e),
       ));
     }
   }
@@ -78,8 +79,28 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } catch (e) {
       emit(state.copyWith(
         status: ChatListStatus.failure,
-        errorMessage: e.toString(),
-      ));
+        errorMessage: _extractErrorMessage(e),
+      )      );
     }
+  }
+
+  String _extractErrorMessage(dynamic error) {
+    if (error is ServerException) {
+      return error.message;
+    }
+    if (error is NetworkException) {
+      return error.message;
+    }
+    if (error is AuthException) {
+      return error.message;
+    }
+    if (error is ValidationException) {
+      return error.message;
+    }
+    if (error is CacheException) {
+      return error.message;
+    }
+    // 알 수 없는 에러의 경우
+    return error.toString();
   }
 }
