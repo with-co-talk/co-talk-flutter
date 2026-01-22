@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/chat_room.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
@@ -24,19 +25,32 @@ class _ChatListPageState extends State<ChatListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('채팅'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: Implement search
-            },
-          ),
-        ],
-      ),
-      body: BlocBuilder<ChatListBloc, ChatListState>(
+    return BlocListener<ChatListBloc, ChatListState>(
+      listenWhen: (previous, current) => 
+          previous.errorMessage != current.errorMessage && current.errorMessage != null,
+      listener: (context, state) {
+        if (state.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ErrorMessageMapper.toUserFriendlyMessage(state.errorMessage!)),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('채팅'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: () {
+                // TODO: Implement search
+              },
+            ),
+          ],
+        ),
+        body: BlocBuilder<ChatListBloc, ChatListState>(
         builder: (context, state) {
           if (state.status == ChatListStatus.loading &&
               state.chatRooms.isEmpty) {
@@ -88,6 +102,7 @@ class _ChatListPageState extends State<ChatListPage> {
             ),
           );
         },
+        ),
       ),
     );
   }
@@ -126,9 +141,9 @@ class _ChatRoomTile extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
-          if (chatRoom.lastMessage != null)
+          if (chatRoom.lastMessageAt != null)
             Text(
-              AppDateUtils.formatChatListTime(chatRoom.lastMessage!.createdAt),
+              AppDateUtils.formatChatListTime(chatRoom.lastMessageAt!),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -139,7 +154,7 @@ class _ChatRoomTile extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              chatRoom.lastMessage?.displayContent ?? '',
+              chatRoom.lastMessage ?? '',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: AppColors.textSecondary),
