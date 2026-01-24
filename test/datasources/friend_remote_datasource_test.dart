@@ -4,29 +4,22 @@ import 'package:dio/dio.dart';
 import 'package:co_talk_flutter/core/network/dio_client.dart';
 import 'package:co_talk_flutter/core/errors/exceptions.dart';
 import 'package:co_talk_flutter/data/datasources/remote/friend_remote_datasource.dart';
-import 'package:co_talk_flutter/data/datasources/local/auth_local_datasource.dart';
 
 class MockDioClient extends Mock implements DioClient {}
-class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
 
 void main() {
   late MockDioClient mockDioClient;
-  late MockAuthLocalDataSource mockAuthLocalDataSource;
   late FriendRemoteDataSourceImpl dataSource;
 
   setUp(() {
     mockDioClient = MockDioClient();
-    mockAuthLocalDataSource = MockAuthLocalDataSource();
-    dataSource = FriendRemoteDataSourceImpl(mockDioClient, mockAuthLocalDataSource);
-
-    // 기본 Mock 설정: userId 반환
-    when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+    dataSource = FriendRemoteDataSourceImpl(mockDioClient);
   });
 
   group('FriendRemoteDataSource', () {
     group('getFriends', () {
       test('returns list of FriendModel when succeeds', () async {
-        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenAnswer((_) async => Response(
+        when(() => mockDioClient.get(any())).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               data: {
                 'friends': [
@@ -53,7 +46,7 @@ void main() {
       });
 
       test('throws ServerException when fails', () async {
-        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenThrow(DioException(
+        when(() => mockDioClient.get(any())).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -70,7 +63,7 @@ void main() {
       });
 
       test('throws NetworkException when network error', () async {
-        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenThrow(DioException(
+        when(() => mockDioClient.get(any())).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           type: DioExceptionType.connectionError,
         ));
@@ -78,15 +71,6 @@ void main() {
         expect(
           () => dataSource.getFriends(),
           throwsA(isA<NetworkException>()),
-        );
-      });
-
-      test('throws ServerException when userId is null', () async {
-        when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => null);
-
-        expect(
-          () => dataSource.getFriends(),
-          throwsA(isA<ServerException>()),
         );
       });
     });
@@ -270,7 +254,7 @@ void main() {
 
     group('getReceivedFriendRequests', () {
       test('returns list of FriendRequestModel when succeeds', () async {
-        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenAnswer((_) async => Response(
+        when(() => mockDioClient.get(any())).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               data: {
                 'requests': [
@@ -305,7 +289,7 @@ void main() {
       });
 
       test('throws ServerException when fails', () async {
-        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenThrow(DioException(
+        when(() => mockDioClient.get(any())).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -324,7 +308,7 @@ void main() {
 
     group('getSentFriendRequests', () {
       test('returns list of FriendRequestModel when succeeds', () async {
-        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenAnswer((_) async => Response(
+        when(() => mockDioClient.get(any())).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               data: {
                 'requests': [
@@ -359,7 +343,7 @@ void main() {
       });
 
       test('throws ServerException when fails', () async {
-        when(() => mockDioClient.get(any(), queryParameters: any(named: 'queryParameters'))).thenThrow(DioException(
+        when(() => mockDioClient.get(any())).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -368,15 +352,6 @@ void main() {
           ),
           type: DioExceptionType.badResponse,
         ));
-
-        expect(
-          () => dataSource.getSentFriendRequests(),
-          throwsA(isA<ServerException>()),
-        );
-      });
-
-      test('throws ServerException when userId is null', () async {
-        when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => null);
 
         expect(
           () => dataSource.getSentFriendRequests(),

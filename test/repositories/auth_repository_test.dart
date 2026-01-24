@@ -103,6 +103,37 @@ void main() {
             .called(1);
       });
 
+      test('🔴 RED: saves userId derived from JWT subject when login succeeds', () async {
+        // JWT with payload {"sub":"273413818476920832"}
+        const jwt =
+            'header.eyJzdWIiOiIyNzM0MTM4MTg0NzY5MjA4MzIifQ.signature';
+
+        when(() => mockRemoteDataSource.login(any())).thenAnswer(
+          (_) async => const AuthTokenResponse(
+            accessToken: jwt,
+            refreshToken: 'refresh_token',
+            tokenType: 'Bearer',
+            expiresIn: 86400,
+          ),
+        );
+        when(() => mockLocalDataSource.saveTokens(
+              accessToken: any(named: 'accessToken'),
+              refreshToken: any(named: 'refreshToken'),
+            )).thenAnswer((_) async {});
+        when(() => mockLocalDataSource.saveUserEmail(any()))
+            .thenAnswer((_) async {});
+        when(() => mockLocalDataSource.saveUserId(any()))
+            .thenAnswer((_) async {});
+
+        await repository.login(
+          email: 'test@example.com',
+          password: 'password123',
+        );
+
+        verify(() => mockLocalDataSource.saveUserId(273413818476920832))
+            .called(1);
+      });
+
       test('throws exception when login fails', () async {
         when(() => mockRemoteDataSource.login(any()))
             .thenThrow(Exception('Invalid credentials'));

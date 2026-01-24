@@ -41,6 +41,10 @@ void main() {
           senderId: any(named: 'senderId'),
           content: any(named: 'content'),
         )).thenReturn(null);
+    when(() => mockWebSocketService.sendPresenceInactive(
+          roomId: any(named: 'roomId'),
+          userId: any(named: 'userId'),
+        )).thenReturn(null);
   });
 
   ChatRoomBloc createBloc() => ChatRoomBloc(
@@ -86,7 +90,6 @@ void main() {
         ],
         verify: (_) {
           verify(() => mockChatRepository.getMessages(1, size: 50)).called(1);
-          verify(() => mockChatRepository.markAsRead(1)).called(1);
           verify(() => mockWebSocketService.subscribeToChatRoom(1)).called(1);
         },
       );
@@ -132,6 +135,67 @@ void main() {
           verify(() => mockWebSocketService.unsubscribeFromChatRoom(1)).called(1);
         },
       );
+    });
+
+    group('Foreground/Background', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'keeps room subscription and sends presenceInactive when backgrounded after opening',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+                userId: any(named: 'userId'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          // opened 단계의 호출은 제외하고 "background 전환"만 검증한다.
+          clearInteractions(mockWebSocketService);
+          bloc.add(const ChatRoomBackgrounded());
+        },
+        wait: const Duration(milliseconds: 400),
+        verify: (_) {
+          // bloc dispose(close) 시점의 unsubscribe는 허용(정상적인 정리).
+          // 여기서는 background 전환으로 인해 "즉시 unsubscribe"가 발생하지 않는지만 본다.
+          verify(() => mockWebSocketService.unsubscribeFromChatRoom(1)).called(1);
+          verify(() => mockWebSocketService.sendPresenceInactive(roomId: 1, userId: 1)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does not re-subscribe and marks as read when foregrounded after backgrounded',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+                userId: any(named: 'userId'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          // opened/background 단계의 호출은 제외하고 "foreground 전환"만 검증한다.
+          clearInteractions(mockWebSocketService);
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+        },
+        wait: const Duration(milliseconds: 600),
+        verify: (_) {
+          verifyNever(() => mockWebSocketService.subscribeToChatRoom(any()));
+          verify(() => mockChatRepository.markAsRead(1)).called(1);
+          verify(() => mockWebSocketService.sendPresencePing(roomId: 1, userId: 1)).called(1);
+        },
+      );
+
     });
 
     group('MessageSent', () {
@@ -549,35 +613,125 @@ void main() {
               .having((s) => s.messages[2].unreadCount, 'first msg unreadCount', 0), // id=1 <= lastReadMessageId=2
         ],
       );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        '🔴 RED: ignores duplicate read events to prevent double decrement (group case)',
+        build: () => createBloc(),
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [
+            // 내 메시지, 그룹 채팅 가정(unreadCount=3)
+            Message(
+              id: 1,
+              chatRoomId: 1,
+              senderId: 1,
+              content: 'Hi',
+              createdAt: DateTime(2024, 1, 1),
+              unreadCount: 3,
+            ),
+          ],
+        ),
+        act: (bloc) {
+          bloc.add(const MessagesReadUpdated(userId: 2, lastReadMessageId: 1));
+          bloc.add(const MessagesReadUpdated(userId: 2, lastReadMessageId: 1)); // duplicate
+        },
+        expect: () => [
+          isA<ChatRoomState>().having((s) => s.messages[0].unreadCount, 'unreadCount after first', 2),
+          // 두 번째(중복) 이벤트는 무시되어야 한다
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        '🔴 RED: updates only messages up to lastReadAt when lastReadMessageId is null',
+        build: () => createBloc(),
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [
+            // newest first (reverse list UI), all are my messages
+            Message(id: 3, chatRoomId: 1, senderId: 1, content: 'Third', createdAt: DateTime(2024, 1, 1, 12), unreadCount: 1),
+            Message(id: 2, chatRoomId: 1, senderId: 1, content: 'Second', createdAt: DateTime(2024, 1, 1, 11), unreadCount: 1),
+            Message(id: 1, chatRoomId: 1, senderId: 1, content: 'First', createdAt: DateTime(2024, 1, 1, 10), unreadCount: 1),
+          ],
+        ),
+        act: (bloc) => bloc.add(
+          MessagesReadUpdated(
+            userId: 2,
+            lastReadAt: DateTime(2024, 1, 1, 11, 0, 0), // should affect id=1,2 only
+          ),
+        ),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages[0].unreadCount, 'third msg unreadCount', 1) // 12:00 > lastReadAt
+              .having((s) => s.messages[1].unreadCount, 'second msg unreadCount', 0) // 11:00 <= lastReadAt
+              .having((s) => s.messages[2].unreadCount, 'first msg unreadCount', 0), // 10:00 <= lastReadAt
+        ],
+      );
     });
 
     group('Auto read on message received', () {
       blocTest<ChatRoomBloc, ChatRoomState>(
         'calls markAsRead when receiving message from other user',
         build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
           when(() => mockChatRepository.markAsRead(any()))
               .thenAnswer((_) async {});
           return createBloc();
         },
-        seed: () => const ChatRoomState(
-          status: ChatRoomStatus.success,
-          roomId: 1,
-          currentUserId: 1,
-          messages: [],
-        ),
-        act: (bloc) => bloc.add(MessageReceived(
-          Message(
-            id: 1,
-            chatRoomId: 1,
-            senderId: 2,
-            content: 'Hi',
-            createdAt: DateTime(2024, 1, 1),
-          ),
-        )),
-        wait: const Duration(milliseconds: 100),
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          clearInteractions(mockChatRepository);
+
+          bloc.add(MessageReceived(
+            Message(
+              id: 1,
+              chatRoomId: 1,
+              senderId: 2,
+              content: 'Hi',
+              createdAt: DateTime(2024, 1, 1),
+            ),
+          ));
+        },
+        wait: const Duration(milliseconds: 800),
         verify: (_) {
           verify(() => mockChatRepository.markAsRead(1)).called(1);
         },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        '🔴 RED: sets isReadMarked to true when markAsRead succeeds',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any()))
+              .thenAnswer((_) async {});
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const ChatRoomOpened(1)),
+        wait: const Duration(milliseconds: 500),
+        expect: () => [
+          const ChatRoomState(
+            status: ChatRoomStatus.loading,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+          ),
+          ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: FakeEntities.messages,
+            nextCursor: 123,
+            hasMore: true,
+          ),
+        ],
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
@@ -638,7 +792,7 @@ void main() {
           // Wait for WebSocket message to be processed
           await Future.delayed(const Duration(milliseconds: 200));
         },
-        wait: const Duration(milliseconds: 300),
+        wait: const Duration(milliseconds: 500),
         expect: () => [
           const ChatRoomState(
             status: ChatRoomStatus.loading,
@@ -654,9 +808,85 @@ void main() {
             nextCursor: null,
             hasMore: false,
           ),
+          // WebSocket 메시지 추가 (이전 isReadMarked 상태 유지)
           isA<ChatRoomState>()
               .having((s) => s.messages.length, 'messages length', 1)
-              .having((s) => s.messages.first.content, 'content', 'WebSocket message'),
+              .having((s) => s.messages.first.content, 'content', 'WebSocket message')
+              .having((s) => s.isReadMarked, 'isReadMarked', false), // opened 시점 markAsRead 제거
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        '🔴 RED: sender-side unreadCount(1) becomes 0 when READ event arrives via WebSocket streams',
+        build: () {
+          final messageController = StreamController<WebSocketChatMessage>();
+          final readController = StreamController<WebSocketReadEvent>();
+          when(() => mockWebSocketService.messages)
+              .thenAnswer((_) => messageController.stream);
+          when(() => mockWebSocketService.readEvents)
+              .thenAnswer((_) => readController.stream);
+
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+
+          // 1) 내 메시지(unreadCount=1) 수신
+          Future.delayed(const Duration(milliseconds: 120), () {
+            messageController.add(WebSocketChatMessage(
+              messageId: 9007199254740991, // 큰 ID로 long 영역도 커버
+              senderId: 1, // currentUserId=1(=내 메시지)
+              chatRoomId: 1,
+              content: 'mine',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 22),
+              unreadCount: 1,
+            ));
+          });
+
+          // 2) 상대가 읽음(READ) 이벤트 수신
+          Future.delayed(const Duration(milliseconds: 220), () {
+            readController.add(WebSocketReadEvent(
+              chatRoomId: 1,
+              userId: 2, // reader = 상대
+              lastReadMessageId: 9007199254740991,
+              lastReadAt: DateTime(2026, 1, 22, 12, 0, 0),
+            ));
+          });
+
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 400));
+        },
+        wait: const Duration(milliseconds: 800),
+        expect: () => [
+          const ChatRoomState(
+            status: ChatRoomStatus.loading,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+          ),
+          const ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+            nextCursor: null,
+            hasMore: false,
+          ),
+          // 내 메시지 수신: unreadCount=1
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.content, 'content', 'mine')
+              .having((s) => s.messages.first.unreadCount, 'unreadCount', 1),
+          // READ 이벤트 후: unreadCount=0
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.content, 'content', 'mine')
+              .having((s) => s.messages.first.unreadCount, 'unreadCount', 0),
         ],
       );
     });

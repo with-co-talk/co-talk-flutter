@@ -1,10 +1,193 @@
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'dart:convert';
 
 import '../mocks/mock_repositories.dart';
+import 'package:co_talk_flutter/core/network/event_dedupe_cache.dart';
 
 void main() {
+  group('EventDedupeCache', () {
+    test('treats same eventId within ttl as duplicate', () {
+      var now = DateTime(2026, 1, 24, 12, 0, 0);
+      final cache = EventDedupeCache(
+        ttl: const Duration(seconds: 10),
+        maxSize: 10,
+        now: () => now,
+      );
+
+      expect(cache.isDuplicate('e1'), isFalse);
+      now = now.add(const Duration(seconds: 5));
+      expect(cache.isDuplicate('e1'), isTrue);
+    });
+
+    test('treats same eventId after ttl as new', () {
+      var now = DateTime(2026, 1, 24, 12, 0, 0);
+      final cache = EventDedupeCache(
+        ttl: const Duration(seconds: 10),
+        maxSize: 10,
+        now: () => now,
+      );
+
+      expect(cache.isDuplicate('e1'), isFalse);
+      now = now.add(const Duration(seconds: 11));
+      expect(cache.isDuplicate('e1'), isFalse);
+    });
+
+    test('does not treat null/empty as duplicate', () {
+      final cache = EventDedupeCache(
+        ttl: const Duration(seconds: 10),
+        maxSize: 10,
+        now: () => DateTime(2026, 1, 24),
+      );
+      expect(cache.isDuplicate(null), isFalse);
+      expect(cache.isDuplicate(''), isFalse);
+    });
+  });
+
+  group('WebSocketPayloadParser', () {
+    const parser = WebSocketPayloadParser();
+
+    test('parses room payload as chat message when messageId exists and eventType is null', () {
+      final payload = {
+        'schemaVersion': 1,
+        'eventId': 'message:10',
+        'messageId': 10,
+        'senderId': 2,
+        'roomId': 3,
+        'content': 'hi',
+        'type': 'TEXT',
+        'createdAt': '2026-01-22T10:00:00.000',
+        'unreadCount': 1,
+      };
+
+      final parsed = parser.parseRoomPayload(
+        body: jsonEncode(payload),
+        roomId: 999,
+      );
+
+      expect(parsed, isA<ParsedChatMessagePayload>());
+      final msg = (parsed as ParsedChatMessagePayload).message;
+      expect(msg.schemaVersion, 1);
+      expect(msg.eventId, 'message:10');
+      expect(msg.messageId, 10);
+      expect(msg.chatRoomId, 3); // json roomId 우선
+      expect(msg.unreadCount, 1);
+    });
+
+    test('parses room payload as READ when eventType=READ', () {
+      final payload = {
+        'schemaVersion': 1,
+        'eventId': 'room-event:READ:7:42:100',
+        'eventType': 'READ',
+        'chatRoomId': 7,
+        'userId': 42,
+        'lastReadMessageId': 100,
+        'lastReadAt': '2026-01-22T10:00:00.000',
+      };
+
+      final parsed = parser.parseRoomPayload(
+        body: jsonEncode(payload),
+        roomId: 7,
+      );
+
+      expect(parsed, isA<ParsedReadPayload>());
+      final evt = (parsed as ParsedReadPayload).event;
+      expect(evt.schemaVersion, 1);
+      expect(evt.eventId, 'room-event:READ:7:42:100');
+      expect(evt.chatRoomId, 7);
+      expect(evt.userId, 42);
+      expect(evt.lastReadMessageId, 100);
+      expect(evt.lastReadAt, isNotNull);
+    });
+
+    test('parses room payload as reaction when eventType=ADDED', () {
+      final payload = {
+        'eventType': 'ADDED',
+        'messageId': 1,
+        'userId': 2,
+        'emoji': '👍',
+        'timestamp': 123456,
+      };
+
+      final parsed = parser.parseRoomPayload(
+        body: jsonEncode(payload),
+        roomId: 1,
+      );
+
+      expect(parsed, isA<ParsedReactionPayload>());
+      final evt = (parsed as ParsedReactionPayload).event;
+      expect(evt.eventType, 'ADDED');
+      expect(evt.emoji, '👍');
+    });
+
+    test('parses room payload as typing when eventType=STOP_TYPING', () {
+      final payload = {
+        'eventType': 'STOP_TYPING',
+        'roomId': 9,
+        'userId': 2,
+        'userNickname': 'Bob',
+        'isTyping': false,
+      };
+
+      final parsed = parser.parseRoomPayload(
+        body: jsonEncode(payload),
+        roomId: 9,
+      );
+
+      expect(parsed, isA<ParsedTypingPayload>());
+      final evt = (parsed as ParsedTypingPayload).event;
+      expect(evt.chatRoomId, 9);
+      expect(evt.userId, 2);
+      expect(evt.isTyping, isFalse);
+    });
+
+    test('parses unknown payload as ParsedUnknownPayload', () {
+      final payload = {'foo': 'bar'};
+      final parsed = parser.parseRoomPayload(
+        body: jsonEncode(payload),
+        roomId: 1,
+      );
+      expect(parsed, isA<ParsedUnknownPayload>());
+    });
+
+    test('parses chat-list payload as WebSocketChatRoomUpdateEvent', () {
+      final payload = {
+        'schemaVersion': 1,
+        'eventId': 'chat-list:NEW_MESSAGE:1:10:2',
+        'chatRoomId': 1,
+        'lastMessage': 'hello',
+        'lastMessageAt': '2026-01-22T10:00:00.000',
+        'unreadCount': 3,
+      };
+
+      final update = parser.parseChatListPayload(jsonEncode(payload));
+      expect(update.schemaVersion, 1);
+      expect(update.eventId, 'chat-list:NEW_MESSAGE:1:10:2');
+      expect(update.chatRoomId, 1);
+      expect(update.lastMessage, 'hello');
+      expect(update.unreadCount, 3);
+    });
+
+    test('parses read-receipt payload as WebSocketReadEvent', () {
+      final payload = {
+        'schemaVersion': 1,
+        'eventId': 'read-receipt:1:2:5',
+        'eventType': 'READ',
+        'roomId': 1,
+        'readerId': 2,
+        'lastReadMessageId': 5,
+      };
+
+      final evt = parser.parseReadReceiptPayload(jsonEncode(payload));
+      expect(evt.schemaVersion, 1);
+      expect(evt.eventId, 'read-receipt:1:2:5');
+      expect(evt.chatRoomId, 1);
+      expect(evt.userId, 2);
+      expect(evt.lastReadMessageId, 5);
+    });
+  });
+
   group('WebSocketChatMessage', () {
     group('fromJson', () {
       test('parses basic message correctly', () {
@@ -317,6 +500,30 @@ void main() {
 
         expect(reaction.reactionId, isNull);
         expect(reaction.eventType, 'REMOVED');
+      });
+    });
+  });
+
+  group('WebSocketReadEvent', () {
+    group('fromJson', () {
+      test('parses room READ event schema correctly', () {
+        final json = {
+          'eventType': 'READ',
+          'chatRoomId': 10,
+          'userId': 2,
+          'lastReadMessageId': 777,
+          'lastReadAt': '2026-01-24T12:34:56',
+        };
+
+        final event = WebSocketReadEvent.fromJson(json);
+
+        expect(event.chatRoomId, 10);
+        expect(event.userId, 2);
+        expect(event.lastReadMessageId, 777);
+        expect(event.lastReadAt, isNotNull);
+        expect(event.lastReadAt!.year, 2026);
+        expect(event.lastReadAt!.month, 1);
+        expect(event.lastReadAt!.day, 24);
       });
     });
   });

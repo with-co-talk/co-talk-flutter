@@ -248,27 +248,24 @@ void main() {
 
   group('SendMessageRequest', () {
     test('creates request with required fields', () {
+      // senderId는 JWT 토큰에서 추출하므로 제거됨
       const request = SendMessageRequest(
-        senderId: 1,
         chatRoomId: 1,
         content: '안녕하세요',
       );
 
-      expect(request.senderId, 1);
       expect(request.chatRoomId, 1);
       expect(request.content, '안녕하세요');
     });
 
     test('toJson returns correct map', () {
       const request = SendMessageRequest(
-        senderId: 1,
         chatRoomId: 1,
         content: '안녕하세요',
       );
 
       final json = request.toJson();
 
-      expect(json['senderId'], 1);
       expect(json['chatRoomId'], 1);
       expect(json['content'], '안녕하세요');
     });
@@ -456,15 +453,14 @@ void main() {
 
   group('SendMessageRequest fromJson', () {
     test('parses json correctly', () {
+      // senderId는 JWT 토큰에서 추출하므로 제거됨
       final json = {
-        'senderId': 1,
         'chatRoomId': 1,
         'content': 'Hello',
       };
 
       final request = SendMessageRequest.fromJson(json);
 
-      expect(request.senderId, 1);
       expect(request.chatRoomId, 1);
       expect(request.content, 'Hello');
     });

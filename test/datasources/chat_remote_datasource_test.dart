@@ -4,17 +4,23 @@ import 'package:dio/dio.dart';
 import 'package:co_talk_flutter/core/network/dio_client.dart';
 import 'package:co_talk_flutter/core/errors/exceptions.dart';
 import 'package:co_talk_flutter/data/datasources/remote/chat_remote_datasource.dart';
+import 'package:co_talk_flutter/data/datasources/local/auth_local_datasource.dart';
 import 'package:co_talk_flutter/data/models/message_model.dart';
 
 class MockDioClient extends Mock implements DioClient {}
+class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
 
 void main() {
   late MockDioClient mockDioClient;
+  late MockAuthLocalDataSource mockAuthLocalDataSource;
   late ChatRemoteDataSourceImpl dataSource;
 
   setUp(() {
     mockDioClient = MockDioClient();
-    dataSource = ChatRemoteDataSourceImpl(mockDioClient);
+    mockAuthLocalDataSource = MockAuthLocalDataSource();
+    // 기본적으로 userId 1을 반환하도록 설정
+    when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+    dataSource = ChatRemoteDataSourceImpl(mockDioClient, mockAuthLocalDataSource);
   });
 
   group('ChatRemoteDataSource', () {
@@ -22,7 +28,6 @@ void main() {
       test('returns list of ChatRoomModel when succeeds', () async {
         when(() => mockDioClient.get(
               any(),
-              queryParameters: any(named: 'queryParameters'),
             )).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               data: {
@@ -43,7 +48,7 @@ void main() {
               statusCode: 200,
             ));
 
-        final result = await dataSource.getChatRooms(1);
+        final result = await dataSource.getChatRooms();
 
         expect(result.length, 1);
         expect(result.first.id, 1);
@@ -53,7 +58,6 @@ void main() {
       test('throws ServerException when fails', () async {
         when(() => mockDioClient.get(
               any(),
-              queryParameters: any(named: 'queryParameters'),
             )).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
@@ -65,7 +69,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.getChatRooms(1),
+          () => dataSource.getChatRooms(),
           throwsA(isA<ServerException>()),
         );
       });
@@ -85,10 +89,39 @@ void main() {
               statusCode: 201,
             ));
 
-        final result = await dataSource.createDirectChatRoom(1, 2);
+        final result = await dataSource.createDirectChatRoom(2);
 
         expect(result.id, 1);
         expect(result.type, 'DIRECT');
+      });
+
+      test('includes userId1 in request when creating chat room', () async {
+        // Given: 현재 사용자 ID가 1이고, 상대방 ID가 2인 경우
+        when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+        
+        Map<String, dynamic>? capturedData;
+        when(() => mockDioClient.post(
+              any(),
+              data: any(named: 'data'),
+            )).thenAnswer((invocation) async {
+          capturedData = invocation.namedArguments[#data] as Map<String, dynamic>?;
+          return Response(
+            requestOptions: RequestOptions(path: ''),
+            data: {
+              'roomId': 1,
+              'message': '채팅방이 생성되었습니다.',
+            },
+            statusCode: 201,
+          );
+        });
+
+        // When: 채팅방 생성 요청
+        await dataSource.createDirectChatRoom(2);
+
+        // Then: 요청 데이터에 userId1과 userId2가 모두 포함되어야 함
+        expect(capturedData, isNotNull, reason: 'Request data should be captured');
+        expect(capturedData!['userId1'], equals(1), reason: 'userId1 should be 1');
+        expect(capturedData!['userId2'], equals(2), reason: 'userId2 should be 2');
       });
     });
 
@@ -106,7 +139,7 @@ void main() {
               statusCode: 201,
             ));
 
-        final result = await dataSource.createGroupChatRoom(1, 'Group Chat', [2, 3]);
+        final result = await dataSource.createGroupChatRoom('Group Chat', [2, 3]);
 
         expect(result.id, 2);
         expect(result.name, 'Group Chat');
@@ -125,7 +158,7 @@ void main() {
             ));
 
         await expectLater(
-          dataSource.leaveChatRoom(1, 1),
+          dataSource.leaveChatRoom(1),
           completes,
         );
       });
@@ -142,7 +175,7 @@ void main() {
             ));
 
         await expectLater(
-          dataSource.markAsRead(1, 1),
+          dataSource.markAsRead(1),
           completes,
         );
       });
@@ -173,7 +206,7 @@ void main() {
               statusCode: 200,
             ));
 
-        final result = await dataSource.getMessages(1, 1);
+        final result = await dataSource.getMessages(1);
 
         expect(result.messages.length, 1);
         expect(result.hasMore, false);
@@ -193,7 +226,7 @@ void main() {
               statusCode: 200,
             ));
 
-        final result = await dataSource.getMessages(1, 1, size: 20, beforeMessageId: 100);
+        final result = await dataSource.getMessages(1, size: 20, beforeMessageId: 100);
 
         expect(result.messages, isEmpty);
       });
@@ -219,7 +252,7 @@ void main() {
             ));
 
         final result = await dataSource.sendMessage(
-          const SendMessageRequest(chatRoomId: 1, senderId: 1, content: 'Hello'),
+          const SendMessageRequest(chatRoomId: 1, content: 'Hello'),
         );
 
         expect(result.id, 1);
@@ -228,6 +261,7 @@ void main() {
 
       test('handles server response with array date format', () async {
         // 실제 서버가 반환하는 형식: messageId, type, createdAt as array
+        // senderId는 JWT에서 추출되어 서버 응답에 포함됨
         when(() => mockDioClient.post(
               any(),
               data: any(named: 'data'),
@@ -237,6 +271,7 @@ void main() {
                 'messageId': 123,
                 'content': 'Test Message',
                 'type': 'TEXT',
+                'senderId': 1,
                 'createdAt': [2026, 1, 22, 3, 4, 10, 946596000],
                 'isDeleted': false,
               },
@@ -244,13 +279,13 @@ void main() {
             ));
 
         final result = await dataSource.sendMessage(
-          const SendMessageRequest(chatRoomId: 1, senderId: 1, content: 'Test Message'),
+          const SendMessageRequest(chatRoomId: 1, content: 'Test Message'),
         );
 
         expect(result.id, 123);
         expect(result.content, 'Test Message');
         expect(result.chatRoomId, 1);
-        expect(result.senderId, 1);
+        expect(result.senderId, 1); // from server response (JWT extracted)
         expect(result.createdAt, isA<DateTime>());
         expect(result.createdAt.year, 2026);
         expect(result.createdAt.month, 1);
@@ -258,6 +293,7 @@ void main() {
       });
 
       test('handles server response with minimal roomId format', () async {
+        // senderId는 JWT에서 추출되어 서버 응답에 포함됨
         when(() => mockDioClient.post(
               any(),
               data: any(named: 'data'),
@@ -267,18 +303,19 @@ void main() {
                 'messageId': 456,
                 'content': 'Another Message',
                 'type': 'TEXT',
+                'senderId': 3,
                 'createdAt': [2026, 1, 22, 10, 30, 45, 0],
               },
               statusCode: 201,
             ));
 
         final result = await dataSource.sendMessage(
-          const SendMessageRequest(chatRoomId: 2, senderId: 3, content: 'Another Message'),
+          const SendMessageRequest(chatRoomId: 2, content: 'Another Message'),
         );
 
         expect(result.id, 456);
         expect(result.chatRoomId, 2); // from request
-        expect(result.senderId, 3); // from request
+        expect(result.senderId, 3); // from server response (JWT extracted)
       });
     });
 
@@ -302,7 +339,7 @@ void main() {
               statusCode: 200,
             ));
 
-        final result = await dataSource.updateMessage(1, 1, 'Updated');
+        final result = await dataSource.updateMessage(1, 'Updated');
 
         expect(result.content, 'Updated');
       });
@@ -319,7 +356,7 @@ void main() {
             ));
 
         await expectLater(
-          dataSource.deleteMessage(1, 1),
+          dataSource.deleteMessage(1),
           completes,
         );
       });
@@ -330,14 +367,13 @@ void main() {
       test('getChatRooms throws NetworkException on network error', () async {
         when(() => mockDioClient.get(
               any(),
-              queryParameters: any(named: 'queryParameters'),
             )).thenThrow(DioException(
           requestOptions: RequestOptions(path: ''),
           type: DioExceptionType.connectionError,
         ));
 
         expect(
-          () => dataSource.getChatRooms(1),
+          () => dataSource.getChatRooms(),
           throwsA(isA<NetworkException>()),
         );
       });
@@ -357,7 +393,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.createDirectChatRoom(1, 2),
+          () => dataSource.createDirectChatRoom(2),
           throwsA(isA<ValidationException>()),
         );
       });
@@ -377,7 +413,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.createGroupChatRoom(1, 'Group', [2]),
+          () => dataSource.createGroupChatRoom('Group', [2]),
           throwsA(isA<ServerException>()),
         );
       });
@@ -392,7 +428,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.leaveChatRoom(1, 1),
+          () => dataSource.leaveChatRoom(1),
           throwsA(isA<NetworkException>()),
         );
       });
@@ -407,7 +443,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.markAsRead(1, 1),
+          () => dataSource.markAsRead(1),
           throwsA(isA<NetworkException>()),
         );
       });
@@ -427,7 +463,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.getMessages(1, 1),
+          () => dataSource.getMessages(1),
           throwsA(isA<AuthException>()),
         );
       });
@@ -448,7 +484,7 @@ void main() {
 
         expect(
           () => dataSource.sendMessage(
-            const SendMessageRequest(chatRoomId: 1, senderId: 1, content: 'Hi'),
+            const SendMessageRequest(chatRoomId: 1, content: 'Hi'),
           ),
           throwsA(isA<ValidationException>()),
         );
@@ -469,7 +505,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.updateMessage(1, 1, 'Updated'),
+          () => dataSource.updateMessage(1, 'Updated'),
           throwsA(isA<ServerException>()),
         );
       });
@@ -484,7 +520,7 @@ void main() {
         ));
 
         expect(
-          () => dataSource.deleteMessage(1, 1),
+          () => dataSource.deleteMessage(1),
           throwsA(isA<NetworkException>()),
         );
       });

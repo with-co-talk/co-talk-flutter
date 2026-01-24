@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
@@ -7,46 +8,83 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_state.dart';
+import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_bloc.dart';
+import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_event.dart';
+import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_state.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_state.dart';
 import 'package:co_talk_flutter/presentation/pages/chat/chat_room_page.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
+import 'package:co_talk_flutter/core/window/window_focus_tracker.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 class MockChatRoomBloc extends MockBloc<ChatRoomEvent, ChatRoomState>
     implements ChatRoomBloc {}
 
+class MockChatListBloc extends MockBloc<ChatListEvent, ChatListState>
+    implements ChatListBloc {}
+
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
 class FakeChatRoomEvent extends Fake implements ChatRoomEvent {}
+
+class FakeChatListEvent extends Fake implements ChatListEvent {}
+
+class TestWindowFocusTracker implements WindowFocusTracker {
+  final StreamController<bool> _controller = StreamController<bool>.broadcast();
+  bool? _current;
+
+  void emit(bool focused) {
+    _current = focused;
+    _controller.add(focused);
+  }
+
+  @override
+  Stream<bool> get focusStream => _controller.stream;
+
+  @override
+  Future<bool?> currentFocus() async => _current;
+
+  @override
+  void dispose() {
+    _controller.close();
+  }
+}
 
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('ko_KR', null);
     registerFallbackValue(FakeChatRoomEvent());
+    registerFallbackValue(FakeChatListEvent());
   });
 
   group('ChatRoomPage Widget Tests', () {
     late MockChatRoomBloc mockChatRoomBloc;
+    late MockChatListBloc mockChatListBloc;
     late MockAuthBloc mockAuthBloc;
     late StreamController<ChatRoomState> chatRoomStreamController;
+    late StreamController<ChatListState> chatListStreamController;
 
     setUp(() {
       mockChatRoomBloc = MockChatRoomBloc();
+      mockChatListBloc = MockChatListBloc();
       mockAuthBloc = MockAuthBloc();
       chatRoomStreamController = StreamController<ChatRoomState>.broadcast();
+      chatListStreamController = StreamController<ChatListState>.broadcast();
     });
 
     tearDown(() {
       chatRoomStreamController.close();
+      chatListStreamController.close();
     });
 
     Widget createWidgetUnderTest({
       ChatRoomState? chatRoomState,
       AuthState? authState,
       int roomId = 1,
+      WindowFocusTracker? windowFocusTracker,
     }) {
       final state = chatRoomState ?? const ChatRoomState();
       when(() => mockChatRoomBloc.state).thenReturn(state);
@@ -54,6 +92,12 @@ void main() {
           .thenAnswer((_) => chatRoomStreamController.stream);
       when(() => mockChatRoomBloc.isClosed).thenReturn(false);
       when(() => mockChatRoomBloc.add(any())).thenReturn(null);
+
+      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
+      when(() => mockChatListBloc.stream)
+          .thenAnswer((_) => chatListStreamController.stream);
+      when(() => mockChatListBloc.isClosed).thenReturn(false);
+      when(() => mockChatListBloc.add(any())).thenReturn(null);
 
       when(() => mockAuthBloc.state).thenReturn(
         authState ??
@@ -70,9 +114,13 @@ void main() {
         home: MultiBlocProvider(
           providers: [
             BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
+            BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
             BlocProvider<AuthBloc>.value(value: mockAuthBloc),
           ],
-          child: ChatRoomPage(roomId: roomId),
+          child: ChatRoomPage(
+            roomId: roomId,
+            windowFocusTracker: windowFocusTracker,
+          ),
         ),
       );
     }
@@ -101,8 +149,10 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest(
         chatRoomState: const ChatRoomState(status: ChatRoomStatus.success),
       ));
+      await tester.pumpAndSettle();
 
-      expect(find.text('메시지가 없습니다\n대화를 시작해보세요'), findsOneWidget);
+      expect(find.text('메시지가 없습니다'), findsOneWidget);
+      expect(find.text('대화를 시작해보세요'), findsOneWidget);
     });
 
     testWidgets('shows message input field', (tester) async {
@@ -127,6 +177,66 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest(roomId: 42));
 
       verify(() => mockChatRoomBloc.add(const ChatRoomOpened(42))).called(1);
+    });
+
+    testWidgets('on mobile: inactive does NOT background room (avoid over-unsubscribe)',
+        (tester) async {
+      final prev = debugDefaultTargetPlatformOverride;
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await tester.pumpWidget(createWidgetUnderTest());
+        clearInteractions(mockChatRoomBloc);
+
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        await tester.pump();
+
+        verifyNever(() => mockChatRoomBloc.add(const ChatRoomBackgrounded()));
+      } finally {
+        debugDefaultTargetPlatformOverride = prev;
+      }
+    });
+
+    testWidgets('on desktop: inactive does NOT background room (focus tracker is the source of truth)',
+        (tester) async {
+      final prev = debugDefaultTargetPlatformOverride;
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        await tester.pumpWidget(createWidgetUnderTest());
+        clearInteractions(mockChatRoomBloc);
+
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        await tester.pump();
+
+        // 데스크탑은 window focus 이벤트가 더 정확하므로 inactive로 background 처리하지 않는다.
+        verifyNever(() => mockChatRoomBloc.add(const ChatRoomBackgrounded()));
+
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await tester.pump();
+
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        await tester.pump();
+
+        verifyNever(() => mockChatRoomBloc.add(const ChatRoomBackgrounded()));
+      } finally {
+        debugDefaultTargetPlatformOverride = prev;
+      }
+    });
+
+    testWidgets('dispatches background/foreground on window blur/focus (deterministic)',
+        (tester) async {
+      final tracker = TestWindowFocusTracker();
+      addTearDown(tracker.dispose);
+
+      await tester.pumpWidget(createWidgetUnderTest(windowFocusTracker: tracker));
+      clearInteractions(mockChatRoomBloc);
+
+      tracker.emit(false);
+      await tester.pump();
+      verify(() => mockChatRoomBloc.add(const ChatRoomBackgrounded())).called(1);
+
+      tracker.emit(true);
+      await tester.pump();
+      verify(() => mockChatRoomBloc.add(const ChatRoomForegrounded())).called(1);
     });
 
     testWidgets('shows messages when loaded', (tester) async {
@@ -501,8 +611,8 @@ void main() {
         errorMessage: 'Error',
       );
 
-      // props: status, roomId, currentUserId, messages, nextCursor, hasMore, isSending, errorMessage, typingUsers
-      expect(state.props.length, 9);
+      // props: status, roomId, currentUserId, messages, nextCursor, hasMore, isSending, errorMessage, typingUsers, isReadMarked
+      expect(state.props.length, 10);
     });
 
     test('equality works', () {

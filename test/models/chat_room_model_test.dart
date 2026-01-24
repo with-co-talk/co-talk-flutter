@@ -198,19 +198,17 @@ void main() {
 
   group('CreateGroupChatRoomRequest', () {
     test('creates request with required fields', () {
+      // creatorId는 JWT 토큰에서 추출하므로 memberIds만 필요
       const request = CreateGroupChatRoomRequest(
-        creatorId: 1,
         memberIds: [2, 3],
       );
 
-      expect(request.creatorId, 1);
       expect(request.name, isNull);
       expect(request.memberIds, [2, 3]);
     });
 
     test('creates request with name', () {
       const request = CreateGroupChatRoomRequest(
-        creatorId: 1,
         name: '그룹 채팅방',
         memberIds: [2, 3],
       );
@@ -220,14 +218,12 @@ void main() {
 
     test('toJson returns correct map with roomName key', () {
       const request = CreateGroupChatRoomRequest(
-        creatorId: 1,
         name: '그룹',
         memberIds: [2],
       );
 
       final json = request.toJson();
 
-      expect(json['creatorId'], 1);
       expect(json['roomName'], '그룹');
       expect(json['memberIds'], [2]);
     });
@@ -324,21 +320,18 @@ void main() {
   group('CreateGroupChatRoomRequest fromJson', () {
     test('parses json correctly with roomName', () {
       final json = {
-        'creatorId': 1,
         'roomName': '그룹',
         'memberIds': [1, 2, 3],
       };
 
       final request = CreateGroupChatRoomRequest.fromJson(json);
 
-      expect(request.creatorId, 1);
       expect(request.name, '그룹');
       expect(request.memberIds.length, 3);
     });
 
     test('parses json without name', () {
       final json = {
-        'creatorId': 1,
         'memberIds': [1, 2],
       };
 
