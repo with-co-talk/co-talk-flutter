@@ -66,22 +66,44 @@ class _FriendListPageState extends State<FriendListPage>
         }
       },
       child: Scaffold(
+        backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('친구'),
+          title: const Text(
+            '친구',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
+            ),
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.person_add),
+              tooltip: '친구 추가',
               onPressed: () => _showAddFriendDialog(context),
             ),
           ],
           bottom: TabBar(
             controller: _tabController,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white.withValues(alpha: 0.7),
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 15,
+            ),
             tabs: const [
               Tab(text: '친구'),
               Tab(text: '받은 요청'),
               Tab(text: '보낸 요청'),
             ],
           ),
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
         ),
         body: TabBarView(
           controller: _tabController,
@@ -126,18 +148,65 @@ class _FriendListPageState extends State<FriendListPage>
         }
 
         if (state.friends.isEmpty) {
-          return const Center(
-            child: Text('친구가 없습니다\n친구를 추가해보세요'),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.people_outline,
+                  size: 64,
+                  color: AppColors.textSecondary.withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '친구가 없습니다',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '친구를 추가하고 대화를 시작해보세요',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary.withValues(alpha: 0.7),
+                      ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () => _showAddFriendDialog(context),
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('친구 추가'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         }
 
-        return ListView.separated(
-          itemCount: state.friends.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final friend = state.friends[index];
-            return _FriendTile(friend: friend);
+        return RefreshIndicator(
+          onRefresh: () async {
+            context.read<FriendBloc>().add(const FriendListLoadRequested());
           },
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: state.friends.length,
+            separatorBuilder: (_, __) => Divider(
+              height: 1,
+              thickness: 1,
+              color: AppColors.divider,
+            ),
+            itemBuilder: (context, index) {
+              final friend = state.friends[index];
+              return _FriendTile(friend: friend);
+            },
+          ),
         );
       },
     );
@@ -175,18 +244,46 @@ class _FriendListPageState extends State<FriendListPage>
         }
 
         if (state.receivedRequests.isEmpty) {
-          return const Center(
-            child: Text('받은 친구 요청이 없습니다'),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.inbox_outlined,
+                  size: 64,
+                  color: AppColors.textSecondary.withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '받은 친구 요청이 없습니다',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                ),
+              ],
+            ),
           );
         }
 
-        return ListView.separated(
-          itemCount: state.receivedRequests.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final request = state.receivedRequests[index];
-            return _ReceivedRequestTile(request: request);
+        return RefreshIndicator(
+          onRefresh: () async {
+            context
+                .read<FriendBloc>()
+                .add(const ReceivedFriendRequestsLoadRequested());
           },
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: state.receivedRequests.length,
+            separatorBuilder: (_, __) => Divider(
+              height: 1,
+              thickness: 1,
+              color: AppColors.divider,
+            ),
+            itemBuilder: (context, index) {
+              final request = state.receivedRequests[index];
+              return _ReceivedRequestTile(request: request);
+            },
+          ),
         );
       },
     );
@@ -224,18 +321,46 @@ class _FriendListPageState extends State<FriendListPage>
         }
 
         if (state.sentRequests.isEmpty) {
-          return const Center(
-            child: Text('보낸 친구 요청이 없습니다'),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.send_outlined,
+                  size: 64,
+                  color: AppColors.textSecondary.withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '보낸 친구 요청이 없습니다',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                ),
+              ],
+            ),
           );
         }
 
-        return ListView.separated(
-          itemCount: state.sentRequests.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final request = state.sentRequests[index];
-            return _SentRequestTile(request: request);
+        return RefreshIndicator(
+          onRefresh: () async {
+            context
+                .read<FriendBloc>()
+                .add(const SentFriendRequestsLoadRequested());
           },
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: state.sentRequests.length,
+            separatorBuilder: (_, __) => Divider(
+              height: 1,
+              thickness: 1,
+              color: AppColors.divider,
+            ),
+            itemBuilder: (context, index) {
+              final request = state.sentRequests[index];
+              return _SentRequestTile(request: request);
+            },
+          ),
         );
       },
     );
@@ -306,8 +431,18 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
+              Container(
                 padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
                 child: TextField(
                   controller: _searchController,
                   autofocus: true,
@@ -316,14 +451,56 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                   enableInteractiveSelection: true,
                   decoration: InputDecoration(
                     hintText: '닉네임으로 검색',
-                    prefixIcon: const Icon(Icons.search),
+                    hintStyle: TextStyle(
+                      color: AppColors.textSecondary.withValues(alpha: 0.6),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: AppColors.textSecondary,
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(
+                              Icons.clear,
+                              color: AppColors.textSecondary,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              context
+                                  .read<FriendBloc>()
+                                  .add(const UserSearchRequested(''));
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppColors.background,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(28),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(28),
+                      borderSide: BorderSide(
+                        color: AppColors.divider,
+                        width: 1.5,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(28),
+                      borderSide: BorderSide(
+                        color: AppColors.primary,
+                        width: 2,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
                     ),
                   ),
                   onChanged: (query) {
                     // Debounce: 500ms 후에 검색 실행
                     _debounceTimer?.cancel();
+                    setState(() {}); // suffixIcon 업데이트를 위해
                     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
                       if (mounted) {
                         context
@@ -457,34 +634,84 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                     // 검색 결과 표시
                     return ListView.builder(
                       controller: scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: state.searchResults.length,
                       itemBuilder: (context, index) {
                         final user = state.searchResults[index];
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: AppColors.primaryLight,
-                            child: Text(
-                              user.nickname.isNotEmpty
-                                  ? user.nickname[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(color: Colors.white),
-                            ),
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
                           ),
-                          title: Text(user.nickname),
-                          subtitle: Text(user.email),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.person_add),
-                            onPressed: () {
-                              context
-                                  .read<FriendBloc>()
-                                  .add(FriendRequestSent(user.id));
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('친구 요청을 보냈습니다'),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 28,
+                                backgroundColor: AppColors.primaryLight,
+                                child: Text(
+                                  user.nickname.isNotEmpty
+                                      ? user.nickname[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              );
-                            },
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user.nickname,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      user.email,
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  context
+                                      .read<FriendBloc>()
+                                      .add(FriendRequestSent(user.id));
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('친구 요청을 보냈습니다'),
+                                      backgroundColor: AppColors.primary,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.person_add, size: 18),
+                                label: const Text('추가'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -507,82 +734,126 @@ class _FriendTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Stack(
-        children: [
-          CircleAvatar(
-            backgroundColor: AppColors.primaryLight,
-            backgroundImage: friend.user.avatarUrl != null
-                ? NetworkImage(friend.user.avatarUrl!)
-                : null,
-            child: friend.user.avatarUrl == null
-                ? Text(
-                    friend.user.nickname.isNotEmpty
-                        ? friend.user.nickname[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+    return InkWell(
+      onTap: () => _navigateToChat(context, friend.user.id),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // 아바타
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppColors.primaryLight,
+                  backgroundImage: friend.user.avatarUrl != null
+                      ? NetworkImage(friend.user.avatarUrl!)
+                      : null,
+                  child: friend.user.avatarUrl == null
+                      ? Text(
+                          friend.user.nickname.isNotEmpty
+                              ? friend.user.nickname[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+                // 온라인 상태 표시
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: _getOnlineStatusColor(friend.user.onlineStatus),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
                     ),
-                  )
-                : null,
-          ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: _getOnlineStatusColor(friend.user.onlineStatus),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            // 친구 정보
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    friend.user.nickname,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: _getOnlineStatusColor(friend.user.onlineStatus),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _getOnlineStatusText(friend.user.onlineStatus),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
-      ),
-      title: Text(
-        friend.user.nickname,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        _getOnlineStatusText(friend.user.onlineStatus),
-        style: TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 12,
+            // 메뉴 버튼
+            PopupMenuButton(
+              icon: Icon(
+                Icons.more_vert,
+                color: AppColors.textSecondary,
+              ),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'chat',
+                  child: const Row(
+                    children: [
+                      Icon(Icons.chat, size: 20),
+                      SizedBox(width: 12),
+                      Text('대화하기'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'remove',
+                  child: const Row(
+                    children: [
+                      Icon(Icons.person_remove, color: Colors.red, size: 20),
+                      SizedBox(width: 12),
+                      Text('친구 삭제', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (value) async {
+                if (value == 'chat') {
+                  await _navigateToChat(context, friend.user.id);
+                } else if (value == 'remove') {
+                  _showRemoveFriendDialog(context);
+                }
+              },
+            ),
+          ],
         ),
-      ),
-      trailing: PopupMenuButton(
-        itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: 'chat',
-            child: Row(
-              children: [
-                Icon(Icons.chat),
-                SizedBox(width: 8),
-                Text('대화하기'),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'remove',
-            child: Row(
-              children: [
-                Icon(Icons.person_remove, color: Colors.red),
-                SizedBox(width: 8),
-                Text('친구 삭제', style: TextStyle(color: Colors.red)),
-              ],
-            ),
-          ),
-        ],
-        onSelected: (value) async {
-          if (value == 'chat') {
-            await _navigateToChat(context, friend.user.id);
-          } else if (value == 'remove') {
-            _showRemoveFriendDialog(context);
-          }
-        },
       ),
     );
   }
@@ -695,38 +966,93 @@ class _ReceivedRequestTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: AppColors.primaryLight,
-        backgroundImage: request.requester.avatarUrl != null
-            ? NetworkImage(request.requester.avatarUrl!)
-            : null,
-        child: request.requester.avatarUrl == null
-            ? Text(
-                request.requester.nickname.isNotEmpty
-                    ? request.requester.nickname[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(color: Colors.white),
-              )
-            : null,
-      ),
-      title: Text(request.requester.nickname),
-      subtitle: Text(request.requester.email),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
         children: [
-          TextButton(
-            onPressed: () {
-              context.read<FriendBloc>().add(FriendRequestRejected(request.id));
-            },
-            child: const Text('거절'),
+          // 아바타
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColors.primaryLight,
+            backgroundImage: request.requester.avatarUrl != null
+                ? NetworkImage(request.requester.avatarUrl!)
+                : null,
+            child: request.requester.avatarUrl == null
+                ? Text(
+                    request.requester.nickname.isNotEmpty
+                        ? request.requester.nickname[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : null,
           ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () {
-              context.read<FriendBloc>().add(FriendRequestAccepted(request.id));
-            },
-            child: const Text('수락'),
+          const SizedBox(width: 16),
+          // 사용자 정보
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.requester.nickname,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  request.requester.email,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 액션 버튼
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton(
+                onPressed: () {
+                  context
+                      .read<FriendBloc>()
+                      .add(FriendRequestRejected(request.id));
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  side: BorderSide(color: AppColors.divider),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                ),
+                child: const Text('거절'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  context
+                      .read<FriendBloc>()
+                      .add(FriendRequestAccepted(request.id));
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                ),
+                child: const Text('수락'),
+              ),
+            ],
           ),
         ],
       ),
@@ -741,29 +1067,72 @@ class _SentRequestTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: AppColors.primaryLight,
-        backgroundImage: request.receiver.avatarUrl != null
-            ? NetworkImage(request.receiver.avatarUrl!)
-            : null,
-        child: request.receiver.avatarUrl == null
-            ? Text(
-                request.receiver.nickname.isNotEmpty
-                    ? request.receiver.nickname[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(color: Colors.white),
-              )
-            : null,
-      ),
-      title: Text(request.receiver.nickname),
-      subtitle: Text(request.receiver.email),
-      trailing: Text(
-        '대기 중',
-        style: TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 12,
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          // 아바타
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColors.primaryLight,
+            backgroundImage: request.receiver.avatarUrl != null
+                ? NetworkImage(request.receiver.avatarUrl!)
+                : null,
+            child: request.receiver.avatarUrl == null
+                ? Text(
+                    request.receiver.nickname.isNotEmpty
+                        ? request.receiver.nickname[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 16),
+          // 사용자 정보
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.receiver.nickname,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  request.receiver.email,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 상태 표시
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.textSecondary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '대기 중',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

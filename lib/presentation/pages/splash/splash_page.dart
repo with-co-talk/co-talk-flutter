@@ -33,27 +33,27 @@ class _SplashPageState extends State<SplashPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.background,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.chat_bubble_rounded,
                 size: 80,
-                color: Colors.white,
+                color: AppColors.primary,
               ),
               const SizedBox(height: 16),
               Text(
                 'Co-Talk',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
+                      color: AppColors.primary,
                       fontWeight: FontWeight.bold,
                     ),
               ),
               const SizedBox(height: 32),
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
             ],
           ),
