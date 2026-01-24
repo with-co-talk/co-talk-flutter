@@ -6,6 +6,86 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 
 import '../../data/datasources/local/auth_local_datasource.dart';
 import '../constants/api_constants.dart';
+import 'event_dedupe_cache.dart';
+
+/// WebSocket payload 파싱 결과(방 토픽).
+sealed class ParsedRoomPayload {
+  const ParsedRoomPayload();
+}
+
+final class ParsedChatMessagePayload extends ParsedRoomPayload {
+  final WebSocketChatMessage message;
+
+  const ParsedChatMessagePayload(this.message);
+}
+
+final class ParsedReadPayload extends ParsedRoomPayload {
+  final WebSocketReadEvent event;
+
+  const ParsedReadPayload(this.event);
+}
+
+final class ParsedReactionPayload extends ParsedRoomPayload {
+  final WebSocketReactionEvent event;
+
+  const ParsedReactionPayload(this.event);
+}
+
+final class ParsedTypingPayload extends ParsedRoomPayload {
+  final WebSocketTypingEvent event;
+
+  const ParsedTypingPayload(this.event);
+}
+
+final class ParsedUnknownPayload extends ParsedRoomPayload {
+  final Map<String, dynamic> raw;
+
+  const ParsedUnknownPayload(this.raw);
+}
+
+/// WebSocket 수신 JSON을 도메인 이벤트로 변환하는 파서.
+///
+/// STOMP 연결 없이도 테스트 가능하도록 분리한다.
+class WebSocketPayloadParser {
+  const WebSocketPayloadParser();
+
+  ParsedRoomPayload parseRoomPayload({
+    required String body,
+    required int roomId,
+  }) {
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    final eventType = json['eventType'] as String?;
+
+    // 채팅 메시지 (기존 서버 payload: messageId 존재 + eventType 없음)
+    if (json.containsKey('messageId') && eventType == null) {
+      return ParsedChatMessagePayload(WebSocketChatMessage.fromJson(json, roomId));
+    }
+
+    if (eventType == 'READ') {
+      return ParsedReadPayload(WebSocketReadEvent.fromJson(json));
+    }
+
+    if (eventType == 'ADDED' || eventType == 'REMOVED') {
+      return ParsedReactionPayload(WebSocketReactionEvent.fromJson(json));
+    }
+
+    if (eventType == 'TYPING' || eventType == 'STOP_TYPING') {
+      return ParsedTypingPayload(WebSocketTypingEvent.fromJson(json));
+    }
+
+    return ParsedUnknownPayload(json);
+  }
+
+  WebSocketChatRoomUpdateEvent parseChatListPayload(String body) {
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    return WebSocketChatRoomUpdateEvent.fromJson(json);
+  }
+
+  WebSocketReadEvent parseReadReceiptPayload(String body) {
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    return WebSocketReadEvent.fromJson(json);
+  }
+}
 
 /// WebSocket 연결 상태
 enum WebSocketConnectionState {
@@ -17,6 +97,8 @@ enum WebSocketConnectionState {
 
 /// WebSocket으로 수신된 채팅 메시지
 class WebSocketChatMessage {
+  final int? schemaVersion;
+  final String? eventId;
   final int messageId;
   final int? senderId;
   final int chatRoomId; // 구독 시 전달받은 roomId로 설정
@@ -33,6 +115,8 @@ class WebSocketChatMessage {
   final int unreadCount;
 
   WebSocketChatMessage({
+    this.schemaVersion,
+    this.eventId,
     required this.messageId,
     this.senderId,
     required this.chatRoomId,
@@ -51,6 +135,8 @@ class WebSocketChatMessage {
 
   factory WebSocketChatMessage.fromJson(Map<String, dynamic> json, int roomId) {
     return WebSocketChatMessage(
+      schemaVersion: json['schemaVersion'] as int?,
+      eventId: json['eventId'] as String?,
       messageId: json['messageId'] as int,
       senderId: json['senderId'] as int?,
       chatRoomId: json['roomId'] as int? ?? roomId,
@@ -89,6 +175,8 @@ class WebSocketChatMessage {
 
 /// WebSocket으로 수신된 리액션 이벤트
 class WebSocketReactionEvent {
+  final int? schemaVersion;
+  final String? eventId;
   final int? reactionId;
   final int messageId;
   final int userId;
@@ -97,6 +185,8 @@ class WebSocketReactionEvent {
   final int timestamp;
 
   WebSocketReactionEvent({
+    this.schemaVersion,
+    this.eventId,
     this.reactionId,
     required this.messageId,
     required this.userId,
@@ -107,6 +197,8 @@ class WebSocketReactionEvent {
 
   factory WebSocketReactionEvent.fromJson(Map<String, dynamic> json) {
     return WebSocketReactionEvent(
+      schemaVersion: json['schemaVersion'] as int?,
+      eventId: json['eventId'] as String?,
       reactionId: json['reactionId'] as int?,
       messageId: json['messageId'] as int,
       userId: json['userId'] as int,
@@ -119,12 +211,16 @@ class WebSocketReactionEvent {
 
 /// WebSocket으로 수신된 읽음 이벤트
 class WebSocketReadEvent {
+  final int? schemaVersion;
+  final String? eventId;
   final int chatRoomId;
   final int userId;
   final int? lastReadMessageId;
   final DateTime? lastReadAt;
 
   WebSocketReadEvent({
+    this.schemaVersion,
+    this.eventId,
     required this.chatRoomId,
     required this.userId,
     this.lastReadMessageId,
@@ -133,6 +229,8 @@ class WebSocketReadEvent {
 
   factory WebSocketReadEvent.fromJson(Map<String, dynamic> json) {
     return WebSocketReadEvent(
+      schemaVersion: json['schemaVersion'] as int?,
+      eventId: json['eventId'] as String?,
       chatRoomId: json['chatRoomId'] as int? ?? json['roomId'] as int,
       userId: json['userId'] as int? ?? json['readerId'] as int,
       lastReadMessageId: json['lastReadMessageId'] as int?,
@@ -145,6 +243,9 @@ class WebSocketReadEvent {
 
 /// WebSocket으로 수신된 채팅방 업데이트 이벤트 (채팅 목록용)
 class WebSocketChatRoomUpdateEvent {
+  final int? schemaVersion;
+  final String? eventId;
+  final String? eventType; // NEW_MESSAGE, READ 등
   final int chatRoomId;
   final String? lastMessage;
   final String? lastMessageType;
@@ -154,6 +255,9 @@ class WebSocketChatRoomUpdateEvent {
   final String? senderNickname;
 
   WebSocketChatRoomUpdateEvent({
+    this.schemaVersion,
+    this.eventId,
+    this.eventType,
     required this.chatRoomId,
     this.lastMessage,
     this.lastMessageType,
@@ -165,6 +269,9 @@ class WebSocketChatRoomUpdateEvent {
 
   factory WebSocketChatRoomUpdateEvent.fromJson(Map<String, dynamic> json) {
     return WebSocketChatRoomUpdateEvent(
+      schemaVersion: json['schemaVersion'] as int?,
+      eventId: json['eventId'] as String?,
+      eventType: json['eventType'] as String?,
       chatRoomId: json['chatRoomId'] as int? ?? json['roomId'] as int,
       lastMessage: json['lastMessage'] as String?,
       lastMessageType: json['lastMessageType'] as String?,
@@ -180,12 +287,16 @@ class WebSocketChatRoomUpdateEvent {
 
 /// WebSocket으로 수신된 타이핑 이벤트
 class WebSocketTypingEvent {
+  final int? schemaVersion;
+  final String? eventId;
   final int chatRoomId;
   final int userId;
   final String? userNickname;
   final bool isTyping;
 
   WebSocketTypingEvent({
+    this.schemaVersion,
+    this.eventId,
     required this.chatRoomId,
     required this.userId,
     this.userNickname,
@@ -194,6 +305,8 @@ class WebSocketTypingEvent {
 
   factory WebSocketTypingEvent.fromJson(Map<String, dynamic> json) {
     return WebSocketTypingEvent(
+      schemaVersion: json['schemaVersion'] as int?,
+      eventId: json['eventId'] as String?,
       chatRoomId: json['chatRoomId'] as int? ?? json['roomId'] as int,
       userId: json['userId'] as int,
       userNickname: json['userNickname'] as String?,
@@ -211,6 +324,11 @@ class WebSocketTypingEvent {
 @lazySingleton
 class WebSocketService {
   final AuthLocalDataSource _authLocalDataSource;
+  final WebSocketPayloadParser _payloadParser;
+  final EventDedupeCache _dedupeCache = EventDedupeCache(
+    ttl: const Duration(seconds: 15),
+    maxSize: 500,
+  );
 
   StompClient? _stompClient;
   final Map<int, StompUnsubscribe> _subscriptions = {};
@@ -247,7 +365,10 @@ class WebSocketService {
   static const Duration _reconnectDelay = Duration(seconds: 3);
   Timer? _reconnectTimer;
 
-  WebSocketService(this._authLocalDataSource);
+  WebSocketService(
+    this._authLocalDataSource, {
+    WebSocketPayloadParser payloadParser = const WebSocketPayloadParser(),
+  }) : _payloadParser = payloadParser;
 
   /// 연결 상태 스트림
   Stream<WebSocketConnectionState> get connectionState =>
@@ -292,6 +413,11 @@ class WebSocketService {
       _updateConnectionState(WebSocketConnectionState.disconnected);
       return;
     }
+
+    // 전역 사용자 채널(채팅 목록/읽음 영수증)은 앱이 살아있는 동안 항상 유지되어야 한다.
+    // ChatList 화면 진입 여부와 무관하게, 연결 시점에 userId가 있으면 자동으로 구독을 복원한다.
+    // (이미 외부에서 subscribeToUserChannel을 호출해 _subscribedUserId가 세팅된 경우는 그대로 유지)
+    _subscribedUserId ??= await _authLocalDataSource.getUserId();
 
     final wsUrl = ApiConstants.wsBaseUrl;
     // ignore: avoid_print
@@ -453,10 +579,12 @@ class WebSocketService {
       destination: chatListDestination,
       callback: (frame) {
         // ignore: avoid_print
-        print('[WebSocket] Chat-list channel message received');
+        print('[WebSocket] ✅ Chat-list channel message received');
         _handleChatListMessage(frame);
       },
     );
+    // ignore: avoid_print
+    print('[WebSocket] ✅ Successfully subscribed to chat-list channel: $chatListDestination');
 
     // 읽음 영수증 채널 구독
     final readReceiptDestination = '/topic/user/$userId/read-receipt';
@@ -467,10 +595,22 @@ class WebSocketService {
       destination: readReceiptDestination,
       callback: (frame) {
         // ignore: avoid_print
-        print('[WebSocket] Read-receipt channel message received');
+        print('[WebSocket] ✅ Read-receipt channel message received');
         _handleReadReceiptMessage(frame);
       },
     );
+    // ignore: avoid_print
+    print('[WebSocket] ✅ Successfully subscribed to read-receipt channel: $readReceiptDestination');
+    // ignore: avoid_print
+    print('[WebSocket] ========== User channel subscription completed ==========');
+    // ignore: avoid_print
+    print('[WebSocket] userId: $userId');
+    // ignore: avoid_print
+    print('[WebSocket] chat-list destination: $chatListDestination');
+    // ignore: avoid_print
+    print('[WebSocket] read-receipt destination: $readReceiptDestination');
+    // ignore: avoid_print
+    print('[WebSocket] =========================================================');
 
     _subscribedUserId = userId;
   }
@@ -594,6 +734,40 @@ class WebSocketService {
     );
   }
 
+  /// 채팅방 presence ping (TTL 갱신용)
+  void sendPresencePing({
+    required int roomId,
+    required int userId,
+  }) {
+    if (!isConnected || _stompClient == null) {
+      return;
+    }
+    _stompClient!.send(
+      destination: '/app/chat/presence',
+      body: jsonEncode({
+        'roomId': roomId,
+        'userId': userId,
+      }),
+    );
+  }
+
+  /// 채팅방 presence inactive (TTL 즉시 해제/비활성화)
+  void sendPresenceInactive({
+    required int roomId,
+    required int userId,
+  }) {
+    if (!isConnected || _stompClient == null) {
+      return;
+    }
+    _stompClient!.send(
+      destination: '/app/chat/presence/inactive',
+      body: jsonEncode({
+        'roomId': roomId,
+        'userId': userId,
+      }),
+    );
+  }
+
   // Private methods
 
   void _onConnect(StompFrame frame) {
@@ -670,40 +844,28 @@ class WebSocketService {
     }
 
     try {
-      final json = jsonDecode(frame.body!) as Map<String, dynamic>;
-      // ignore: avoid_print
-      print('[WebSocket] Parsed JSON: $json');
-
-      final eventType = json['eventType'] as String?;
-
-      // 메시지 타입 확인
-      if (json.containsKey('messageId') && eventType == null) {
-        // ignore: avoid_print
-        print('[WebSocket] Contains messageId, parsing as chat message');
-        final message = WebSocketChatMessage.fromJson(json, roomId);
-        // ignore: avoid_print
-        print('[WebSocket] Parsed message: id=${message.messageId}, content=${message.content}');
-        _messageController.add(message);
-        // ignore: avoid_print
-        print('[WebSocket] Message added to stream');
-      } else if (eventType == 'READ') {
-        // ignore: avoid_print
-        print('[WebSocket] Read event received');
-        final readEvent = WebSocketReadEvent.fromJson(json);
-        _readEventController.add(readEvent);
-      } else if (eventType == 'ADDED' || eventType == 'REMOVED') {
-        // 리액션 이벤트
-        final reaction = WebSocketReactionEvent.fromJson(json);
-        _reactionController.add(reaction);
-      } else if (eventType == 'TYPING' || eventType == 'STOP_TYPING') {
-        // 타이핑 이벤트
-        // ignore: avoid_print
-        print('[WebSocket] Typing event received');
-        final typingEvent = WebSocketTypingEvent.fromJson(json);
-        _typingController.add(typingEvent);
-      } else {
-        // ignore: avoid_print
-        print('[WebSocket] Unknown message type: $json');
+      final parsed = _payloadParser.parseRoomPayload(body: frame.body!, roomId: roomId);
+      switch (parsed) {
+        case ParsedChatMessagePayload(:final message):
+          if (_dedupeCache.isDuplicate(message.eventId)) return;
+          _messageController.add(message);
+          break;
+        case ParsedReadPayload(:final event):
+          if (_dedupeCache.isDuplicate(event.eventId)) return;
+          _readEventController.add(event);
+          break;
+        case ParsedReactionPayload(:final event):
+          if (_dedupeCache.isDuplicate(event.eventId)) return;
+          _reactionController.add(event);
+          break;
+        case ParsedTypingPayload(:final event):
+          if (_dedupeCache.isDuplicate(event.eventId)) return;
+          _typingController.add(event);
+          break;
+        case ParsedUnknownPayload(:final raw):
+          // ignore: avoid_print
+          print('[WebSocket] Unknown message type: $raw');
+          break;
       }
     } catch (e, stackTrace) {
       // ignore: avoid_print
@@ -726,14 +888,25 @@ class WebSocketService {
     }
 
     try {
-      final json = jsonDecode(frame.body!) as Map<String, dynamic>;
-      // ignore: avoid_print
-      print('[WebSocket] Chat-list JSON: $json');
-
       // 채팅방 업데이트 이벤트 (NEW_MESSAGE 등)
-      final update = WebSocketChatRoomUpdateEvent.fromJson(json);
+      final update = _payloadParser.parseChatListPayload(frame.body!);
+      if (_dedupeCache.isDuplicate(update.eventId)) return;
       // ignore: avoid_print
-      print('[WebSocket] Chat room update: roomId=${update.chatRoomId}, lastMessage=${update.lastMessage}');
+      print('[WebSocket] ========== Chat room update received ==========');
+      // ignore: avoid_print
+      print('[WebSocket] roomId: ${update.chatRoomId}');
+      // ignore: avoid_print
+      print('[WebSocket] lastMessage: ${update.lastMessage}');
+      // ignore: avoid_print
+      print('[WebSocket] unreadCount: ${update.unreadCount}');
+      // ignore: avoid_print
+      print('[WebSocket] senderId: ${update.senderId}');
+      // ignore: avoid_print
+      print('[WebSocket] lastMessageAt: ${update.lastMessageAt}');
+      // ignore: avoid_print
+      print('[WebSocket] Raw JSON: $json');
+      // ignore: avoid_print
+      print('[WebSocket] ===============================================');
       _chatRoomUpdateController.add(update);
     } catch (e, stackTrace) {
       // ignore: avoid_print
@@ -756,11 +929,8 @@ class WebSocketService {
     }
 
     try {
-      final json = jsonDecode(frame.body!) as Map<String, dynamic>;
-      // ignore: avoid_print
-      print('[WebSocket] Read-receipt JSON: $json');
-
-      final readEvent = WebSocketReadEvent.fromJson(json);
+      final readEvent = _payloadParser.parseReadReceiptPayload(frame.body!);
+      if (_dedupeCache.isDuplicate(readEvent.eventId)) return;
       // ignore: avoid_print
       print('[WebSocket] Read event: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
       _readEventController.add(readEvent);
