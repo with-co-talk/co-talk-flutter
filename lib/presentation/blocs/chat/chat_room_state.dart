@@ -13,6 +13,7 @@ class ChatRoomState extends Equatable {
   final bool isSending;
   final String? errorMessage;
   final Map<int, String> typingUsers; // userId -> nickname
+  final bool isReadMarked; // 읽음 처리 완료 여부
 
   const ChatRoomState({
     this.status = ChatRoomStatus.initial,
@@ -24,6 +25,7 @@ class ChatRoomState extends Equatable {
     this.isSending = false,
     this.errorMessage,
     this.typingUsers = const {},
+    this.isReadMarked = false,
   });
 
   /// 누군가 타이핑 중인지 여부
@@ -48,6 +50,7 @@ class ChatRoomState extends Equatable {
     bool? isSending,
     String? errorMessage,
     Map<int, String>? typingUsers,
+    bool? isReadMarked,
   }) {
     return ChatRoomState(
       status: status ?? this.status,
@@ -59,6 +62,7 @@ class ChatRoomState extends Equatable {
       isSending: isSending ?? this.isSending,
       errorMessage: errorMessage ?? this.errorMessage,
       typingUsers: typingUsers ?? this.typingUsers,
+      isReadMarked: isReadMarked ?? this.isReadMarked,
     );
   }
 
@@ -73,5 +77,6 @@ class ChatRoomState extends Equatable {
         isSending,
         errorMessage,
         typingUsers,
+        isReadMarked,
       ];
 }

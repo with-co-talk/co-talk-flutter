@@ -18,6 +18,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
   StreamSubscription<WebSocketChatRoomUpdateEvent>? _chatRoomUpdateSubscription;
   StreamSubscription<WebSocketReadEvent>? _readReceiptSubscription;
   int? _currentUserId;
+  int? _currentlyOpenRoomId; // 현재 열려있는 채팅방 ID (unreadCount 증가 방지용)
   Timer? _refreshDebounceTimer;
   bool _isRefreshing = false;
 
@@ -34,6 +35,8 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     on<ChatListSubscriptionStarted>(_onSubscriptionStarted);
     on<ChatListSubscriptionStopped>(_onSubscriptionStopped);
     on<ChatRoomReadCompleted>(_onChatRoomReadCompleted);
+    on<ChatRoomEntered>(_onChatRoomEntered);
+    on<ChatRoomExited>(_onChatRoomExited);
   }
 
   Future<void> _onLoadRequested(
@@ -150,20 +153,54 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     }
 
     // 기존 채팅방 업데이트
+    // 서버가 WebSocket으로 보내주는 unreadCount를 그대로 사용
+    // 서버는 이미 읽은 사람 수를 제외한 값을 보내줌:
+    // - 메시지 전송 시: 채팅방 인원 수로 시작
+    // - 내가 보냈으면: 나를 제외 (-1)
+    // - 상대방이 채팅방에 열려있으면: 상대방도 제외 (-1)
+    // - 읽음 처리 완료 후: 서버가 업데이트된 unreadCount를 chatRoomUpdates로 전송
     final updatedChatRooms = state.chatRooms.map((room) {
       if (room.id == event.chatRoomId) {
-        // 내가 보낸 메시지면 unreadCount는 0으로 설정
-        int? unreadCount = event.unreadCount;
-        if (event.senderId != null && _currentUserId != null && event.senderId == _currentUserId) {
+        // 서버가 정확한 unreadCount를 계산해서 보내주므로, 클라이언트는 그대로 사용
+        // 서버는 이미 다음을 모두 고려해서 계산함:
+        // - READ 이벤트: lastReadMessageId 기반으로 정확한 unreadCount 계산
+        // - NEW_MESSAGE 이벤트: presence(방이 열려있는지)를 고려하여 unreadCount 계산
+        // - 발신자 제외: 내가 보낸 메시지는 서버에서 이미 제외하여 계산
+        // 따라서 클라이언트는 서버가 보낸 값을 그대로 사용하면 됨
+        final oldUnreadCount = room.unreadCount;
+        int newUnreadCount = event.unreadCount ?? room.unreadCount;
+        
+        if (event.unreadCount != null) {
+          newUnreadCount = event.unreadCount!;
           // ignore: avoid_print
-          print('[ChatListBloc] Last message is from current user, setting unreadCount to 0');
-          unreadCount = 0;
+          print('[ChatListBloc] Using server unreadCount=${event.unreadCount} (eventType=${event.eventType})');
+        } else {
+          // 서버가 unreadCount를 보내지 않았으면 기존 값 유지 (안전장치)
+          // ignore: avoid_print
+          print('[ChatListBloc] WARNING: unreadCount is null, keeping old value=${oldUnreadCount}');
         }
+        
+        // ignore: avoid_print
+        print('[ChatListBloc] ========== Updating room ==========');
+        // ignore: avoid_print
+        print('[ChatListBloc] roomId: ${event.chatRoomId}');
+        // ignore: avoid_print
+        print('[ChatListBloc] old unreadCount: $oldUnreadCount');
+        // ignore: avoid_print
+        print('[ChatListBloc] new unreadCount: $newUnreadCount');
+        // ignore: avoid_print
+        print('[ChatListBloc] unreadCount from server: ${event.unreadCount}');
+        // ignore: avoid_print
+        print('[ChatListBloc] senderId: ${event.senderId}');
+        // ignore: avoid_print
+        print('[ChatListBloc] currentUserId: $_currentUserId');
+        // ignore: avoid_print
+        print('[ChatListBloc] ===================================');
 
         return room.copyWith(
           lastMessage: event.lastMessage ?? room.lastMessage,
           lastMessageAt: event.lastMessageAt ?? room.lastMessageAt,
-          unreadCount: unreadCount ?? room.unreadCount,
+          unreadCount: newUnreadCount,
         );
       }
       return room;
@@ -223,9 +260,26 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     _chatRoomUpdateSubscription = _webSocketService.chatRoomUpdates.listen(
       (update) {
         // ignore: avoid_print
-        print('[ChatListBloc] Received chatRoomUpdate: roomId=${update.chatRoomId}, lastMessage=${update.lastMessage}, unreadCount=${update.unreadCount}, senderId=${update.senderId}');
+        print('[ChatListBloc] ========== Received chatRoomUpdate ==========');
+        // ignore: avoid_print
+        print('[ChatListBloc] roomId: ${update.chatRoomId}');
+        // ignore: avoid_print
+        print('[ChatListBloc] lastMessage: ${update.lastMessage}');
+        // ignore: avoid_print
+        print('[ChatListBloc] unreadCount: ${update.unreadCount} (from server)');
+        // ignore: avoid_print
+        print('[ChatListBloc] senderId: ${update.senderId}');
+        // ignore: avoid_print
+        print('[ChatListBloc] lastMessageAt: ${update.lastMessageAt}');
+        // ignore: avoid_print
+        print('[ChatListBloc] Current userId: $_currentUserId');
+        // ignore: avoid_print
+        print('[ChatListBloc] Currently open room: $_currentlyOpenRoomId');
+        // ignore: avoid_print
+        print('[ChatListBloc] =============================================');
         add(ChatRoomUpdated(
           chatRoomId: update.chatRoomId,
+          eventType: update.eventType,
           lastMessage: update.lastMessage,
           lastMessageAt: update.lastMessageAt,
           unreadCount: update.unreadCount,
@@ -242,15 +296,14 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
       cancelOnError: false, // 에러 발생해도 스트림 유지
     );
 
-    // 읽음 영수증 리스너 (내가 읽은 경우 unreadCount를 0으로)
+    // 읽음 영수증 리스너 (읽음 확인용, unreadCount는 chatRoomUpdates로 처리)
+    // 서버가 읽음 처리 완료 후 chatRoomUpdates로 업데이트된 unreadCount를 전송하므로
+    // readEvents는 읽음 확인용으로만 사용 (필요시 다른 용도로 활용 가능)
     _readReceiptSubscription = _webSocketService.readEvents.listen(
       (readEvent) {
         // ignore: avoid_print
         print('[ChatListBloc] Received readEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
-        // 내가 읽은 경우에만 처리
-        if (readEvent.userId == _currentUserId) {
-          add(ChatRoomReadCompleted(readEvent.chatRoomId));
-        }
+        // 서버가 chatRoomUpdates로 unreadCount를 업데이트하므로 별도 처리 불필요
       },
       onError: (error) {
         // ignore: avoid_print
@@ -279,15 +332,32 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
   ) {
     // ignore: avoid_print
     print('[ChatListBloc] _onChatRoomReadCompleted: roomId=${event.chatRoomId}');
+    // 서버가 markAsRead 후 READ 이벤트로 정확한 unreadCount를 보내주므로
+    // 클라이언트에서 별도로 처리할 필요 없음
+    // 서버의 READ 이벤트가 도착하면 자동으로 업데이트됨
+  }
 
-    final updatedChatRooms = state.chatRooms.map((room) {
-      if (room.id == event.chatRoomId) {
-        return room.copyWith(unreadCount: 0);
-      }
-      return room;
-    }).toList();
+  void _onChatRoomEntered(
+    ChatRoomEntered event,
+    Emitter<ChatListState> emit,
+  ) {
+    // ignore: avoid_print
+    print('[ChatListBloc] _onChatRoomEntered: roomId=${event.chatRoomId}');
+    // 현재 열려있는 채팅방 ID 저장 (다른 용도로 사용할 수 있으므로 유지)
+    _currentlyOpenRoomId = event.chatRoomId;
+    
+    // 서버가 정확한 unreadCount를 계산해서 보내주므로, 클라이언트는 낙관적 업데이트 불필요
+    // 서버의 READ 이벤트가 도착하면 자동으로 업데이트됨
+    // (서버가 presence를 고려하여 이미 정확한 값을 계산해서 보냄)
+  }
 
-    emit(state.copyWith(chatRooms: updatedChatRooms));
+  void _onChatRoomExited(
+    ChatRoomExited event,
+    Emitter<ChatListState> emit,
+  ) {
+    // ignore: avoid_print
+    print('[ChatListBloc] _onChatRoomExited: previous roomId=$_currentlyOpenRoomId');
+    _currentlyOpenRoomId = null;
   }
 
   @override
@@ -302,7 +372,12 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
   Future<void> _waitForWebSocketConnection({
     required Duration timeout,
   }) async {
-    if (_webSocketService.isConnected) return;
+    // 일부 환경(테스트 더블)에서는 connectionState 스트림을 제공하지 않을 수 있으므로,
+    // 현재 연결 상태가 connected면 즉시 반환한다.
+    if (_webSocketService.isConnected ||
+        _webSocketService.currentConnectionState == WebSocketConnectionState.connected) {
+      return;
+    }
 
     final completer = Completer<void>();
     StreamSubscription<WebSocketConnectionState>? subscription;

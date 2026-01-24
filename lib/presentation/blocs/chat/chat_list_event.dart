@@ -37,6 +37,7 @@ class GroupChatRoomCreated extends ChatListEvent {
 /// WebSocket을 통한 채팅방 업데이트 이벤트
 class ChatRoomUpdated extends ChatListEvent {
   final int chatRoomId;
+  final String? eventType; // NEW_MESSAGE, READ 등 (서버에서 전달)
   final String? lastMessage;
   final DateTime? lastMessageAt;
   final int? unreadCount;
@@ -44,6 +45,7 @@ class ChatRoomUpdated extends ChatListEvent {
 
   const ChatRoomUpdated({
     required this.chatRoomId,
+    this.eventType,
     this.lastMessage,
     this.lastMessageAt,
     this.unreadCount,
@@ -51,7 +53,7 @@ class ChatRoomUpdated extends ChatListEvent {
   });
 
   @override
-  List<Object?> get props => [chatRoomId, lastMessage, lastMessageAt, unreadCount, senderId];
+  List<Object?> get props => [chatRoomId, eventType, lastMessage, lastMessageAt, unreadCount, senderId];
 }
 
 /// WebSocket 구독 시작 이벤트
@@ -77,4 +79,19 @@ class ChatRoomReadCompleted extends ChatListEvent {
 
   @override
   List<Object?> get props => [chatRoomId];
+}
+
+/// 채팅방 진입 이벤트 (unreadCount 증가 방지용)
+class ChatRoomEntered extends ChatListEvent {
+  final int chatRoomId;
+
+  const ChatRoomEntered(this.chatRoomId);
+
+  @override
+  List<Object?> get props => [chatRoomId];
+}
+
+/// 채팅방 퇴장 이벤트
+class ChatRoomExited extends ChatListEvent {
+  const ChatRoomExited();
 }
