@@ -60,12 +60,16 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i633.AuthRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
     gh.lazySingleton<_i867.FriendRemoteDataSource>(
-      () => _i867.FriendRemoteDataSourceImpl(
-        gh<_i393.DioClient>(),
-      ),
+      () => _i867.FriendRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
     gh.lazySingleton<_i397.ChatRemoteDataSource>(
-      () => _i397.ChatRemoteDataSourceImpl(gh<_i393.DioClient>()),
+      () => _i397.ChatRemoteDataSourceImpl(
+        gh<_i393.DioClient>(),
+        gh<_i860.AuthLocalDataSource>(),
+      ),
+    );
+    gh.lazySingleton<_i792.ChatRepository>(
+      () => _i919.ChatRepositoryImpl(gh<_i397.ChatRemoteDataSource>()),
     );
     gh.lazySingleton<_i800.AuthRepository>(
       () => _i74.AuthRepositoryImpl(
@@ -75,11 +79,6 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i1069.FriendRepository>(
       () => _i364.FriendRepositoryImpl(gh<_i867.FriendRemoteDataSource>()),
-    );
-    gh.lazySingleton<_i792.ChatRepository>(
-      () => _i919.ChatRepositoryImpl(
-        gh<_i397.ChatRemoteDataSource>(),
-      ),
     );
     gh.factory<_i995.ChatListBloc>(
       () => _i995.ChatListBloc(
