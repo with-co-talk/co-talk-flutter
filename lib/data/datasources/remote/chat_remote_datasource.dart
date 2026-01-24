@@ -7,6 +7,7 @@ import '../../../core/utils/date_parser.dart';
 import '../../models/chat_room_model.dart';
 import '../../models/message_model.dart';
 import '../base_remote_datasource.dart';
+import '../local/auth_local_datasource.dart';
 
 abstract class ChatRemoteDataSource {
   Future<List<ChatRoomModel>> getChatRooms();
@@ -28,8 +29,12 @@ abstract class ChatRemoteDataSource {
 class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
     implements ChatRemoteDataSource {
   final DioClient _dioClient;
+  final AuthLocalDataSource _authLocalDataSource;
 
-  ChatRemoteDataSourceImpl(this._dioClient);
+  ChatRemoteDataSourceImpl(
+    this._dioClient,
+    this._authLocalDataSource,
+  );
 
   @override
   Future<List<ChatRoomModel>> getChatRooms() async {
@@ -80,10 +85,20 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   @override
   Future<ChatRoomModel> createDirectChatRoom(int otherUserId) async {
     try {
-      // userId1은 JWT 토큰에서 추출하므로 otherUserId만 전달
+      final currentUserId = await _authLocalDataSource.getUserId();
+      if (currentUserId == null) {
+        throw ServerException(
+          message: '사용자 인증 정보를 찾을 수 없습니다',
+          statusCode: 401,
+        );
+      }
+      
       final response = await _dioClient.post(
         ApiConstants.chatRooms,
-        data: CreateChatRoomRequest(userId2: otherUserId).toJson(),
+        data: CreateChatRoomRequest(
+          userId1: currentUserId,
+          userId2: otherUserId,
+        ).toJson(),
       );
       
       // API 응답 형식: {"roomId":..., "message":"..."}

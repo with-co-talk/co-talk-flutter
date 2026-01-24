@@ -1,6 +1,7 @@
 import 'package:injectable/injectable.dart';
 import '../../core/errors/exceptions.dart';
 import '../../core/utils/exception_to_failure_mapper.dart';
+import '../../core/utils/jwt_utils.dart';
 import '../../domain/entities/auth_token.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -40,6 +41,13 @@ class AuthRepositoryImpl implements AuthRepository {
       accessToken: response.accessToken,
       refreshToken: response.refreshToken,
     );
+
+    // userId는 서버 JWT의 subject(sub)에 들어있으므로, 토큰 저장 직후 동기화한다.
+    // (사용자 정보 조회(getCurrentUser)가 실패해도 구독/웹소켓 채널은 올바른 userId로 설정되어야 함)
+    final userId = JwtUtils.extractUserIdFromSubject(response.accessToken);
+    if (userId != null && userId > 0) {
+      await _localDataSource.saveUserId(userId);
+    }
 
     await _localDataSource.saveUserEmail(email);
 
