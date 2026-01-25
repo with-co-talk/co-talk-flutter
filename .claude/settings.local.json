@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter pub run build_runner build:*)",
+      "Bash(flutter test:*)",
+      "Bash(echo:*)",
+      "Bash(genhtml:*)",
+      "Bash(lcov:*)",
+      "Bash(sort:*)",
+      "Bash(python3:*)",
+      "Bash(flutter run:*)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)",
+      "Bash(tee:*)",
+      "Read(//private/tmp/**)",
+      "Bash(git -C /Users/nhn/Desktop/DEV/cursor-workspace/with-co-talk/co-talk-flutter log --oneline --all --name-status)",
+      "Bash(dart run build_runner build:*)",
+      "Bash(dart analyze:*)",
+      "Bash(flutter clean:*)",
+      "Bash(flutter pub get:*)"
+    ]
+  }
+}

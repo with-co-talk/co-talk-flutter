@@ -23,14 +23,34 @@ class _SignUpPageState extends State<SignUpPage> {
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _showKoreanWarning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_checkKoreanInput);
+    _confirmPasswordController.addListener(_checkKoreanInput);
+  }
 
   @override
   void dispose() {
+    _passwordController.removeListener(_checkKoreanInput);
+    _confirmPasswordController.removeListener(_checkKoreanInput);
     _emailController.dispose();
     _nicknameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _checkKoreanInput() {
+    final hasKorean = Validators.containsKorean(_passwordController.text) ||
+        Validators.containsKorean(_confirmPasswordController.text);
+    if (hasKorean != _showKoreanWarning) {
+      setState(() {
+        _showKoreanWarning = hasKorean;
+      });
+    }
   }
 
   void _onSignUp() {
@@ -57,7 +77,10 @@ class _SignUpPageState extends State<SignUpPage> {
       ),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state.status == AuthStatus.failure) {
+          if (state.status == AuthStatus.authenticated) {
+            // 회원가입 성공 후 메인 페이지로 이동
+            context.go(AppRoutes.main);
+          } else if (state.status == AuthStatus.failure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.errorMessage ?? '회원가입에 실패했습니다'),
@@ -149,6 +172,27 @@ class _SignUpPageState extends State<SignUpPage> {
                           ),
                           onFieldSubmitted: (_) => _onSignUp(),
                         ),
+                        if (_showKoreanWarning)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 16,
+                                  color: Colors.orange[700],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '한글이 입력되어 있습니다. 영문 키보드를 확인하세요.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         const SizedBox(height: 24),
                         SizedBox(
                           height: 48,

@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 
 enum UserStatus { active, inactive, suspended }
 
-enum OnlineStatus { online, offline, away }
+enum OnlineStatus { online, offline, away, doNotDisturb }
 
 enum UserRole { user, admin }
 
@@ -15,7 +15,7 @@ class User extends Equatable {
   final UserRole role;
   final OnlineStatus onlineStatus;
   final DateTime? lastActiveAt;
-  final DateTime createdAt;
+  final DateTime? createdAt;
 
   const User({
     required this.id,
@@ -26,7 +26,7 @@ class User extends Equatable {
     this.role = UserRole.user,
     this.onlineStatus = OnlineStatus.offline,
     this.lastActiveAt,
-    required this.createdAt,
+    this.createdAt,
   });
 
   User copyWith({

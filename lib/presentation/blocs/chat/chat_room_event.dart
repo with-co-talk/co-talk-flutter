@@ -21,6 +21,16 @@ class ChatRoomClosed extends ChatRoomEvent {
   const ChatRoomClosed();
 }
 
+/// 앱/창이 비활성화되어 채팅방을 "보고 있지 않음" 상태로 전환
+class ChatRoomBackgrounded extends ChatRoomEvent {
+  const ChatRoomBackgrounded();
+}
+
+/// 앱/창이 다시 활성화되어 채팅방을 "보고 있음" 상태로 전환
+class ChatRoomForegrounded extends ChatRoomEvent {
+  const ChatRoomForegrounded();
+}
+
 class MessagesLoadMoreRequested extends ChatRoomEvent {
   const MessagesLoadMoreRequested();
 }
@@ -50,4 +60,46 @@ class MessageDeleted extends ChatRoomEvent {
 
   @override
   List<Object?> get props => [messageId];
+}
+
+/// 읽음 상태 업데이트 이벤트
+class MessagesReadUpdated extends ChatRoomEvent {
+  final int userId;
+  final int? lastReadMessageId;
+  final DateTime? lastReadAt;
+
+  const MessagesReadUpdated({
+    required this.userId,
+    this.lastReadMessageId,
+    this.lastReadAt,
+  });
+
+  @override
+  List<Object?> get props => [userId, lastReadMessageId, lastReadAt];
+}
+
+/// 타이핑 상태 변경 이벤트 (WebSocket 수신)
+class TypingStatusChanged extends ChatRoomEvent {
+  final int userId;
+  final String? userNickname;
+  final bool isTyping;
+
+  const TypingStatusChanged({
+    required this.userId,
+    this.userNickname,
+    required this.isTyping,
+  });
+
+  @override
+  List<Object?> get props => [userId, userNickname, isTyping];
+}
+
+/// 사용자가 타이핑 시작 이벤트
+class UserStartedTyping extends ChatRoomEvent {
+  const UserStartedTyping();
+}
+
+/// 사용자가 타이핑 중단 이벤트
+class UserStoppedTyping extends ChatRoomEvent {
+  const UserStoppedTyping();
 }

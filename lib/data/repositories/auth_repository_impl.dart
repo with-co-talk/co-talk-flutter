@@ -1,4 +1,7 @@
 import 'package:injectable/injectable.dart';
+import '../../core/errors/exceptions.dart';
+import '../../core/utils/exception_to_failure_mapper.dart';
+import '../../core/utils/jwt_utils.dart';
 import '../../domain/entities/auth_token.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -39,6 +42,13 @@ class AuthRepositoryImpl implements AuthRepository {
       refreshToken: response.refreshToken,
     );
 
+    // userId는 서버 JWT의 subject(sub)에 들어있으므로, 토큰 저장 직후 동기화한다.
+    // (사용자 정보 조회(getCurrentUser)가 실패해도 구독/웹소켓 채널은 올바른 userId로 설정되어야 함)
+    final userId = JwtUtils.extractUserIdFromSubject(response.accessToken);
+    if (userId != null && userId > 0) {
+      await _localDataSource.saveUserId(userId);
+    }
+
     await _localDataSource.saveUserEmail(email);
 
     return response.toEntity();
@@ -48,17 +58,25 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthToken> refreshToken() async {
     final currentRefreshToken = await _localDataSource.getRefreshToken();
     if (currentRefreshToken == null) {
-      throw Exception('No refresh token found');
+      throw const AuthException(
+        message: '리프레시 토큰을 찾을 수 없습니다',
+        type: AuthErrorType.tokenInvalid,
+      );
     }
 
-    final response = await _remoteDataSource.refreshToken(currentRefreshToken);
+    try {
+      final response = await _remoteDataSource.refreshToken(currentRefreshToken);
 
-    await _localDataSource.saveTokens(
-      accessToken: response.accessToken,
-      refreshToken: response.refreshToken,
-    );
+      await _localDataSource.saveTokens(
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+      );
 
-    return response.toEntity();
+      return response.toEntity();
+    } catch (e) {
+      // Exception을 Failure로 변환하여 throw
+      throw ExceptionToFailureMapper.toFailure(e);
+    }
   }
 
   @override
@@ -87,6 +105,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await _localDataSource.saveUserId(userModel.id);
       return userModel.toEntity();
     } catch (e) {
+      // 사용자 정보를 가져오지 못한 경우 null 반환
+      // 로그인은 성공했지만 사용자 정보 조회 실패는 치명적이지 않음
       return null;
     }
   }

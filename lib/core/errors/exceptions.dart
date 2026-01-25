@@ -62,3 +62,17 @@ class ValidationException implements Exception {
   @override
   String toString() => 'ValidationException: $message';
 }
+
+/// 409 Conflict - 리소스 충돌 (중복 이메일, 이미 친구 관계 등)
+class ConflictException implements Exception {
+  final String message;
+  final String? code;
+
+  const ConflictException({
+    required this.message,
+    this.code,
+  });
+
+  @override
+  String toString() => 'ConflictException: $message (code: $code)';
+}

@@ -136,10 +136,11 @@ void main() {
 
   group('OnlineStatus', () {
     test('has all expected values', () {
-      expect(OnlineStatus.values.length, 3);
+      expect(OnlineStatus.values.length, 4);
       expect(OnlineStatus.values, contains(OnlineStatus.online));
       expect(OnlineStatus.values, contains(OnlineStatus.offline));
       expect(OnlineStatus.values, contains(OnlineStatus.away));
+      expect(OnlineStatus.values, contains(OnlineStatus.doNotDisturb));
     });
   });
 

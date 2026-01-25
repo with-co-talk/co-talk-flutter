@@ -2,15 +2,46 @@ import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import '../constants/api_constants.dart';
 import '../../data/datasources/local/auth_local_datasource.dart';
+import '../../presentation/blocs/auth/auth_bloc.dart';
+import '../../presentation/blocs/auth/auth_event.dart';
+import 'websocket_service.dart';
 
 @lazySingleton
-class AuthInterceptor extends Interceptor {
+class AuthInterceptor extends QueuedInterceptor {
   final AuthLocalDataSource _authLocalDataSource;
+  AuthBloc? _authBloc;
+  WebSocketService? _webSocketService;
 
-  AuthInterceptor(this._authLocalDataSource);
+  // 토큰 갱신 전용 Dio 인스턴스 (순환 참조 방지)
+  late final Dio _refreshDio;
+
+  AuthInterceptor(this._authLocalDataSource) {
+    // 토큰 갱신 전용 클라이언트 생성 (인터셉터 없이)
+    _refreshDio = Dio(
+      BaseOptions(
+        baseUrl: ApiConstants.apiBaseUrl,
+        connectTimeout: ApiConstants.connectTimeout,
+        receiveTimeout: ApiConstants.receiveTimeout,
+        sendTimeout: ApiConstants.sendTimeout,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ),
+    );
+  }
+
+  /// AuthBloc과 WebSocketService를 설정 (순환 참조 방지를 위해 나중에 설정)
+  void setAuthBloc(AuthBloc authBloc) {
+    _authBloc = authBloc;
+  }
+
+  void setWebSocketService(WebSocketService webSocketService) {
+    _webSocketService = webSocketService;
+  }
 
   @override
-  void onRequest(
+  Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
@@ -30,8 +61,13 @@ class AuthInterceptor extends Interceptor {
   }
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401) {
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    // Auth 엔드포인트는 토큰 갱신 로직 제외
+    final isAuthEndpoint = err.requestOptions.path.contains('/auth/login') ||
+        err.requestOptions.path.contains('/auth/signup') ||
+        err.requestOptions.path.contains('/auth/refresh');
+
+    if (err.response?.statusCode == 401 && !isAuthEndpoint) {
       // Token expired, try to refresh
       final refreshToken = await _authLocalDataSource.getRefreshToken();
       if (refreshToken != null) {
@@ -48,14 +84,25 @@ class AuthInterceptor extends Interceptor {
             final options = err.requestOptions;
             options.headers['Authorization'] = 'Bearer ${newTokens['accessToken']}';
 
-            final dio = Dio();
-            final response = await dio.fetch(options);
+            // Use refresh Dio instance to retry (avoids circular dependency)
+            final response = await _refreshDio.fetch(options);
             return handler.resolve(response);
           }
         } catch (e) {
-          // Refresh failed, clear tokens and redirect to login
+          // Refresh failed, clear tokens and logout
           await _authLocalDataSource.clearTokens();
+          
+          // WebSocket 연결 해제
+          _webSocketService?.disconnect();
+          
+          // AuthBloc에 로그아웃 이벤트 전송
+          _authBloc?.add(const AuthLogoutRequested());
         }
+      } else {
+        // Refresh token이 없는 경우도 로그아웃 처리
+        await _authLocalDataSource.clearTokens();
+        _webSocketService?.disconnect();
+        _authBloc?.add(const AuthLogoutRequested());
       }
     }
 
@@ -64,22 +111,20 @@ class AuthInterceptor extends Interceptor {
 
   Future<Map<String, String>?> _refreshToken(String refreshToken) async {
     try {
-      final dio = Dio(BaseOptions(baseUrl: ApiConstants.apiBaseUrl));
-      final response = await dio.post(
+      // 순환 참조 방지를 위해 직접 Dio로 토큰 갱신 요청
+      final response = await _refreshDio.post(
         ApiConstants.refresh,
         data: {'refreshToken': refreshToken},
       );
 
-      if (response.statusCode == 200) {
-        final data = response.data;
-        return {
-          'accessToken': data['accessToken'],
-          'refreshToken': data['refreshToken'],
-        };
-      }
+      final data = response.data;
+      return {
+        'accessToken': data['accessToken'] as String,
+        'refreshToken': data['refreshToken'] as String,
+      };
     } catch (e) {
-      // Refresh failed
+      // Refresh failed - tokens will be cleared in onError handler
+      return null;
     }
-    return null;
   }
 }

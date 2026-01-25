@@ -8,4 +8,6 @@ abstract class FriendRepository {
   Future<void> rejectFriendRequest(int requestId);
   Future<void> removeFriend(int friendId);
   Future<List<User>> searchUsers(String query);
+  Future<List<FriendRequest>> getReceivedFriendRequests();
+  Future<List<FriendRequest>> getSentFriendRequests();
 }

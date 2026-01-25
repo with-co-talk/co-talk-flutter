@@ -1,23 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
-import 'package:co_talk_flutter/domain/entities/user.dart';
-import 'package:co_talk_flutter/domain/entities/message.dart';
 
 void main() {
-  final testUser = User(
-    id: 1,
-    email: 'test@example.com',
-    nickname: 'TestUser',
-    createdAt: DateTime(2024, 1, 1),
-  );
-
-  final testMember = ChatRoomMember(
-    id: 1,
-    user: testUser,
-    isAdmin: true,
-    joinedAt: DateTime(2024, 1, 1),
-  );
-
   group('ChatRoom', () {
     test('creates chat room with required fields', () {
       final chatRoom = ChatRoom(
@@ -29,40 +13,35 @@ void main() {
       expect(chatRoom.id, 1);
       expect(chatRoom.type, ChatRoomType.direct);
       expect(chatRoom.name, isNull);
-      expect(chatRoom.announcement, isNull);
-      expect(chatRoom.members, isEmpty);
       expect(chatRoom.lastMessage, isNull);
+      expect(chatRoom.lastMessageAt, isNull);
       expect(chatRoom.unreadCount, 0);
-      expect(chatRoom.updatedAt, isNull);
+      expect(chatRoom.otherUserId, isNull);
+      expect(chatRoom.otherUserNickname, isNull);
+      expect(chatRoom.otherUserAvatarUrl, isNull);
     });
 
     test('creates chat room with all fields', () {
-      final lastMessage = Message(
-        id: 1,
-        chatRoomId: 1,
-        senderId: 1,
-        content: '안녕하세요',
-        type: MessageType.text,
-        createdAt: DateTime(2024, 1, 1),
-      );
-
       final chatRoom = ChatRoom(
         id: 1,
         name: 'Test Room',
         type: ChatRoomType.group,
-        announcement: '공지사항',
-        members: [testMember],
-        lastMessage: lastMessage,
-        unreadCount: 5,
         createdAt: DateTime(2024, 1, 1),
-        updatedAt: DateTime(2024, 1, 2),
+        lastMessage: '안녕하세요',
+        lastMessageAt: DateTime(2024, 1, 1, 10, 30),
+        unreadCount: 5,
+        otherUserId: 2,
+        otherUserNickname: 'OtherUser',
+        otherUserAvatarUrl: 'https://example.com/avatar.png',
       );
 
       expect(chatRoom.name, 'Test Room');
-      expect(chatRoom.announcement, '공지사항');
-      expect(chatRoom.members.length, 1);
-      expect(chatRoom.lastMessage, lastMessage);
+      expect(chatRoom.lastMessage, '안녕하세요');
+      expect(chatRoom.lastMessageAt, DateTime(2024, 1, 1, 10, 30));
       expect(chatRoom.unreadCount, 5);
+      expect(chatRoom.otherUserId, 2);
+      expect(chatRoom.otherUserNickname, 'OtherUser');
+      expect(chatRoom.otherUserAvatarUrl, 'https://example.com/avatar.png');
     });
 
     group('displayName', () {
@@ -77,41 +56,29 @@ void main() {
         expect(chatRoom.displayName, 'My Room');
       });
 
-      test('returns first member nickname for direct chat', () {
+      test('returns otherUserNickname for direct chat', () {
         final chatRoom = ChatRoom(
           id: 1,
           type: ChatRoomType.direct,
-          members: [testMember],
           createdAt: DateTime(2024, 1, 1),
+          otherUserId: 2,
+          otherUserNickname: 'OtherUser',
         );
 
-        expect(chatRoom.displayName, 'TestUser');
+        expect(chatRoom.displayName, 'OtherUser');
       });
 
-      test('returns joined member names when no name set', () {
-        final member2 = ChatRoomMember(
-          id: 2,
-          user: User(
-            id: 2,
-            email: 'user2@example.com',
-            nickname: 'User2',
-            createdAt: DateTime(2024, 1, 1),
-          ),
-          isAdmin: false,
-          joinedAt: DateTime(2024, 1, 1),
-        );
-
+      test('returns default name when no name set and no other user info', () {
         final chatRoom = ChatRoom(
           id: 1,
           type: ChatRoomType.group,
-          members: [testMember, member2],
           createdAt: DateTime(2024, 1, 1),
         );
 
-        expect(chatRoom.displayName, 'TestUser, User2');
+        expect(chatRoom.displayName, '채팅방');
       });
 
-      test('returns empty string when name is empty and no members', () {
+      test('returns default name when name is empty', () {
         final chatRoom = ChatRoom(
           id: 1,
           name: '',
@@ -119,7 +86,7 @@ void main() {
           createdAt: DateTime(2024, 1, 1),
         );
 
-        expect(chatRoom.displayName, '');
+        expect(chatRoom.displayName, '채팅방');
       });
     });
 
@@ -148,17 +115,19 @@ void main() {
         id: 1,
         name: 'Room',
         type: ChatRoomType.group,
-        announcement: '공지',
-        members: [testMember],
-        unreadCount: 5,
         createdAt: DateTime(2024, 1, 1),
+        lastMessage: '마지막 메시지',
+        unreadCount: 5,
+        otherUserId: 2,
+        otherUserNickname: 'OtherUser',
       );
 
       final updated = chatRoom.copyWith(name: 'New Name');
 
-      expect(updated.announcement, '공지');
-      expect(updated.members.length, 1);
+      expect(updated.lastMessage, '마지막 메시지');
       expect(updated.unreadCount, 5);
+      expect(updated.otherUserId, 2);
+      expect(updated.otherUserNickname, 'OtherUser');
     });
 
     test('equality works correctly', () {
@@ -187,52 +156,51 @@ void main() {
 
   group('ChatRoomMember', () {
     test('creates member with required fields', () {
-      final member = ChatRoomMember(
-        id: 1,
-        user: testUser,
-        joinedAt: DateTime(2024, 1, 1),
+      const member = ChatRoomMember(
+        userId: 1,
+        nickname: 'TestUser',
       );
 
-      expect(member.id, 1);
-      expect(member.user, testUser);
+      expect(member.userId, 1);
+      expect(member.nickname, 'TestUser');
+      expect(member.avatarUrl, isNull);
+      expect(member.role, ChatRoomMemberRole.member);
       expect(member.isAdmin, false);
     });
 
-    test('creates member with admin flag', () {
-      final member = ChatRoomMember(
-        id: 1,
-        user: testUser,
-        isAdmin: true,
-        joinedAt: DateTime(2024, 1, 1),
+    test('creates member with admin role', () {
+      const member = ChatRoomMember(
+        userId: 1,
+        nickname: 'AdminUser',
+        avatarUrl: 'https://example.com/avatar.png',
+        role: ChatRoomMemberRole.admin,
       );
 
       expect(member.isAdmin, true);
+      expect(member.avatarUrl, 'https://example.com/avatar.png');
     });
 
     test('equality works correctly', () {
-      final member1 = ChatRoomMember(
-        id: 1,
-        user: testUser,
-        isAdmin: true,
-        joinedAt: DateTime(2024, 1, 1),
+      const member1 = ChatRoomMember(
+        userId: 1,
+        nickname: 'TestUser',
+        role: ChatRoomMemberRole.admin,
       );
 
-      final member2 = ChatRoomMember(
-        id: 1,
-        user: testUser,
-        isAdmin: true,
-        joinedAt: DateTime(2024, 1, 1),
+      const member2 = ChatRoomMember(
+        userId: 1,
+        nickname: 'TestUser',
+        role: ChatRoomMemberRole.admin,
       );
 
       expect(member1, equals(member2));
     });
 
     test('props returns correct list', () {
-      final member = ChatRoomMember(
-        id: 1,
-        user: testUser,
-        isAdmin: true,
-        joinedAt: DateTime(2024, 1, 1),
+      const member = ChatRoomMember(
+        userId: 1,
+        nickname: 'TestUser',
+        role: ChatRoomMemberRole.admin,
       );
 
       expect(member.props.length, 4);
@@ -244,6 +212,14 @@ void main() {
       expect(ChatRoomType.values.length, 2);
       expect(ChatRoomType.values, contains(ChatRoomType.direct));
       expect(ChatRoomType.values, contains(ChatRoomType.group));
+    });
+  });
+
+  group('ChatRoomMemberRole', () {
+    test('has all expected values', () {
+      expect(ChatRoomMemberRole.values.length, 2);
+      expect(ChatRoomMemberRole.values, contains(ChatRoomMemberRole.admin));
+      expect(ChatRoomMemberRole.values, contains(ChatRoomMemberRole.member));
     });
   });
 }

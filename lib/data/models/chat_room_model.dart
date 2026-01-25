@@ -1,32 +1,37 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../../core/utils/date_parser.dart';
 import '../../domain/entities/chat_room.dart';
-import 'message_model.dart';
-import 'user_model.dart';
 
 part 'chat_room_model.g.dart';
 
+/// 채팅방 목록 조회 API 응답 모델
 @JsonSerializable()
 class ChatRoomModel {
   final int id;
   final String? name;
   final String? type;
-  final String? announcement;
-  final List<ChatRoomMemberModel>? members;
-  final MessageModel? lastMessage;
-  final int? unreadCount;
+  @JsonKey(fromJson: DateParser.parse, toJson: _dateTimeToJson)
   final DateTime createdAt;
-  final DateTime? updatedAt;
+  final String? lastMessage;
+  @JsonKey(fromJson: _parseNullableDateTime, toJson: _nullableDateTimeToJson)
+  final DateTime? lastMessageAt;
+  final int? unreadCount;
+  // 1:1 채팅방에서 상대방 정보 (그룹은 null)
+  final int? otherUserId;
+  final String? otherUserNickname;
+  final String? otherUserAvatarUrl;
 
   const ChatRoomModel({
     required this.id,
     this.name,
     this.type,
-    this.announcement,
-    this.members,
-    this.lastMessage,
-    this.unreadCount,
     required this.createdAt,
-    this.updatedAt,
+    this.lastMessage,
+    this.lastMessageAt,
+    this.unreadCount,
+    this.otherUserId,
+    this.otherUserNickname,
+    this.otherUserAvatarUrl,
   });
 
   factory ChatRoomModel.fromJson(Map<String, dynamic> json) =>
@@ -39,12 +44,13 @@ class ChatRoomModel {
       id: id,
       name: name,
       type: _parseChatRoomType(type),
-      announcement: announcement,
-      members: members?.map((m) => m.toEntity()).toList() ?? [],
-      lastMessage: lastMessage?.toEntity(),
-      unreadCount: unreadCount ?? 0,
       createdAt: createdAt,
-      updatedAt: updatedAt,
+      lastMessage: lastMessage,
+      lastMessageAt: lastMessageAt,
+      unreadCount: unreadCount ?? 0,
+      otherUserId: otherUserId,
+      otherUserNickname: otherUserNickname,
+      otherUserAvatarUrl: otherUserAvatarUrl,
     );
   }
 
@@ -56,20 +62,30 @@ class ChatRoomModel {
         return ChatRoomType.direct;
     }
   }
+
+  static DateTime? _parseNullableDateTime(dynamic value) {
+    if (value == null) return null;
+    return DateParser.parse(value);
+  }
+
+  static String _dateTimeToJson(DateTime value) => value.toIso8601String();
+
+  static String? _nullableDateTimeToJson(DateTime? value) => value?.toIso8601String();
 }
 
+/// 채팅방 멤버 목록 조회 API 응답 모델
 @JsonSerializable()
 class ChatRoomMemberModel {
-  final int id;
-  final UserModel user;
-  final bool? isAdmin;
-  final DateTime joinedAt;
+  final int userId;
+  final String nickname;
+  final String? avatarUrl;
+  final String? role;
 
   const ChatRoomMemberModel({
-    required this.id,
-    required this.user,
-    this.isAdmin,
-    required this.joinedAt,
+    required this.userId,
+    required this.nickname,
+    this.avatarUrl,
+    this.role,
   });
 
   factory ChatRoomMemberModel.fromJson(Map<String, dynamic> json) =>
@@ -79,11 +95,20 @@ class ChatRoomMemberModel {
 
   ChatRoomMember toEntity() {
     return ChatRoomMember(
-      id: id,
-      user: user.toEntity(),
-      isAdmin: isAdmin ?? false,
-      joinedAt: joinedAt,
+      userId: userId,
+      nickname: nickname,
+      avatarUrl: avatarUrl,
+      role: _parseRole(role),
     );
+  }
+
+  static ChatRoomMemberRole _parseRole(String? value) {
+    switch (value?.toUpperCase()) {
+      case 'ADMIN':
+        return ChatRoomMemberRole.admin;
+      default:
+        return ChatRoomMemberRole.member;
+    }
   }
 }
 
@@ -105,6 +130,8 @@ class CreateChatRoomRequest {
 
 @JsonSerializable()
 class CreateGroupChatRoomRequest {
+  // creatorId는 JWT 토큰에서 추출하므로 제거
+  @JsonKey(name: 'roomName')
   final String? name;
   final List<int> memberIds;
 
@@ -117,16 +144,4 @@ class CreateGroupChatRoomRequest {
       _$CreateGroupChatRoomRequestFromJson(json);
 
   Map<String, dynamic> toJson() => _$CreateGroupChatRoomRequestToJson(this);
-}
-
-@JsonSerializable()
-class ChatRoomsResponse {
-  final List<ChatRoomModel> chatRooms;
-
-  const ChatRoomsResponse({required this.chatRooms});
-
-  factory ChatRoomsResponse.fromJson(Map<String, dynamic> json) =>
-      _$ChatRoomsResponseFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ChatRoomsResponseToJson(this);
 }

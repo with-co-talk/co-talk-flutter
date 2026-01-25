@@ -69,8 +69,26 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
 
   @override
   Future<int?> getUserId() async {
-    final value = await _secureStorage.read(key: AppConstants.userIdKey);
-    return value != null ? int.tryParse(value) : null;
+    try {
+      final value = await _secureStorage.read(key: AppConstants.userIdKey);
+      if (value == null) {
+        return null;
+      }
+      
+      final userId = int.tryParse(value);
+      if (userId == null) {
+        // 잘못된 형식의 데이터가 저장된 경우 로깅 (향후 로깅 시스템 도입 시)
+        // logger.w('Invalid userId format stored: $value');
+        // 잘못된 데이터 삭제
+        await _secureStorage.delete(key: AppConstants.userIdKey);
+        return null;
+      }
+      
+      return userId;
+    } catch (e) {
+      // 저장소 읽기 실패 시 null 반환
+      return null;
+    }
   }
 
   @override

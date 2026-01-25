@@ -8,7 +8,7 @@ part of 'message_model.dart';
 
 MessageModel _$MessageModelFromJson(Map<String, dynamic> json) => MessageModel(
   id: (json['id'] as num).toInt(),
-  chatRoomId: (json['chatRoomId'] as num).toInt(),
+  chatRoomId: (json['chatRoomId'] as num?)?.toInt() ?? 0,
   senderId: (json['senderId'] as num).toInt(),
   senderNickname: json['senderNickname'] as String?,
   senderAvatarUrl: json['senderAvatarUrl'] as String?,
@@ -25,13 +25,12 @@ MessageModel _$MessageModelFromJson(Map<String, dynamic> json) => MessageModel(
       : MessageModel.fromJson(json['replyToMessage'] as Map<String, dynamic>),
   forwardedFromMessageId: (json['forwardedFromMessageId'] as num?)?.toInt(),
   isDeleted: json['isDeleted'] as bool?,
-  createdAt: DateTime.parse(json['createdAt'] as String),
-  updatedAt: json['updatedAt'] == null
-      ? null
-      : DateTime.parse(json['updatedAt'] as String),
+  createdAt: const DateTimeConverter().fromJson(json['createdAt']),
+  updatedAt: const NullableDateTimeConverter().fromJson(json['updatedAt']),
   reactions: (json['reactions'] as List<dynamic>?)
       ?.map((e) => MessageReactionModel.fromJson(e as Map<String, dynamic>))
       .toList(),
+  unreadCount: (json['unreadCount'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$MessageModelToJson(MessageModel instance) =>
@@ -52,9 +51,10 @@ Map<String, dynamic> _$MessageModelToJson(MessageModel instance) =>
       'replyToMessage': instance.replyToMessage,
       'forwardedFromMessageId': instance.forwardedFromMessageId,
       'isDeleted': instance.isDeleted,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'updatedAt': instance.updatedAt?.toIso8601String(),
+      'createdAt': const DateTimeConverter().toJson(instance.createdAt),
+      'updatedAt': const NullableDateTimeConverter().toJson(instance.updatedAt),
       'reactions': instance.reactions,
+      'unreadCount': instance.unreadCount,
     };
 
 MessageReactionModel _$MessageReactionModelFromJson(
@@ -79,14 +79,12 @@ Map<String, dynamic> _$MessageReactionModelToJson(
 
 SendMessageRequest _$SendMessageRequestFromJson(Map<String, dynamic> json) =>
     SendMessageRequest(
-      senderId: (json['senderId'] as num).toInt(),
       chatRoomId: (json['chatRoomId'] as num).toInt(),
       content: json['content'] as String,
     );
 
 Map<String, dynamic> _$SendMessageRequestToJson(SendMessageRequest instance) =>
     <String, dynamic>{
-      'senderId': instance.senderId,
       'chatRoomId': instance.chatRoomId,
       'content': instance.content,
     };
@@ -97,7 +95,7 @@ MessageHistoryResponse _$MessageHistoryResponseFromJson(
   messages: (json['messages'] as List<dynamic>)
       .map((e) => MessageModel.fromJson(e as Map<String, dynamic>))
       .toList(),
-  nextCursor: json['nextCursor'] as String?,
+  nextCursor: (json['nextCursor'] as num?)?.toInt(),
   hasMore: json['hasMore'] as bool,
 );
 

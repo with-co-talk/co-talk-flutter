@@ -2,37 +2,26 @@ import 'package:injectable/injectable.dart';
 import '../../domain/entities/chat_room.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/repositories/chat_repository.dart';
-import '../datasources/local/auth_local_datasource.dart';
 import '../datasources/remote/chat_remote_datasource.dart';
 import '../models/message_model.dart';
 
 @LazySingleton(as: ChatRepository)
 class ChatRepositoryImpl implements ChatRepository {
   final ChatRemoteDataSource _remoteDataSource;
-  final AuthLocalDataSource _authLocalDataSource;
 
-  ChatRepositoryImpl(this._remoteDataSource, this._authLocalDataSource);
-
-  Future<int> _getUserId() async {
-    final userId = await _authLocalDataSource.getUserId();
-    if (userId == null) {
-      throw Exception('User not logged in');
-    }
-    return userId;
-  }
+  ChatRepositoryImpl(this._remoteDataSource);
 
   @override
   Future<List<ChatRoom>> getChatRooms() async {
-    final userId = await _getUserId();
-    final chatRoomModels = await _remoteDataSource.getChatRooms(userId);
+    // JWT 토큰에서 userId를 추출하므로 파라미터 불필요
+    final chatRoomModels = await _remoteDataSource.getChatRooms();
     return chatRoomModels.map((m) => m.toEntity()).toList();
   }
 
   @override
   Future<ChatRoom> createDirectChatRoom(int otherUserId) async {
-    final userId = await _getUserId();
+    // userId는 JWT 토큰에서 추출하므로 파라미터 불필요
     final chatRoomModel = await _remoteDataSource.createDirectChatRoom(
-      userId,
       otherUserId,
     );
     return chatRoomModel.toEntity();
@@ -40,6 +29,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<ChatRoom> createGroupChatRoom(String? name, List<int> memberIds) async {
+    // creatorId는 JWT 토큰에서 추출하므로 파라미터 불필요
     final chatRoomModel = await _remoteDataSource.createGroupChatRoom(
       name,
       memberIds,
@@ -49,31 +39,30 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<void> leaveChatRoom(int roomId) async {
-    final userId = await _getUserId();
-    await _remoteDataSource.leaveChatRoom(roomId, userId);
+    // JWT 토큰에서 userId를 추출하므로 파라미터 불필요
+    await _remoteDataSource.leaveChatRoom(roomId);
   }
 
   @override
   Future<void> markAsRead(int roomId) async {
-    final userId = await _getUserId();
-    await _remoteDataSource.markAsRead(roomId, userId);
+    // JWT 토큰에서 userId를 추출하므로 파라미터 불필요
+    await _remoteDataSource.markAsRead(roomId);
   }
 
   @override
-  Future<(List<Message>, String?, bool)> getMessages(
+  Future<(List<Message>, int?, bool)> getMessages(
     int roomId, {
     int? size,
-    String? cursor,
+    int? beforeMessageId,
   }) async {
-    final userId = await _getUserId();
+    // JWT 토큰에서 userId를 추출하므로 파라미터 불필요
     final response = await _remoteDataSource.getMessages(
       roomId,
-      userId,
       size: size,
-      cursor: cursor,
+      beforeMessageId: beforeMessageId,
     );
     return (
-      response.messages.map((m) => m.toEntity()).toList(),
+      response.messages.map((m) => m.toEntity(overrideChatRoomId: roomId)).toList(),
       response.nextCursor,
       response.hasMore,
     );
@@ -81,23 +70,21 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<Message> sendMessage(int roomId, String content) async {
-    final userId = await _getUserId();
+    // senderId는 JWT 토큰에서 추출하므로 파라미터 불필요
     final messageModel = await _remoteDataSource.sendMessage(
       SendMessageRequest(
-        senderId: userId,
         chatRoomId: roomId,
         content: content,
       ),
     );
-    return messageModel.toEntity();
+    return messageModel.toEntity(overrideChatRoomId: roomId);
   }
 
   @override
   Future<Message> updateMessage(int messageId, String content) async {
-    final userId = await _getUserId();
+    // JWT 토큰에서 userId를 추출하므로 파라미터 불필요
     final messageModel = await _remoteDataSource.updateMessage(
       messageId,
-      userId,
       content,
     );
     return messageModel.toEntity();
@@ -105,7 +92,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<void> deleteMessage(int messageId) async {
-    final userId = await _getUserId();
-    await _remoteDataSource.deleteMessage(messageId, userId);
+    // JWT 토큰에서 userId를 추출하므로 파라미터 불필요
+    await _remoteDataSource.deleteMessage(messageId);
   }
 }

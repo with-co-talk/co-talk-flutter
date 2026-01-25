@@ -248,27 +248,24 @@ void main() {
 
   group('SendMessageRequest', () {
     test('creates request with required fields', () {
+      // senderId는 JWT 토큰에서 추출하므로 제거됨
       const request = SendMessageRequest(
-        senderId: 1,
         chatRoomId: 1,
         content: '안녕하세요',
       );
 
-      expect(request.senderId, 1);
       expect(request.chatRoomId, 1);
       expect(request.content, '안녕하세요');
     });
 
     test('toJson returns correct map', () {
       const request = SendMessageRequest(
-        senderId: 1,
         chatRoomId: 1,
         content: '안녕하세요',
       );
 
       final json = request.toJson();
 
-      expect(json['senderId'], 1);
       expect(json['chatRoomId'], 1);
       expect(json['content'], '안녕하세요');
     });
@@ -297,11 +294,11 @@ void main() {
     test('creates response with cursor', () {
       final response = MessageHistoryResponse(
         messages: [],
-        nextCursor: 'cursor123',
+        nextCursor: 123,
         hasMore: false,
       );
 
-      expect(response.nextCursor, 'cursor123');
+      expect(response.nextCursor, 123);
       expect(response.hasMore, false);
     });
 
@@ -315,6 +312,157 @@ void main() {
 
       expect(json['messages'], isA<List>());
       expect(json['hasMore'], false);
+    });
+
+    test('fromJson creates response correctly', () {
+      final json = {
+        'messages': [
+          {
+            'id': 1,
+            'chatRoomId': 1,
+            'senderId': 1,
+            'content': 'Hello',
+            'createdAt': '2024-01-01T00:00:00.000',
+          }
+        ],
+        'hasMore': true,
+        'nextCursor': 123,
+      };
+
+      final response = MessageHistoryResponse.fromJson(json);
+
+      expect(response.messages.length, 1);
+      expect(response.hasMore, true);
+      expect(response.nextCursor, 123);
+    });
+  });
+
+  group('MessageModel fromJson', () {
+    test('parses json correctly', () {
+      final json = {
+        'id': 1,
+        'chatRoomId': 1,
+        'senderId': 1,
+        'senderNickname': 'TestUser',
+        'content': '안녕하세요',
+        'type': 'TEXT',
+        'createdAt': '2024-01-01T00:00:00.000',
+      };
+
+      final model = MessageModel.fromJson(json);
+
+      expect(model.id, 1);
+      expect(model.senderNickname, 'TestUser');
+      expect(model.content, '안녕하세요');
+      expect(model.type, 'TEXT');
+    });
+
+    test('parses json with all optional fields', () {
+      final json = {
+        'id': 1,
+        'chatRoomId': 1,
+        'senderId': 1,
+        'senderNickname': 'TestUser',
+        'senderAvatarUrl': 'https://example.com/avatar.jpg',
+        'content': 'image.jpg',
+        'type': 'IMAGE',
+        'fileUrl': 'https://example.com/image.jpg',
+        'fileName': 'image.jpg',
+        'fileSize': 1024,
+        'fileContentType': 'image/jpeg',
+        'thumbnailUrl': 'https://example.com/thumb.jpg',
+        'isDeleted': false,
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-02T00:00:00.000',
+      };
+
+      final model = MessageModel.fromJson(json);
+
+      expect(model.fileUrl, 'https://example.com/image.jpg');
+      expect(model.fileName, 'image.jpg');
+      expect(model.fileSize, 1024);
+      expect(model.thumbnailUrl, 'https://example.com/thumb.jpg');
+    });
+
+    test('parses json with reactions', () {
+      final json = {
+        'id': 1,
+        'chatRoomId': 1,
+        'senderId': 1,
+        'content': 'Hello',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'reactions': [
+          {
+            'id': 1,
+            'messageId': 1,
+            'userId': 2,
+            'emoji': '👍',
+          }
+        ],
+      };
+
+      final model = MessageModel.fromJson(json);
+
+      expect(model.reactions, isNotNull);
+      expect(model.reactions!.length, 1);
+      expect(model.reactions!.first.emoji, '👍');
+    });
+
+    test('parses json with replyToMessage', () {
+      final json = {
+        'id': 1,
+        'chatRoomId': 1,
+        'senderId': 1,
+        'content': '답장',
+        'replyToMessageId': 0,
+        'replyToMessage': {
+          'id': 0,
+          'chatRoomId': 1,
+          'senderId': 2,
+          'content': '원본',
+          'createdAt': '2024-01-01T00:00:00.000',
+        },
+        'createdAt': '2024-01-01T00:00:00.000',
+      };
+
+      final model = MessageModel.fromJson(json);
+
+      expect(model.replyToMessage, isNotNull);
+      expect(model.replyToMessage!.content, '원본');
+    });
+  });
+
+  group('MessageReactionModel fromJson', () {
+    test('parses json correctly', () {
+      final json = {
+        'id': 1,
+        'messageId': 1,
+        'userId': 2,
+        'userNickname': 'TestUser',
+        'emoji': '👍',
+      };
+
+      final model = MessageReactionModel.fromJson(json);
+
+      expect(model.id, 1);
+      expect(model.userId, 2);
+      expect(model.userNickname, 'TestUser');
+      expect(model.emoji, '👍');
+    });
+  });
+
+  group('SendMessageRequest fromJson', () {
+    test('parses json correctly', () {
+      // senderId는 JWT 토큰에서 추출하므로 제거됨
+      final json = {
+        'chatRoomId': 1,
+        'content': 'Hello',
+      };
+
+      final request = SendMessageRequest.fromJson(json);
+
+      expect(request.chatRoomId, 1);
+      expect(request.content, 'Hello');
     });
   });
 }

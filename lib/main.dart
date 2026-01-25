@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'core/constants/app_constants.dart';
@@ -9,6 +10,9 @@ import 'di/injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize date formatting for Korean locale
+  await initializeDateFormatting('ko_KR', null);
 
   // Initialize dependency injection
   await configureDependencies();

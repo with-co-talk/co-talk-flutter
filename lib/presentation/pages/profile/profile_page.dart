@@ -155,7 +155,8 @@ class ProfilePage extends StatelessWidget {
     }
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime? date) {
+    if (date == null) return '-';
     return '${date.year}년 ${date.month}월 ${date.day}일';
   }
 }

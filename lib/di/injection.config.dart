@@ -15,6 +15,7 @@ import 'package:injectable/injectable.dart' as _i526;
 
 import '../core/network/auth_interceptor.dart' as _i552;
 import '../core/network/dio_client.dart' as _i393;
+import '../core/network/websocket_service.dart' as _i682;
 import '../core/router/app_router.dart' as _i877;
 import '../data/datasources/local/auth_local_datasource.dart' as _i860;
 import '../data/datasources/remote/auth_remote_datasource.dart' as _i633;
@@ -46,6 +47,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i860.AuthLocalDataSource>(
       () => _i860.AuthLocalDataSourceImpl(gh<_i558.FlutterSecureStorage>()),
     );
+    gh.lazySingleton<_i682.WebSocketService>(
+      () => _i682.WebSocketService(gh<_i860.AuthLocalDataSource>()),
+    );
     gh.lazySingleton<_i552.AuthInterceptor>(
       () => _i552.AuthInterceptor(gh<_i860.AuthLocalDataSource>()),
     );
@@ -59,7 +63,13 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i867.FriendRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
     gh.lazySingleton<_i397.ChatRemoteDataSource>(
-      () => _i397.ChatRemoteDataSourceImpl(gh<_i393.DioClient>()),
+      () => _i397.ChatRemoteDataSourceImpl(
+        gh<_i393.DioClient>(),
+        gh<_i860.AuthLocalDataSource>(),
+      ),
+    );
+    gh.lazySingleton<_i792.ChatRepository>(
+      () => _i919.ChatRepositoryImpl(gh<_i397.ChatRemoteDataSource>()),
     );
     gh.lazySingleton<_i800.AuthRepository>(
       () => _i74.AuthRepositoryImpl(
@@ -67,32 +77,34 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i860.AuthLocalDataSource>(),
       ),
     );
-    gh.factory<_i525.AuthBloc>(
-      () => _i525.AuthBloc(gh<_i800.AuthRepository>()),
-    );
     gh.lazySingleton<_i1069.FriendRepository>(
-      () => _i364.FriendRepositoryImpl(
-        gh<_i867.FriendRemoteDataSource>(),
+      () => _i364.FriendRepositoryImpl(gh<_i867.FriendRemoteDataSource>()),
+    );
+    gh.factory<_i995.ChatListBloc>(
+      () => _i995.ChatListBloc(
+        gh<_i792.ChatRepository>(),
+        gh<_i682.WebSocketService>(),
         gh<_i860.AuthLocalDataSource>(),
       ),
     );
-    gh.lazySingleton<_i792.ChatRepository>(
-      () => _i919.ChatRepositoryImpl(
-        gh<_i397.ChatRemoteDataSource>(),
+    gh.factory<_i995.ChatRoomBloc>(
+      () => _i995.ChatRoomBloc(
+        gh<_i792.ChatRepository>(),
+        gh<_i682.WebSocketService>(),
         gh<_i860.AuthLocalDataSource>(),
       ),
     );
-    gh.lazySingleton<_i877.AppRouter>(
-      () => _i877.AppRouter(gh<_i525.AuthBloc>()),
+    gh.factory<_i525.AuthBloc>(
+      () => _i525.AuthBloc(
+        gh<_i800.AuthRepository>(),
+        gh<_i682.WebSocketService>(),
+      ),
     );
     gh.factory<_i367.FriendBloc>(
       () => _i367.FriendBloc(gh<_i1069.FriendRepository>()),
     );
-    gh.factory<_i995.ChatListBloc>(
-      () => _i995.ChatListBloc(gh<_i792.ChatRepository>()),
-    );
-    gh.factory<_i995.ChatRoomBloc>(
-      () => _i995.ChatRoomBloc(gh<_i792.ChatRepository>()),
+    gh.lazySingleton<_i877.AppRouter>(
+      () => _i877.AppRouter(gh<_i525.AuthBloc>()),
     );
     return this;
   }

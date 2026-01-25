@@ -21,6 +21,7 @@ class AppTheme {
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        surfaceTintColor: Colors.transparent,
       ),
       cardTheme: CardThemeData(
         color: AppColors.surface,

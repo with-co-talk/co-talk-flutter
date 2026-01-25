@@ -19,5 +19,6 @@ abstract class RegisterModule {
   FlutterSecureStorage get secureStorage => const FlutterSecureStorage(
         aOptions: AndroidOptions(encryptedSharedPreferences: true),
         iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+        mOptions: MacOsOptions(),
       );
 }

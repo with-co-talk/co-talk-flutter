@@ -1,13 +1,35 @@
 class ApiConstants {
   ApiConstants._();
 
-  // Base URL - 개발 환경에 맞게 수정
-  static const String baseUrl = 'http://localhost:8080';
+  // 환경 설정 (빌드 시 --dart-define으로 설정)
+  static const String _environment =
+      String.fromEnvironment('ENVIRONMENT', defaultValue: 'dev');
+
+  // Base URL - 환경별 자동 설정
+  static String get baseUrl {
+    switch (_environment) {
+      case 'prod':
+        // 프로덕션 URL (출시 전 실제 URL로 변경 필요)
+        const prodUrl =
+            String.fromEnvironment('API_URL', defaultValue: 'https://api.cotalk.com');
+        return prodUrl;
+      case 'staging':
+        return 'https://staging-api.cotalk.com';
+      case 'dev':
+      default:
+        return 'http://localhost:8080';
+    }
+  }
+
   static const String apiVersion = '/api/v1';
-  static const String apiBaseUrl = '$baseUrl$apiVersion';
+  static String get apiBaseUrl => '$baseUrl$apiVersion';
 
   // WebSocket
-  static const String wsBaseUrl = 'ws://localhost:8080/ws';
+  static String get wsBaseUrl {
+    final uri = Uri.parse(baseUrl);
+    final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
+    return '$wsScheme://${uri.host}:${uri.port}/ws';
+  }
 
   // Auth Endpoints
   static const String signUp = '/auth/signup';

@@ -36,38 +36,33 @@ class FakeEntities {
         id: 1,
         name: null,
         type: ChatRoomType.direct,
-        members: [
-          ChatRoomMember(
-            id: 1,
-            user: otherUser,
-            isAdmin: false,
-            joinedAt: DateTime(2024, 1, 1),
-          ),
-        ],
-        unreadCount: 0,
         createdAt: DateTime(2024, 1, 1),
+        unreadCount: 0,
+        otherUserId: 2,
+        otherUserNickname: 'OtherUser',
+        otherUserAvatarUrl: null,
       );
 
   static ChatRoom get groupChatRoom => ChatRoom(
         id: 2,
         name: '그룹 채팅방',
         type: ChatRoomType.group,
-        members: [
-          ChatRoomMember(
-            id: 1,
-            user: user,
-            isAdmin: true,
-            joinedAt: DateTime(2024, 1, 1),
-          ),
-          ChatRoomMember(
-            id: 2,
-            user: otherUser,
-            isAdmin: false,
-            joinedAt: DateTime(2024, 1, 1),
-          ),
-        ],
-        unreadCount: 5,
         createdAt: DateTime(2024, 1, 1),
+        unreadCount: 5,
+      );
+
+  static ChatRoomMember get chatRoomMember => const ChatRoomMember(
+        userId: 1,
+        nickname: 'TestUser',
+        avatarUrl: null,
+        role: ChatRoomMemberRole.member,
+      );
+
+  static ChatRoomMember get chatRoomAdmin => const ChatRoomMember(
+        userId: 2,
+        nickname: 'AdminUser',
+        avatarUrl: 'https://example.com/avatar.png',
+        role: ChatRoomMemberRole.admin,
       );
 
   static Message get textMessage => Message(
@@ -127,6 +122,28 @@ class FakeEntities {
             createdAt: DateTime(2024, 1, 1),
           ),
           createdAt: DateTime(2024, 1, 2),
+        ),
+      ];
+
+  static FriendRequest get friendRequest => FriendRequest(
+        id: 1,
+        requester: otherUser,
+        receiver: user,
+        status: FriendRequestStatus.pending,
+        createdAt: DateTime(2024, 1, 1),
+      );
+
+  static List<FriendRequest> get receivedFriendRequests => [
+        friendRequest,
+      ];
+
+  static List<FriendRequest> get sentFriendRequests => [
+        FriendRequest(
+          id: 2,
+          requester: user,
+          receiver: otherUser,
+          status: FriendRequestStatus.pending,
+          createdAt: DateTime(2024, 1, 1),
         ),
       ];
 }

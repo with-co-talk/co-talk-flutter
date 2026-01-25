@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 
 class MainPage extends StatefulWidget {
   final Widget child;
@@ -54,12 +55,12 @@ class _MainPageState extends State<MainPage> {
               selectedIndex: _selectedIndex,
               onDestinationSelected: _onDestinationSelected,
               labelType: NavigationRailLabelType.all,
-              leading: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Icon(
                   Icons.chat_bubble_rounded,
                   size: 32,
-                  color: Colors.blue,
+                  color: AppColors.primary,
                 ),
               ),
               destinations: const [

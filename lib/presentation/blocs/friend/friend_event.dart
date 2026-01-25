@@ -55,3 +55,11 @@ class UserSearchRequested extends FriendEvent {
   @override
   List<Object?> get props => [query];
 }
+
+class ReceivedFriendRequestsLoadRequested extends FriendEvent {
+  const ReceivedFriendRequestsLoadRequested();
+}
+
+class SentFriendRequestsLoadRequested extends FriendEvent {
+  const SentFriendRequestsLoadRequested();
+}

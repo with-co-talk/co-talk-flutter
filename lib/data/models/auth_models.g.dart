@@ -42,7 +42,7 @@ AuthTokenResponse _$AuthTokenResponseFromJson(Map<String, dynamic> json) =>
       accessToken: json['accessToken'] as String,
       refreshToken: json['refreshToken'] as String,
       tokenType: json['tokenType'] as String? ?? 'Bearer',
-      expiresIn: (json['expiresIn'] as num).toInt(),
+      expiresIn: (json['expiresIn'] as num?)?.toInt() ?? 86400,
     );
 
 Map<String, dynamic> _$AuthTokenResponseToJson(AuthTokenResponse instance) =>

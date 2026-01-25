@@ -57,14 +57,16 @@ class LoginRequest {
 class AuthTokenResponse {
   final String accessToken;
   final String refreshToken;
+  @JsonKey(defaultValue: 'Bearer')
   final String tokenType;
+  @JsonKey(defaultValue: 86400)
   final int expiresIn;
 
   const AuthTokenResponse({
     required this.accessToken,
     required this.refreshToken,
     this.tokenType = 'Bearer',
-    required this.expiresIn,
+    this.expiresIn = 86400,
   });
 
   factory AuthTokenResponse.fromJson(Map<String, dynamic> json) =>

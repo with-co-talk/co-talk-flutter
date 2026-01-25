@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
+import '../../../core/errors/exceptions.dart';
 import '../../../domain/repositories/friend_repository.dart';
 import 'friend_event.dart';
 import 'friend_state.dart';
@@ -15,6 +16,8 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     on<FriendRequestRejected>(_onRequestRejected);
     on<FriendRemoved>(_onRemoved);
     on<UserSearchRequested>(_onSearchRequested);
+    on<ReceivedFriendRequestsLoadRequested>(_onReceivedRequestsLoadRequested);
+    on<SentFriendRequestsLoadRequested>(_onSentRequestsLoadRequested);
   }
 
   Future<void> _onLoadRequested(
@@ -32,7 +35,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     } catch (e) {
       emit(state.copyWith(
         status: FriendStatus.failure,
-        errorMessage: e.toString(),
+        errorMessage: _extractErrorMessage(e),
       ));
     }
   }
@@ -41,10 +44,17 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     FriendRequestSent event,
     Emitter<FriendState> emit,
   ) async {
+    emit(state.copyWith(clearErrorMessage: true));
     try {
       await _friendRepository.sendFriendRequest(event.receiverId);
+      // 성공 시 보낸 요청 목록도 업데이트
+      final sentRequests = await _friendRepository.getSentFriendRequests();
+      emit(state.copyWith(
+        sentRequests: sentRequests,
+        clearErrorMessage: true,
+      ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
     }
   }
 
@@ -52,11 +62,20 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     FriendRequestAccepted event,
     Emitter<FriendState> emit,
   ) async {
+    emit(state.copyWith(clearErrorMessage: true));
     try {
       await _friendRepository.acceptFriendRequest(event.requestId);
-      add(const FriendListLoadRequested());
+      // 친구 목록과 받은 요청 목록을 모두 새로고침
+      final friends = await _friendRepository.getFriends();
+      final receivedRequests = await _friendRepository.getReceivedFriendRequests();
+      emit(state.copyWith(
+        status: FriendStatus.success,
+        friends: friends,
+        receivedRequests: receivedRequests,
+        clearErrorMessage: true,
+      ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
     }
   }
 
@@ -64,10 +83,17 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     FriendRequestRejected event,
     Emitter<FriendState> emit,
   ) async {
+    emit(state.copyWith(clearErrorMessage: true));
     try {
       await _friendRepository.rejectFriendRequest(event.requestId);
+      // 받은 요청 목록 새로고침
+      final receivedRequests = await _friendRepository.getReceivedFriendRequests();
+      emit(state.copyWith(
+        receivedRequests: receivedRequests,
+        clearErrorMessage: true,
+      ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
     }
   }
 
@@ -82,7 +108,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
           .toList();
       emit(state.copyWith(friends: updatedFriends));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
     }
   }
 
@@ -90,24 +116,91 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     UserSearchRequested event,
     Emitter<FriendState> emit,
   ) async {
-    if (event.query.isEmpty) {
-      emit(state.copyWith(searchResults: [], isSearching: false));
+    final trimmedQuery = event.query.trim();
+
+    if (trimmedQuery.isEmpty) {
+      emit(state.copyWith(
+        searchResults: [],
+        isSearching: false,
+        hasSearched: false,
+        clearSearchQuery: true,
+        clearErrorMessage: true,
+      ));
       return;
     }
 
-    emit(state.copyWith(isSearching: true));
+    emit(state.copyWith(
+      isSearching: true,
+      hasSearched: true,
+      searchQuery: trimmedQuery,
+      clearErrorMessage: true,
+    ));
 
     try {
-      final users = await _friendRepository.searchUsers(event.query);
+      final users = await _friendRepository.searchUsers(trimmedQuery);
       emit(state.copyWith(
         searchResults: users,
         isSearching: false,
+        clearErrorMessage: true,
       ));
     } catch (e) {
       emit(state.copyWith(
         isSearching: false,
-        errorMessage: e.toString(),
+        searchResults: [],
+        errorMessage: _extractErrorMessage(e),
       ));
     }
+  }
+
+  Future<void> _onReceivedRequestsLoadRequested(
+    ReceivedFriendRequestsLoadRequested event,
+    Emitter<FriendState> emit,
+  ) async {
+    emit(state.copyWith(clearErrorMessage: true));
+    try {
+      final requests = await _friendRepository.getReceivedFriendRequests();
+      emit(state.copyWith(
+        receivedRequests: requests,
+        clearErrorMessage: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+    }
+  }
+
+  Future<void> _onSentRequestsLoadRequested(
+    SentFriendRequestsLoadRequested event,
+    Emitter<FriendState> emit,
+  ) async {
+    emit(state.copyWith(clearErrorMessage: true));
+    try {
+      final requests = await _friendRepository.getSentFriendRequests();
+      emit(state.copyWith(
+        sentRequests: requests,
+        clearErrorMessage: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+    }
+  }
+
+  String _extractErrorMessage(dynamic error) {
+    if (error is ServerException) {
+      return error.message;
+    }
+    if (error is NetworkException) {
+      return error.message;
+    }
+    if (error is AuthException) {
+      return error.message;
+    }
+    if (error is ValidationException) {
+      return error.message;
+    }
+    if (error is CacheException) {
+      return error.message;
+    }
+    // 알 수 없는 에러의 경우
+    return error.toString();
   }
 }
