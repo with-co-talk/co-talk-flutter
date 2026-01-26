@@ -495,6 +495,15 @@ class WebSocketService {
     if (_stompClient == null) {
       // ignore: avoid_print
       print('[WebSocket] _doSubscribe: _stompClient is null, cannot subscribe');
+      _pendingSubscriptions.add(roomId);
+      return;
+    }
+
+    // 연결 상태 확인
+    if (!_stompClient!.connected) {
+      // ignore: avoid_print
+      print('[WebSocket] _doSubscribe: _stompClient is not connected, adding to pending subscriptions');
+      _pendingSubscriptions.add(roomId);
       return;
     }
 
@@ -504,27 +513,37 @@ class WebSocketService {
     // ignore: avoid_print
     print('[WebSocket] _doSubscribe: _stompClient.connected = ${_stompClient!.connected}');
 
-    final messageUnsubscribe = _stompClient!.subscribe(
-      destination: destination,
-      callback: (frame) {
-        // ignore: avoid_print
-        print('[WebSocket] CALLBACK INVOKED for $destination');
-        // ignore: avoid_print
-        print('[WebSocket] Frame command: ${frame.command}');
-        // ignore: avoid_print
-        print('[WebSocket] Frame headers: ${frame.headers}');
-        // ignore: avoid_print
-        print('[WebSocket] Frame body length: ${frame.body?.length ?? 0}');
-        _handleMessage(frame, roomId);
-      },
-    );
+    try {
+      final messageUnsubscribe = _stompClient!.subscribe(
+        destination: destination,
+        callback: (frame) {
+          // ignore: avoid_print
+          print('[WebSocket] CALLBACK INVOKED for $destination');
+          // ignore: avoid_print
+          print('[WebSocket] Frame command: ${frame.command}');
+          // ignore: avoid_print
+          print('[WebSocket] Frame headers: ${frame.headers}');
+          // ignore: avoid_print
+          print('[WebSocket] Frame body length: ${frame.body?.length ?? 0}');
+          _handleMessage(frame, roomId);
+        },
+      );
 
-    // ignore: avoid_print
-    print('[WebSocket] _doSubscribe: Subscription registered, unsubscribe function: $messageUnsubscribe');
-    _subscriptions[roomId] = messageUnsubscribe;
-    _pendingSubscriptions.remove(roomId);
-    // ignore: avoid_print
-    print('[WebSocket] _doSubscribe: Current subscriptions count: ${_subscriptions.length}');
+      // ignore: avoid_print
+      print('[WebSocket] _doSubscribe: Subscription registered, unsubscribe function: $messageUnsubscribe');
+      _subscriptions[roomId] = messageUnsubscribe;
+      _pendingSubscriptions.remove(roomId);
+      // ignore: avoid_print
+      print('[WebSocket] _doSubscribe: Current subscriptions count: ${_subscriptions.length}');
+    } catch (e, stackTrace) {
+      // ignore: avoid_print
+      print('[WebSocket] _doSubscribe: Failed to subscribe: $e');
+      // ignore: avoid_print
+      print('[WebSocket] Stack trace: $stackTrace');
+      // 구독 실패 시 pending에 추가하여 나중에 재시도
+      _pendingSubscriptions.add(roomId);
+      _subscriptions.remove(roomId);
+    }
   }
 
   /// 채팅방 구독 해제
@@ -570,49 +589,68 @@ class WebSocketService {
       return;
     }
 
-    // 채팅 목록 업데이트 채널 구독
-    final chatListDestination = '/topic/user/$userId/chat-list';
-    // ignore: avoid_print
-    print('[WebSocket] Subscribing to chat-list channel: $chatListDestination');
+    // 연결 상태 확인
+    if (!_stompClient!.connected) {
+      // ignore: avoid_print
+      print('[WebSocket] _doSubscribeUserChannel: _stompClient is not connected, will retry on connect');
+      return;
+    }
 
-    _chatListSubscription = _stompClient!.subscribe(
-      destination: chatListDestination,
-      callback: (frame) {
-        // ignore: avoid_print
-        print('[WebSocket] ✅ Chat-list channel message received');
-        _handleChatListMessage(frame);
-      },
-    );
-    // ignore: avoid_print
-    print('[WebSocket] ✅ Successfully subscribed to chat-list channel: $chatListDestination');
+    try {
+      // 채팅 목록 업데이트 채널 구독
+      final chatListDestination = '/topic/user/$userId/chat-list';
+      // ignore: avoid_print
+      print('[WebSocket] Subscribing to chat-list channel: $chatListDestination');
 
-    // 읽음 영수증 채널 구독
-    final readReceiptDestination = '/topic/user/$userId/read-receipt';
-    // ignore: avoid_print
-    print('[WebSocket] Subscribing to read-receipt channel: $readReceiptDestination');
+      _chatListSubscription = _stompClient!.subscribe(
+        destination: chatListDestination,
+        callback: (frame) {
+          // ignore: avoid_print
+          print('[WebSocket] ✅ Chat-list channel message received');
+          _handleChatListMessage(frame);
+        },
+      );
+      // ignore: avoid_print
+      print('[WebSocket] ✅ Successfully subscribed to chat-list channel: $chatListDestination');
 
-    _readReceiptSubscription = _stompClient!.subscribe(
-      destination: readReceiptDestination,
-      callback: (frame) {
-        // ignore: avoid_print
-        print('[WebSocket] ✅ Read-receipt channel message received');
-        _handleReadReceiptMessage(frame);
-      },
-    );
-    // ignore: avoid_print
-    print('[WebSocket] ✅ Successfully subscribed to read-receipt channel: $readReceiptDestination');
-    // ignore: avoid_print
-    print('[WebSocket] ========== User channel subscription completed ==========');
-    // ignore: avoid_print
-    print('[WebSocket] userId: $userId');
-    // ignore: avoid_print
-    print('[WebSocket] chat-list destination: $chatListDestination');
-    // ignore: avoid_print
-    print('[WebSocket] read-receipt destination: $readReceiptDestination');
-    // ignore: avoid_print
-    print('[WebSocket] =========================================================');
+      // 읽음 영수증 채널 구독
+      final readReceiptDestination = '/topic/user/$userId/read-receipt';
+      // ignore: avoid_print
+      print('[WebSocket] Subscribing to read-receipt channel: $readReceiptDestination');
 
-    _subscribedUserId = userId;
+      _readReceiptSubscription = _stompClient!.subscribe(
+        destination: readReceiptDestination,
+        callback: (frame) {
+          // ignore: avoid_print
+          print('[WebSocket] ✅ Read-receipt channel message received');
+          _handleReadReceiptMessage(frame);
+        },
+      );
+      // ignore: avoid_print
+      print('[WebSocket] ✅ Successfully subscribed to read-receipt channel: $readReceiptDestination');
+      // ignore: avoid_print
+      print('[WebSocket] ========== User channel subscription completed ==========');
+      // ignore: avoid_print
+      print('[WebSocket] userId: $userId');
+      // ignore: avoid_print
+      print('[WebSocket] chat-list destination: $chatListDestination');
+      // ignore: avoid_print
+      print('[WebSocket] read-receipt destination: $readReceiptDestination');
+      // ignore: avoid_print
+      print('[WebSocket] =========================================================');
+
+      _subscribedUserId = userId;
+    } catch (e, stackTrace) {
+      // ignore: avoid_print
+      print('[WebSocket] _doSubscribeUserChannel: Failed to subscribe: $e');
+      // ignore: avoid_print
+      print('[WebSocket] Stack trace: $stackTrace');
+      // 구독 실패 시 정리
+      _chatListSubscription?.call();
+      _chatListSubscription = null;
+      _readReceiptSubscription?.call();
+      _readReceiptSubscription = null;
+    }
   }
 
   /// 사용자 채널 구독 해제
@@ -768,6 +806,33 @@ class WebSocketService {
     );
   }
 
+  /// 읽음 처리 (WebSocket으로 전송)
+  void sendMarkAsRead({
+    required int roomId,
+    required int userId,
+  }) {
+    if (!isConnected || _stompClient == null) {
+      // ignore: avoid_print
+      print('[WebSocket] sendMarkAsRead: Not connected, cannot send');
+      return;
+    }
+    // ignore: avoid_print
+    print('[WebSocket] ========== Sending markAsRead ==========');
+    // ignore: avoid_print
+    print('[WebSocket] roomId: $roomId');
+    // ignore: avoid_print
+    print('[WebSocket] userId: $userId');
+    // ignore: avoid_print
+    print('[WebSocket] =========================================');
+    _stompClient!.send(
+      destination: '/app/chat/read',
+      body: jsonEncode({
+        'roomId': roomId,
+        'userId': userId,
+      }),
+    );
+  }
+
   // Private methods
 
   void _onConnect(StompFrame frame) {
@@ -776,25 +841,34 @@ class WebSocketService {
     _reconnectAttempts = 0;
     _updateConnectionState(WebSocketConnectionState.connected);
 
-    // 기존 구독 복원
-    final roomIds = _subscriptions.keys.toList();
-    _subscriptions.clear();
-    for (final roomId in roomIds) {
-      _doSubscribe(roomId);
-    }
+    // 연결이 완전히 준비될 때까지 약간의 딜레이 (StompBadStateException 방지)
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_stompClient == null || !_stompClient!.connected) {
+        // ignore: avoid_print
+        print('[WebSocket] _onConnect: Connection lost during delay, skipping subscription restore');
+        return;
+      }
 
-    // 대기 중인 구독 처리
-    final pendingRoomIds = _pendingSubscriptions.toList();
-    // ignore: avoid_print
-    print('[WebSocket] Processing ${pendingRoomIds.length} pending subscriptions');
-    for (final roomId in pendingRoomIds) {
-      _doSubscribe(roomId);
-    }
+      // 기존 구독 복원
+      final roomIds = _subscriptions.keys.toList();
+      _subscriptions.clear();
+      for (final roomId in roomIds) {
+        _doSubscribe(roomId);
+      }
 
-    // 사용자 채널 구독 복원
-    if (_subscribedUserId != null) {
-      _doSubscribeUserChannel(_subscribedUserId!);
-    }
+      // 대기 중인 구독 처리
+      final pendingRoomIds = _pendingSubscriptions.toList();
+      // ignore: avoid_print
+      print('[WebSocket] Processing ${pendingRoomIds.length} pending subscriptions');
+      for (final roomId in pendingRoomIds) {
+        _doSubscribe(roomId);
+      }
+
+      // 사용자 채널 구독 복원
+      if (_subscribedUserId != null) {
+        _doSubscribeUserChannel(_subscribedUserId!);
+      }
+    });
   }
 
   void _onDisconnect(StompFrame frame) {
@@ -904,7 +978,9 @@ class WebSocketService {
       // ignore: avoid_print
       print('[WebSocket] lastMessageAt: ${update.lastMessageAt}');
       // ignore: avoid_print
-      print('[WebSocket] Raw JSON: $json');
+      print('[WebSocket] eventType: ${update.eventType}');
+      // ignore: avoid_print
+      print('[WebSocket] Raw JSON: ${frame.body}');
       // ignore: avoid_print
       print('[WebSocket] ===============================================');
       _chatRoomUpdateController.add(update);
