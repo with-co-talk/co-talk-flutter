@@ -163,7 +163,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
       if (room.id == event.chatRoomId) {
         // 서버가 정확한 unreadCount를 계산해서 보내주므로, 클라이언트는 그대로 사용
         // 서버는 이미 다음을 모두 고려해서 계산함:
-        // - READ 이벤트: lastReadMessageId 기반으로 정확한 unreadCount 계산
+        // - READ 이벤트: lastReadMessageId 기반으로 각 멤버별 정확한 unreadCount 계산
         // - NEW_MESSAGE 이벤트: presence(방이 열려있는지)를 고려하여 unreadCount 계산
         // - 발신자 제외: 내가 보낸 메시지는 서버에서 이미 제외하여 계산
         // 따라서 클라이언트는 서버가 보낸 값을 그대로 사용하면 됨
@@ -171,13 +171,16 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
         int newUnreadCount = event.unreadCount ?? room.unreadCount;
         
         if (event.unreadCount != null) {
+          // 서버가 정확히 계산한 unreadCount를 그대로 사용
+          // READ 이벤트의 경우, 서버가 각 멤버별로 정확한 unreadCount를 계산해서 보내줌
+          // (읽음 처리를 한 사람의 unreadCount는 0, 다른 사람은 그들의 lastReadMessageId 기준으로 계산)
           newUnreadCount = event.unreadCount!;
           // ignore: avoid_print
           print('[ChatListBloc] Using server unreadCount=${event.unreadCount} (eventType=${event.eventType})');
         } else {
           // 서버가 unreadCount를 보내지 않았으면 기존 값 유지 (안전장치)
           // ignore: avoid_print
-          print('[ChatListBloc] WARNING: unreadCount is null, keeping old value=${oldUnreadCount}');
+          print('[ChatListBloc] WARNING: unreadCount is null, keeping old value=$oldUnreadCount');
         }
         
         // ignore: avoid_print
@@ -332,9 +335,22 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
   ) {
     // ignore: avoid_print
     print('[ChatListBloc] _onChatRoomReadCompleted: roomId=${event.chatRoomId}');
-    // 서버가 markAsRead 후 READ 이벤트로 정확한 unreadCount를 보내주므로
-    // 클라이언트에서 별도로 처리할 필요 없음
-    // 서버의 READ 이벤트가 도착하면 자동으로 업데이트됨
+    
+    // 낙관적 업데이트: 서버 응답을 기다리지 않고 즉시 unreadCount를 0으로 설정
+    // 서버의 chatRoomUpdates가 나중에 도착하면 그것으로 덮어쓰기 (서버가 최종 소스)
+    final updatedChatRooms = state.chatRooms.map((room) {
+      if (room.id == event.chatRoomId) {
+        // ignore: avoid_print
+        print('[ChatListBloc] Optimistically updating unreadCount: ${room.unreadCount} -> 0');
+        return room.copyWith(unreadCount: 0);
+      }
+      return room;
+    }).toList();
+
+    emit(state.copyWith(chatRooms: updatedChatRooms));
+    
+    // 서버의 chatRoomUpdates가 나중에 도착하면 정확한 값으로 업데이트됨
+    // (서버가 최종 소스이므로 서버 값이 우선)
   }
 
   void _onChatRoomEntered(
