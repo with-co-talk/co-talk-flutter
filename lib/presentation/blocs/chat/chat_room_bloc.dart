@@ -22,11 +22,6 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   Timer? _typingDebounceTimer;
   Timer? _presencePingTimer;
 
-  // 중복 READ 이벤트(유저 채널 + 방 채널, 재전송 등)로 인한 double-decrement 방지용
-  final Map<String, DateTime> _recentReadEventKeys = {};
-  static const Duration _readEventDedupeWindow = Duration(seconds: 10);
-  static const int _maxReadEventKeySize = 200;
-
   ChatRoomBloc(
     this._chatRepository,
     this._webSocketService,
@@ -122,45 +117,79 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     // 기존 구독 해제
     _messageSubscription?.cancel();
-    _readEventSubscription?.cancel();
 
     // WebSocket 채팅방 구독
     _webSocketService.subscribeToChatRoom(roomId);
     _isRoomSubscribed = true;
 
     // 메시지 수신 리스너 - state.roomId를 사용하여 최신 roomId 확인
+    // 서버가 보내주는 메시지의 unreadCount를 그대로 사용 (서버가 최종 소스)
     _messageSubscription = _webSocketService.messages.listen((wsMessage) {
       // ignore: avoid_print
-      print('[ChatRoomBloc] Received wsMessage: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}, content=${wsMessage.content}');
+      print('[ChatRoomBloc] ========== WebSocket Message Received ==========');
       // ignore: avoid_print
-      print('[ChatRoomBloc] Current state.roomId: ${state.roomId}, wsMessage.chatRoomId: ${wsMessage.chatRoomId}');
+      print('[ChatRoomBloc] messageId: ${wsMessage.messageId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] roomId: ${wsMessage.chatRoomId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] content: ${wsMessage.content}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] unreadCount: ${wsMessage.unreadCount}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] senderId: ${wsMessage.senderId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] Current state.roomId: ${state.roomId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] ================================================');
+      
       if (state.roomId != null && wsMessage.chatRoomId == state.roomId) {
         // ignore: avoid_print
-        print('[ChatRoomBloc] Adding MessageReceived event');
+        print('[ChatRoomBloc] ✅ Room ID matches, adding MessageReceived event');
+        // 서버가 보내준 메시지의 unreadCount를 그대로 사용
+        // (서버가 읽음 처리 후 업데이트된 unreadCount를 포함해서 보내줄 수 있음)
         add(MessageReceived(_convertToMessage(wsMessage)));
       } else {
         // ignore: avoid_print
-        print('[ChatRoomBloc] Ignoring message for different room');
+        print('[ChatRoomBloc] ❌ Ignoring message for different room (state.roomId=${state.roomId}, wsMessage.roomId=${wsMessage.chatRoomId})');
       }
     }, onError: (error) {
       // ignore: avoid_print
-      print('[ChatRoomBloc] Error in message stream: $error');
+      print('[ChatRoomBloc] ❌ Error in message stream: $error');
     });
 
-    // 읽음 이벤트 리스너 - state.roomId를 사용하여 최신 roomId 확인
+    // readEvents 리스너: 서버가 읽음 처리 후 업데이트된 메시지를 보내주지 않을 경우를 대비
+    // readEvents를 받으면 해당 사용자가 읽은 메시지의 unreadCount를 감소시킴
     _readEventSubscription = _webSocketService.readEvents.listen((readEvent) {
       // ignore: avoid_print
-      print('[ChatRoomBloc] Received readEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
+      print('[ChatRoomBloc] ========== ReadEvent Received ==========');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] roomId: ${readEvent.chatRoomId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] userId: ${readEvent.userId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] lastReadMessageId: ${readEvent.lastReadMessageId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] state.roomId: ${state.roomId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] state.currentUserId: ${state.currentUserId}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] ========================================');
+      
       if (state.roomId != null && readEvent.chatRoomId == state.roomId) {
+        // ignore: avoid_print
+        print('[ChatRoomBloc] ✅ Room ID matches, adding MessagesReadUpdated event');
         add(MessagesReadUpdated(
           userId: readEvent.userId,
           lastReadMessageId: readEvent.lastReadMessageId,
           lastReadAt: readEvent.lastReadAt,
         ));
+      } else {
+        // ignore: avoid_print
+        print('[ChatRoomBloc] ❌ Ignoring readEvent for different room');
       }
     }, onError: (error) {
       // ignore: avoid_print
-      print('[ChatRoomBloc] Error in read event stream: $error');
+      print('[ChatRoomBloc] ❌ Error in readEvent stream: $error');
     });
 
     // 타이핑 이벤트 리스너
@@ -254,11 +283,42 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomForegrounded event,
     Emitter<ChatRoomState> emit,
   ) async {
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ========== _onForegrounded called ==========');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] state.roomId: ${state.roomId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] state.currentUserId: ${state.currentUserId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] _isRoomSubscribed: $_isRoomSubscribed');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ===========================================');
+    
     // 다시 활성화되면 presence ping을 재개하고, 화면에 보이는 상태이므로 읽음 처리를 다시 시도한다.
-    if (state.roomId == null || state.currentUserId == null || !_isRoomSubscribed) return;
+    if (state.roomId == null) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] _onForegrounded: roomId is null, returning');
+      return;
+    }
+    if (state.currentUserId == null) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] _onForegrounded: currentUserId is null, returning');
+      return;
+    }
+    
+    // _isRoomSubscribed 체크를 제거: 구독이 완료되지 않았어도 markAsRead는 호출 가능
+    // (서버는 roomId만 있으면 읽음 처리를 할 수 있음)
+    // 구독이 완료되지 않았으면 나중에 구독이 완료되면 자동으로 markAsRead가 호출될 수 있지만,
+    // 여기서도 호출하는 것이 더 안전함 (타이밍 이슈 방지)
+    if (!_isRoomSubscribed) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] _onForegrounded: _isRoomSubscribed is false, but proceeding with markAsRead anyway');
+    }
+    
     _isViewingRoom = true;
     _startPresencePing();
 
+    // REST API로 읽음 처리 (하이브리드 방식)
     await _markAsReadWithRetry(state.roomId!, emit);
   }
 
@@ -373,9 +433,19 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) async {
     // ignore: avoid_print
-    print('[ChatRoomBloc] _onMessageReceived called');
+    print('[ChatRoomBloc] ========== _onMessageReceived ==========');
     // ignore: avoid_print
-    print('[ChatRoomBloc] state.roomId: ${state.roomId}, event.message.chatRoomId: ${event.message.chatRoomId}');
+    print('[ChatRoomBloc] messageId: ${event.message.id}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] roomId: state=${state.roomId}, event=${event.message.chatRoomId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] unreadCount from server: ${event.message.unreadCount}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] senderId: ${event.message.senderId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] currentUserId: ${state.currentUserId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] =========================================');
 
     if (state.roomId != event.message.chatRoomId) {
       // ignore: avoid_print
@@ -383,10 +453,37 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       return;
     }
 
-    // Avoid duplicate messages (이미 로드된 메시지 또는 구독 전 메시지)
-    if (state.messages.any((m) => m.id == event.message.id)) {
+    // 기존 메시지가 있으면 서버가 보내준 unreadCount로 업데이트
+    // (서버가 읽음 처리 후 업데이트된 메시지를 보내줄 수 있음)
+    final existingMessage = state.messages.firstWhere(
+      (m) => m.id == event.message.id,
+      orElse: () => Message(id: -1, chatRoomId: 0, senderId: 0, content: '', type: MessageType.text, createdAt: DateTime.now()),
+    );
+    
+    if (existingMessage.id != -1) {
       // ignore: avoid_print
-      print('[ChatRoomBloc] Duplicate message (already in state), ignoring');
+      print('[ChatRoomBloc] ========== UPDATING EXISTING MESSAGE ==========');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] messageId: ${event.message.id}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] OLD unreadCount: ${existingMessage.unreadCount}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] NEW unreadCount: ${event.message.unreadCount}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] Changed: ${existingMessage.unreadCount != event.message.unreadCount}');
+      // ignore: avoid_print
+      print('[ChatRoomBloc] ===============================================');
+      
+      final updatedMessages = state.messages.map((m) {
+        if (m.id == event.message.id) {
+          return event.message; // 서버가 보내준 값으로 교체 (unreadCount 포함)
+        }
+        return m;
+      }).toList();
+      emit(state.copyWith(messages: updatedMessages));
+      
+      // ignore: avoid_print
+      print('[ChatRoomBloc] ✅ State updated with new unreadCount');
       return;
     }
 
@@ -415,52 +512,47 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         state.roomId != null) {
       // ignore: avoid_print
       print('[ChatRoomBloc] Auto marking as read for message from other user (room is open)');
-      // 읽음 처리 완료를 기다림 (성공하면 isReadMarked = true로 상태 업데이트)
+      // 읽음 처리 전송 (REST API로 전송, 하이브리드 방식)
       await _markAsReadWithRetry(state.roomId!, emit);
     }
   }
 
-  /// 읽음 처리를 재시도 로직과 함께 실행합니다.
-  /// 서버에서 읽음 처리를 완료하면 chatRoomUpdates로 업데이트된 unreadCount를 전송하므로
+  /// 읽음 처리를 REST API로 전송합니다 (하이브리드 방식).
+  /// 서버에서 읽음 처리를 완료하면 WebSocket으로 업데이트된 메시지나 readEvents를 전송하므로
   /// 클라이언트는 별도로 상태를 업데이트할 필요 없음
   Future<void> _markAsReadWithRetry(
     int roomId,
-    Emitter<ChatRoomState> emit, {
-    int maxRetries = 3,
-    Duration retryDelay = const Duration(seconds: 1),
-  }) async {
+    Emitter<ChatRoomState> emit,
+  ) async {
+    if (state.currentUserId == null) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] _markAsReadWithRetry: currentUserId is null, cannot send');
+      return;
+    }
+
     // ignore: avoid_print
-    print('[ChatRoomBloc] ========== Starting markAsRead ==========');
+    print('[ChatRoomBloc] ========== Sending markAsRead via REST API ==========');
     // ignore: avoid_print
     print('[ChatRoomBloc] roomId: $roomId');
     // ignore: avoid_print
-    print('[ChatRoomBloc] =========================================');
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] markAsRead attempt $attempt/$maxRetries');
-        await _chatRepository.markAsRead(roomId);
-        // ignore: avoid_print
-        print('[ChatRoomBloc] ✅ markAsRead succeeded on attempt $attempt');
-        // 읽음 처리 성공을 상태로 표시 (테스트 및 UI 동기화용)
-        emit(state.copyWith(isReadMarked: true));
-        // ignore: avoid_print
-        print('[ChatRoomBloc] Waiting for server to send chatRoomUpdates with updated unreadCount...');
-        // 서버가 읽음 처리 완료 후 chatRoomUpdates로 업데이트된 unreadCount를 전송하므로
-        // 클라이언트는 별도로 상태를 업데이트할 필요 없음
-        return;
-      } catch (e) {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] markAsRead failed on attempt $attempt: $e');
-        if (attempt < maxRetries) {
-          // 재시도 전 대기 (exponential backoff)
-          await Future.delayed(retryDelay * attempt);
-        }
-      }
-    }
-    // 모든 재시도 실패 - 조용히 무시 (UX에 큰 영향 없음)
+    print('[ChatRoomBloc] userId: ${state.currentUserId}');
     // ignore: avoid_print
-    print('[ChatRoomBloc] markAsRead failed after $maxRetries attempts');
+    print('[ChatRoomBloc] ======================================================');
+    
+    try {
+      // REST API로 읽음 처리 전송 (하이브리드 방식: 요청은 REST, 업데이트는 WebSocket)
+      // 서버가 읽음 처리를 완료하면 WebSocket으로 업데이트된 메시지나 readEvents를 전송함
+      await _chatRepository.markAsRead(roomId);
+      
+      // 읽음 처리 전송 완료를 상태로 표시 (테스트 및 UI 동기화용)
+      emit(state.copyWith(isReadMarked: true));
+      // ignore: avoid_print
+      print('[ChatRoomBloc] ✅ markAsRead sent via REST API, waiting for server WebSocket response...');
+    } catch (e) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] ❌ Failed to mark as read: $e');
+      // 에러가 발생해도 상태는 유지 (서버가 재시도하거나 나중에 다시 시도 가능)
+    }
   }
 
   Future<void> _onMessageDeleted(
@@ -483,76 +575,62 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
+  /// readEvents를 처리하여 메시지의 unreadCount를 업데이트
+  /// 서버가 읽음 처리 후 업데이트된 메시지를 다시 보내주지 않을 경우를 대비
   void _onMessagesReadUpdated(
     MessagesReadUpdated event,
     Emitter<ChatRoomState> emit,
   ) {
     // ignore: avoid_print
-    print('[ChatRoomBloc] _onMessagesReadUpdated: userId=${event.userId}, lastReadMessageId=${event.lastReadMessageId}, lastReadAt=${event.lastReadAt}');
+    print('[ChatRoomBloc] ========== _onMessagesReadUpdated ==========');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] userId: ${event.userId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] lastReadMessageId: ${event.lastReadMessageId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] state.currentUserId: ${state.currentUserId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ============================================');
 
-    // 내가 읽은 이벤트인 경우 무시 (상대방이 읽어야 내 메시지의 unreadCount가 감소)
+    if (state.currentUserId == null) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] currentUserId is null, ignoring');
+      return;
+    }
+
+    // 내가 보낸 메시지에 대해서만 unreadCount 업데이트
+    // (상대방이 읽었으면 내가 보낸 메시지의 unreadCount가 감소해야 함)
     if (event.userId == state.currentUserId) {
       // ignore: avoid_print
-      print('[ChatRoomBloc] Ignoring read event from myself');
+      print('[ChatRoomBloc] This is my own read event, ignoring (I don\'t need to update my own messages)');
       return;
     }
 
-    // 중복 이벤트 제거 (같은 reader, 같은 범위(lastReadMessageId/lastReadAt)면 한 번만 처리)
-    if (_isDuplicateReadEvent(event)) {
+    // 상대방이 읽은 경우, 내가 보낸 메시지 중 lastReadMessageId 이하의 메시지들의 unreadCount를 감소
+    if (event.lastReadMessageId == null) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] lastReadMessageId is null, cannot update');
       return;
     }
 
-    // 내 메시지의 unreadCount만 1씩 감소 (상대방이 읽었으므로)
-    // 우선순위:
-    // 1) lastReadMessageId가 있으면 해당 메시지까지만
-    // 2) 없고 lastReadAt이 있으면 createdAt <= lastReadAt 인 메시지까지만
-    // 3) 둘 다 없으면 모든 메시지
-    final updatedMessages = state.messages.map((m) {
-      // 내가 보낸 메시지만 처리
-      if (m.senderId != state.currentUserId) return m;
-
-      final bool shouldUpdate;
-      if (event.lastReadMessageId != null) {
-        shouldUpdate = m.id <= event.lastReadMessageId!;
-      } else if (event.lastReadAt != null) {
-        // createdAt <= lastReadAt
-        shouldUpdate = !m.createdAt.isAfter(event.lastReadAt!);
-      } else {
-        shouldUpdate = true;
+    // ignore: avoid_print
+    print('[ChatRoomBloc] Updating unreadCount for messages <= ${event.lastReadMessageId}');
+    
+    final updatedMessages = state.messages.map((message) {
+      // 내가 보낸 메시지이고, 상대방이 읽은 메시지 ID 이하인 경우 unreadCount 감소
+      if (message.senderId == state.currentUserId && 
+          message.id <= event.lastReadMessageId! &&
+          message.unreadCount > 0) {
+        // ignore: avoid_print
+        print('[ChatRoomBloc] Updating message ${message.id}: unreadCount ${message.unreadCount} -> ${message.unreadCount - 1}');
+        return message.copyWith(unreadCount: message.unreadCount - 1);
       }
-
-      if (shouldUpdate && m.unreadCount > 0) {
-        return m.copyWith(unreadCount: m.unreadCount - 1);
-      }
-      return m;
+      return message;
     }).toList();
 
     emit(state.copyWith(messages: updatedMessages));
-  }
-
-  bool _isDuplicateReadEvent(MessagesReadUpdated event) {
-    final roomId = state.roomId;
-    if (roomId == null) return false;
-
-    final key = '$roomId:${event.userId}:${event.lastReadMessageId ?? ''}:${event.lastReadAt?.millisecondsSinceEpoch ?? ''}';
-    final now = DateTime.now();
-
-    // purge old
-    _recentReadEventKeys.removeWhere((_, ts) => now.difference(ts) > _readEventDedupeWindow);
-
-    final lastSeen = _recentReadEventKeys[key];
-    if (lastSeen != null) {
-      return true;
-    }
-
-    // size bound (간단 LRU: 가장 오래된 것부터 제거)
-    if (_recentReadEventKeys.length >= _maxReadEventKeySize) {
-      final oldestKey = _recentReadEventKeys.entries.reduce((a, b) => a.value.isBefore(b.value) ? a : b).key;
-      _recentReadEventKeys.remove(oldestKey);
-    }
-
-    _recentReadEventKeys[key] = now;
-    return false;
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ✅ State updated with new unreadCount');
   }
 
   void _onTypingStatusChanged(

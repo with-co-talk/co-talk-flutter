@@ -346,6 +346,151 @@ void main() {
       );
     });
 
+    group('ChatRoomReadCompleted', () {
+      blocTest<ChatListBloc, ChatListState>(
+        '🔴 RED: ChatRoomReadCompleted 이벤트로 unreadCount를 0으로 낙관적 업데이트',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(unreadCount: 5),
+          ],
+        ),
+        act: (bloc) {
+          // ChatRoomPage의 BlocListener가 isReadMarked 변경 시 전송
+          bloc.add(const ChatRoomReadCompleted(1));
+        },
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount',
+            0, // 낙관적 업데이트로 즉시 0으로 설정
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        '🔴 RED: ChatRoomReadCompleted 후 서버의 chatRoomUpdates가 오면 서버 값으로 덮어쓰기',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(unreadCount: 5),
+          ],
+        ),
+        act: (bloc) {
+          // 1. 낙관적 업데이트
+          bloc.add(const ChatRoomReadCompleted(1));
+          // 2. 서버의 정확한 값이 나중에 도착 (서버가 최종 소스)
+          bloc.add(const ChatRoomUpdated(
+            chatRoomId: 1,
+            eventType: 'READ',
+            unreadCount: 0, // 서버가 계산한 정확한 값
+            lastMessage: '마지막 메시지',
+            senderId: 2,
+          ));
+        },
+        expect: () => [
+          // 낙관적 업데이트: 0
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount after optimistic update',
+            0,
+          ),
+          // 서버 값으로 덮어쓰기: 0 (서버가 최종 소스)
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount after server update',
+            0,
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        '🔴 RED: 여러 채팅방이 있을 때 ChatRoomReadCompleted는 특정 채팅방만 업데이트',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(id: 1, unreadCount: 5),
+            FakeEntities.groupChatRoom.copyWith(id: 2, unreadCount: 3),
+            FakeEntities.directChatRoom.copyWith(id: 3, unreadCount: 7),
+          ],
+        ),
+        act: (bloc) {
+          // roomId=2만 업데이트
+          bloc.add(const ChatRoomReadCompleted(2));
+        },
+        expect: () => [
+          isA<ChatListState>()
+              .having(
+                (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+                'room 1 unreadCount',
+                5, // 변경 없음
+              )
+              .having(
+                (s) => s.chatRooms.firstWhere((r) => r.id == 2).unreadCount,
+                'room 2 unreadCount',
+                0, // 업데이트됨
+              )
+              .having(
+                (s) => s.chatRooms.firstWhere((r) => r.id == 3).unreadCount,
+                'room 3 unreadCount',
+                7, // 변경 없음
+              ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        '🔴 RED: ChatRoomReadCompleted 후 서버가 다른 unreadCount 값을 보내면 서버 값으로 덮어쓰기',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(unreadCount: 5),
+          ],
+        ),
+        act: (bloc) {
+          // 1. 낙관적 업데이트: 0
+          bloc.add(const ChatRoomReadCompleted(1));
+          // 2. 서버가 실제로는 unreadCount=2라고 응답 (예: 일부만 읽음)
+          bloc.add(const ChatRoomUpdated(
+            chatRoomId: 1,
+            eventType: 'READ',
+            unreadCount: 2, // 서버가 계산한 정확한 값 (낙관적 업데이트와 다름)
+            lastMessage: '마지막 메시지',
+            senderId: 2,
+          ));
+        },
+        expect: () => [
+          // 낙관적 업데이트: 0
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount after optimistic update',
+            0,
+          ),
+          // 서버 값으로 덮어쓰기: 2 (서버가 최종 소스)
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount after server update',
+            2, // 서버 값으로 덮어쓰기됨
+          ),
+        ],
+      );
+    });
+
     group('READ event handling', () {
       blocTest<ChatListBloc, ChatListState>(
         '🔴 RED: updates unreadCount to 0 when READ event is received after markAsRead',
@@ -407,6 +552,134 @@ void main() {
             (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
             'unreadCount after READ',
             0, // 서버가 보낸 정확한 값
+          ),
+        ],
+      );
+    });
+
+    group('채팅방 목록 unreadCount 표시 시나리오', () {
+      blocTest<ChatListBloc, ChatListState>(
+        '🔴 RED: 시나리오 1 - 채팅방 목록에서 내가 읽지 않은 메시지의 총 개수가 표시됨',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(unreadCount: 0),
+          ],
+        ),
+        act: (bloc) async {
+          bloc.add(const ChatListSubscriptionStarted(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          // 상대방이 메시지를 보냄 -> 서버가 내가 읽지 않은 메시지 개수를 계산하여 전송
+          bloc.add(const ChatRoomUpdated(
+            chatRoomId: 1,
+            eventType: 'NEW_MESSAGE',
+            lastMessage: '새 메시지 1',
+            unreadCount: 1, // 내가 읽지 않은 메시지 1개
+            senderId: 2, // 상대방
+          ));
+          await Future.delayed(const Duration(milliseconds: 50));
+          // 또 다른 메시지
+          bloc.add(const ChatRoomUpdated(
+            chatRoomId: 1,
+            eventType: 'NEW_MESSAGE',
+            lastMessage: '새 메시지 2',
+            unreadCount: 2, // 내가 읽지 않은 메시지 2개
+            senderId: 2, // 상대방
+          ));
+        },
+        expect: () => [
+          // 첫 번째 메시지: unreadCount=1
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount after first message',
+            1,
+          ),
+          // 두 번째 메시지: unreadCount=2 (내가 읽지 않은 메시지 총 개수)
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount after second message',
+            2, // 내가 읽지 않은 메시지 총 개수
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        '🔴 RED: 시나리오 2 - 읽는 순간 전부 읽음 처리되어서 채팅 목록에는 0으로 되어서 숫자 표시 안 됨',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(unreadCount: 5), // 읽지 않은 메시지 5개
+          ],
+        ),
+        act: (bloc) async {
+          bloc.add(const ChatListSubscriptionStarted(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          // 채팅방에 진입하여 읽음 처리
+          bloc.add(const ChatRoomEntered(1));
+          await Future.delayed(const Duration(milliseconds: 50));
+          // 서버가 읽음 처리 완료 후 READ 이벤트로 unreadCount=0 전송
+          bloc.add(const ChatRoomUpdated(
+            chatRoomId: 1,
+            eventType: 'READ',
+            unreadCount: 0, // 읽음 처리 완료로 0
+            lastMessage: '마지막 메시지',
+            senderId: 2,
+          ));
+        },
+        expect: () => [
+          // READ 이벤트 후: unreadCount=0 (숫자 표시 안 됨)
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount after read',
+            0, // 읽음 처리 완료로 0, 숫자 표시 안 됨
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        '🔴 RED: 시나리오 3 - 그룹 채팅일 때 안 읽은 메시지가 3개일 때 안 읽은 사람이 2명이라 안 읽은 개수만 다 더하면 6개더라도 목록에는 내가 안 읽은 메시지 개수 3개만 표시됨',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.groupChatRoom.copyWith(
+              id: 3,
+              unreadCount: 0,
+            ),
+          ],
+        ),
+        act: (bloc) async {
+          bloc.add(const ChatListSubscriptionStarted(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          // 그룹 채팅에서 새 메시지 도착
+          // 서버는 내가 읽지 않은 메시지 개수만 계산하여 전송
+          // (다른 사람들이 읽지 않은 개수는 고려하지 않음)
+          bloc.add(const ChatRoomUpdated(
+            chatRoomId: 3,
+            eventType: 'NEW_MESSAGE',
+            lastMessage: '그룹 메시지',
+            unreadCount: 3, // 내가 읽지 않은 메시지 3개만 (다른 사람들의 unreadCount 합산하지 않음)
+            senderId: 2, // 다른 사용자
+          ));
+        },
+        expect: () => [
+          // 그룹 채팅에서도 내가 읽지 않은 메시지 개수만 표시
+          // (안 읽은 사람이 2명이라 안 읽은 개수만 다 더하면 6개더라도)
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 3).unreadCount,
+            'unreadCount in group chat',
+            3, // 내가 안 읽은 메시지 개수 3개만 표시 (다른 사람들의 unreadCount 합산하지 않음)
           ),
         ],
       );

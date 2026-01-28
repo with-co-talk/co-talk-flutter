@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
@@ -8,7 +7,6 @@ import '../../../core/utils/date_utils.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/window/window_focus_tracker.dart';
 import '../../../domain/entities/message.dart';
-import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_room_bloc.dart';
@@ -41,10 +39,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
   StreamSubscription<bool>? _windowFocusSubscription;
   bool? _lastWindowFocused;
   Timer? _focusTimer;
-  bool get _isDesktop => switch (defaultTargetPlatform) {
-        TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux => true,
-        _ => false,
-      };
+  bool? _hasFocusTracking;
 
   @override
   void initState() {
@@ -60,7 +55,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
 
     _windowFocusTracker = widget.windowFocusTracker ?? WindowFocusTracker.platform();
     _windowFocusSubscription = _windowFocusTracker.focusStream.listen((focused) {
-      // 데스크탑에서 blur/focus를 "읽음 처리 여부"의 기준으로 사용한다.
+      // 포커스 추적이 지원되는 경우 blur/focus를 "읽음 처리 여부"의 기준으로 사용한다.
       // 같은 값 연속 방출은 무시한다.
       if (_lastWindowFocused == focused) return;
       _lastWindowFocused = focused;
@@ -70,14 +65,51 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
           : const ChatRoomBackgrounded());
     });
 
-    // 방 진입은 즉시 수행하되, "읽음"은 foreground 이벤트(또는 모바일 초기 foreground)에 맡긴다.
+    // 방 진입은 즉시 수행하되, "읽음"은 foreground 이벤트(또는 포커스 추적 미지원 시 초기 foreground)에 맡긴다.
     _chatRoomBloc.add(ChatRoomOpened(widget.roomId));
 
-    // 모바일은 페이지 진입 자체가 '보고 있음'이므로 초기 foreground를 한 번 보낸다.
-    if (!_isDesktop) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _chatRoomBloc.isClosed) return;
-        _chatRoomBloc.add(const ChatRoomForegrounded());
+    // 포커스 추적 지원 여부를 확인하고 초기화 처리
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      
+      // 포커스 추적 지원 여부 확인 (한 번만 확인)
+      if (_hasFocusTracking == null) {
+        debugPrint('[ChatRoomPage] Checking focus tracking support...');
+        final focus = await _windowFocusTracker.currentFocus();
+        _hasFocusTracking = focus != null;
+        debugPrint('[ChatRoomPage] Focus tracking support: $_hasFocusTracking (currentFocus returned: $focus)');
+      }
+
+      if (_hasFocusTracking == true) {
+        debugPrint('[ChatRoomPage] Focus tracking is enabled, using _syncFocusOnce()');
+        // 포커스 추적이 지원되는 경우: 초기 포커스 상태를 조회해 foreground/background를 동기화
+        // _syncFocusOnce()는 focused == null일 때 기본적으로 ChatRoomForegrounded를 보냄
+        debugPrint('[ChatRoomPage] Desktop: calling _syncFocusOnce()');
+        _syncFocusOnce().then((_) {
+          debugPrint('[ChatRoomPage] Desktop: _syncFocusOnce() completed successfully');
+        }).catchError((error) {
+          debugPrint('[ChatRoomPage] Desktop: _syncFocusOnce failed: $error, sending default ChatRoomForegrounded');
+          // 예외 발생 시에도 기본적으로 foreground로 가정 (페이지 진입 = 보고 있음)
+          if (!_chatRoomBloc.isClosed && mounted && _lastWindowFocused != true) {
+            _lastWindowFocused = true;
+            _chatRoomBloc.add(const ChatRoomForegrounded());
+            debugPrint('[ChatRoomPage] Desktop: Sent ChatRoomForegrounded as fallback');
+          }
+        });
+        // 입력창에 자동 포커스
+        _focusTimer?.cancel();
+        _focusTimer = Timer(const Duration(milliseconds: 100), () {
+          if (mounted && !_messageFocusNode.hasFocus) {
+            _messageFocusNode.requestFocus();
+          }
+        });
+      } else {
+        // 포커스 추적이 지원되지 않는 경우: 페이지 진입 자체가 '보고 있음'이므로 초기 foreground를 한 번 보낸다
+        debugPrint('[ChatRoomPage] Focus tracking is NOT enabled, sending ChatRoomForegrounded directly');
+        if (!_chatRoomBloc.isClosed) {
+          _chatRoomBloc.add(const ChatRoomForegrounded());
+          debugPrint('[ChatRoomPage] Sent ChatRoomForegrounded (no focus tracking)');
+        }
         // 입력창에 자동 포커스 (약간의 딜레이로 키보드가 부드럽게 올라오도록)
         _focusTimer?.cancel();
         _focusTimer = Timer(const Duration(milliseconds: 300), () {
@@ -85,41 +117,51 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
             _messageFocusNode.requestFocus();
           }
         });
-      });
-    } else {
-      // 데스크탑은 앱 생명주기(resumed)만으로는 포커스를 알 수 없다.
-      // 초기 포커스 상태를 한 번 조회해 foreground/background를 동기화한다.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _syncDesktopFocusOnce();
-        // 데스크탑에서도 입력창에 자동 포커스
-        _focusTimer?.cancel();
-        _focusTimer = Timer(const Duration(milliseconds: 100), () {
-          if (mounted && !_messageFocusNode.hasFocus) {
-            _messageFocusNode.requestFocus();
-          }
-        });
-      });
-    }
+      }
+    });
   }
 
-  Future<void> _syncDesktopFocusOnce() async {
-    if (!_isDesktop) return;
-    if (_chatRoomBloc.isClosed) return;
+  Future<void> _syncFocusOnce() async {
+    if (_chatRoomBloc.isClosed) {
+      debugPrint('[ChatRoomPage] _syncFocusOnce: bloc is closed, skipping');
+      return;
+    }
+    debugPrint('[ChatRoomPage] _syncFocusOnce: calling currentFocus()');
     final focused = await _windowFocusTracker.currentFocus();
-    if (_chatRoomBloc.isClosed) return;
-    if (focused == null) return;
-    if (_lastWindowFocused == focused) return;
+    if (_chatRoomBloc.isClosed) {
+      debugPrint('[ChatRoomPage] _syncFocusOnce: bloc closed after currentFocus(), skipping');
+      return;
+    }
+    debugPrint('[ChatRoomPage] _syncFocusOnce: currentFocus() returned: $focused, _lastWindowFocused: $_lastWindowFocused');
+    // focused가 null이면 포커스 상태를 확인할 수 없으므로 기본적으로 foreground로 가정
+    // (페이지 진입 자체가 '보고 있음'이므로)
+    if (focused == null) {
+      debugPrint('[ChatRoomPage] _syncFocusOnce: focused is null, assuming foreground');
+      if (_lastWindowFocused != true) {
+        _lastWindowFocused = true;
+        _chatRoomBloc.add(const ChatRoomForegrounded());
+        debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomForegrounded (focused=null)');
+      }
+      return;
+    }
+    if (_lastWindowFocused == focused) {
+      debugPrint('[ChatRoomPage] _syncFocusOnce: focus state unchanged ($focused), skipping');
+      return;
+    }
     _lastWindowFocused = focused;
-    _chatRoomBloc.add(focused
-        ? const ChatRoomForegrounded()
-        : const ChatRoomBackgrounded());
+    if (focused) {
+      _chatRoomBloc.add(const ChatRoomForegrounded());
+      debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomForegrounded (focused=true)');
+    } else {
+      _chatRoomBloc.add(const ChatRoomBackgrounded());
+      debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomBackgrounded (focused=false)');
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 데스크탑에서는 창 포커스가 빠지는 경우 inactive로 올 수 있어 읽음 방지 위해 background 처리.
-    // 모바일에서는 incoming call/시스템 UI 등 transient 상황에서도 inactive가 발생할 수 있어 과한 구독 해제를 피한다.
+    // 포커스 추적이 지원되는 경우 창 포커스가 빠지는 경우 inactive로 올 수 있어 읽음 방지 위해 background 처리.
+    // 포커스 추적이 지원되지 않는 경우 incoming call/시스템 UI 등 transient 상황에서도 inactive가 발생할 수 있어 과한 구독 해제를 피한다.
     if (_lastLifecycleState == state) return;
     _lastLifecycleState = state;
 
@@ -127,9 +169,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
 
     switch (state) {
       case AppLifecycleState.inactive:
-        // 데스크탑은 window focus 이벤트가 더 정확하다.
+        // 포커스 추적이 지원되는 경우 window focus 이벤트가 더 정확하다.
         // inactive는 transient하게 발생할 수 있어(IME/시스템 UI 등) 여기서는 읽음 상태를 바꾸지 않는다.
-        if (_isDesktop) return;
+        if (_hasFocusTracking == true) return;
         if (!_hasResumedOnce) return;
         break;
       case AppLifecycleState.paused:
@@ -138,9 +180,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
         break;
       case AppLifecycleState.resumed:
         _hasResumedOnce = true;
-        // 데스크탑은 resumed만으로는 포커스가 보장되지 않는다. 실제 포커스 상태를 기준으로 동기화한다.
-        if (_isDesktop) {
-          _syncDesktopFocusOnce();
+        // 포커스 추적이 지원되는 경우 resumed만으로는 포커스가 보장되지 않는다. 실제 포커스 상태를 기준으로 동기화한다.
+        if (_hasFocusTracking == true) {
+          _syncFocusOnce();
           return;
         }
         _chatRoomBloc.add(const ChatRoomForegrounded());
@@ -205,8 +247,6 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
-    final currentUserId = context.read<AuthBloc>().state.user?.id;
-
     return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -268,6 +308,21 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 }
               },
             ),
+            // isReadMarked가 false -> true로 변경될 때 ChatListBloc에 알림
+            // 서버가 chatRoomUpdates로 unreadCount를 보내주지만, 클라이언트에서도 알림을 보내서
+            // 서버 응답이 지연되거나 누락되는 경우에도 UI가 빠르게 업데이트되도록 함
+            BlocListener<ChatRoomBloc, ChatRoomState>(
+              listenWhen: (previous, current) {
+                // isReadMarked가 false -> true로 변경될 때만
+                return !previous.isReadMarked && current.isReadMarked && current.roomId != null;
+              },
+              listener: (context, state) {
+                // ChatListBloc에 읽음 완료 알림 전송
+                if (state.roomId != null && !_chatListBloc.isClosed) {
+                  _chatListBloc.add(ChatRoomReadCompleted(state.roomId!));
+                }
+              },
+            ),
           ],
           child: Column(
         children: [
@@ -318,7 +373,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                         itemCount: state.messages.length,
                         itemBuilder: (context, index) {
                           final message = state.messages[index];
-                          final isMe = message.senderId == currentUserId;
+                          final isMe = message.senderId == state.currentUserId;
 
                           final showDateSeparator = index == state.messages.length - 1 ||
                               !AppDateUtils.isSameDay(
@@ -482,6 +537,8 @@ class _MessageBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (isMe) ...[
+                      // 내가 보낸 메시지: 상대방이 읽지 않은 경우 unreadCount 표시
+                      // (서버에서 받은 unreadCount는 내가 보낸 메시지에 대해 상대방이 읽지 않은 메시지 수를 의미)
                       if (message.unreadCount > 0)
                         Padding(
                           padding: const EdgeInsets.only(right: 4),
@@ -502,6 +559,22 @@ class _MessageBubble extends StatelessWidget {
                             ),
                       ),
                     ] else ...[
+                      // 상대방이 보낸 메시지: 내가 읽지 않은 경우 unreadCount 표시
+                      // (서버에서 받은 unreadCount는 상대방이 보낸 메시지에 대해 내가 읽지 않은 메시지 수를 의미)
+                      // 주의: 이건 일반적으로 사용되지 않음 (내가 읽지 않은 메시지는 채팅방 목록의 unreadCount로 표시)
+                      // 하지만 서버가 보내주면 표시
+                      if (message.unreadCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Text(
+                            '${message.unreadCount}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                          ),
+                        ),
                       Text(
                         AppDateUtils.formatMessageTime(message.createdAt),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
