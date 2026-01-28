@@ -48,6 +48,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // ignore: avoid_print
     print('[ChatRoomBloc] _onOpened called with roomId: ${event.roomId}');
 
+    // 플래그 초기화 (블록이 재사용될 경우를 대비)
+    _roomInitialized = false;
+    _pendingForegrounded = false;
+    _isViewingRoom = false;
+
     // 현재 사용자 ID 가져오기
     final currentUserId = await _authLocalDataSource.getUserId();
 
@@ -90,8 +95,21 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         hasMore: hasMore,
       ));
 
-      // NOTE: opened 시점의 자동 읽음 처리는 제거.
-      // (foreground 이벤트에서 markAsRead 수행)
+      // 5. 방 초기화 완료 표시
+      _roomInitialized = true;
+      // ignore: avoid_print
+      print('[ChatRoomBloc] Room initialization completed, _roomInitialized=true, _pendingForegrounded=$_pendingForegrounded');
+
+      // 6. 대기 중인 foreground 이벤트가 있으면 처리
+      // (ChatRoomForegrounded가 ChatRoomOpened 완료 전에 도착한 경우)
+      if (_pendingForegrounded) {
+        // ignore: avoid_print
+        print('[ChatRoomBloc] Processing pending foreground event');
+        _pendingForegrounded = false;
+        _isViewingRoom = true;
+        _startPresencePing();
+        await _markAsReadWithRetry(event.roomId, emit);
+      }
     } catch (e, stackTrace) {
       // ignore: avoid_print
       print('[ChatRoomBloc] Error in _onOpened: $e');
@@ -107,6 +125,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   int? _lastKnownMessageId;
   bool _isRoomSubscribed = false;
   bool _isViewingRoom = false;
+  bool _roomInitialized = false;
+  bool _pendingForegrounded = false;
 
   void _subscribeToWebSocket(int roomId, {int? lastMessageId}) {
     // ignore: avoid_print
@@ -249,6 +269,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _webSocketService.unsubscribeFromChatRoom(state.roomId!);
     }
     _isRoomSubscribed = false;
+    _isViewingRoom = false;
+    _roomInitialized = false;
+    _pendingForegrounded = false;
     _messageSubscription?.cancel();
     _messageSubscription = null;
     _readEventSubscription?.cancel();
@@ -292,8 +315,19 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // ignore: avoid_print
     print('[ChatRoomBloc] _isRoomSubscribed: $_isRoomSubscribed');
     // ignore: avoid_print
+    print('[ChatRoomBloc] _roomInitialized: $_roomInitialized');
+    // ignore: avoid_print
     print('[ChatRoomBloc] ===========================================');
-    
+
+    // 방 초기화가 완료되지 않았으면 대기 상태로 설정
+    // (ChatRoomOpened가 완료되면 pending foreground 이벤트를 처리함)
+    if (!_roomInitialized) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] _onForegrounded: room not initialized yet, setting _pendingForegrounded=true');
+      _pendingForegrounded = true;
+      return;
+    }
+
     // 다시 활성화되면 presence ping을 재개하고, 화면에 보이는 상태이므로 읽음 처리를 다시 시도한다.
     if (state.roomId == null) {
       // ignore: avoid_print
@@ -305,7 +339,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       print('[ChatRoomBloc] _onForegrounded: currentUserId is null, returning');
       return;
     }
-    
+
     // _isRoomSubscribed 체크를 제거: 구독이 완료되지 않았어도 markAsRead는 호출 가능
     // (서버는 roomId만 있으면 읽음 처리를 할 수 있음)
     // 구독이 완료되지 않았으면 나중에 구독이 완료되면 자동으로 markAsRead가 호출될 수 있지만,
@@ -314,7 +348,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       // ignore: avoid_print
       print('[ChatRoomBloc] _onForegrounded: _isRoomSubscribed is false, but proceeding with markAsRead anyway');
     }
-    
+
     _isViewingRoom = true;
     _startPresencePing();
 
