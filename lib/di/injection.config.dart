@@ -41,17 +41,23 @@ extension GetItInjectableX on _i174.GetIt {
   }) {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final registerModule = _$RegisterModule();
+    gh.singleton<_i682.WebSocketPayloadParser>(
+      () => const _i682.WebSocketPayloadParser(),
+    );
     gh.lazySingleton<_i558.FlutterSecureStorage>(
       () => registerModule.secureStorage,
     );
     gh.lazySingleton<_i860.AuthLocalDataSource>(
       () => _i860.AuthLocalDataSourceImpl(gh<_i558.FlutterSecureStorage>()),
     );
-    gh.lazySingleton<_i682.WebSocketService>(
-      () => _i682.WebSocketService(gh<_i860.AuthLocalDataSource>()),
-    );
     gh.lazySingleton<_i552.AuthInterceptor>(
       () => _i552.AuthInterceptor(gh<_i860.AuthLocalDataSource>()),
+    );
+    gh.lazySingleton<_i682.WebSocketService>(
+      () => _i682.WebSocketService(
+        gh<_i860.AuthLocalDataSource>(),
+        payloadParser: gh<_i682.WebSocketPayloadParser>(),
+      ),
     );
     gh.lazySingleton<_i393.DioClient>(
       () => _i393.DioClient(gh<_i552.AuthInterceptor>()),
@@ -59,14 +65,14 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i633.AuthRemoteDataSource>(
       () => _i633.AuthRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
-    gh.lazySingleton<_i867.FriendRemoteDataSource>(
-      () => _i867.FriendRemoteDataSourceImpl(gh<_i393.DioClient>()),
-    );
     gh.lazySingleton<_i397.ChatRemoteDataSource>(
       () => _i397.ChatRemoteDataSourceImpl(
         gh<_i393.DioClient>(),
         gh<_i860.AuthLocalDataSource>(),
       ),
+    );
+    gh.lazySingleton<_i867.FriendRemoteDataSource>(
+      () => _i867.FriendRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
     gh.lazySingleton<_i792.ChatRepository>(
       () => _i919.ChatRepositoryImpl(gh<_i397.ChatRemoteDataSource>()),
@@ -94,14 +100,17 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i860.AuthLocalDataSource>(),
       ),
     );
+    gh.factory<_i367.FriendBloc>(
+      () => _i367.FriendBloc(
+        gh<_i1069.FriendRepository>(),
+        gh<_i682.WebSocketService>(),
+      ),
+    );
     gh.factory<_i525.AuthBloc>(
       () => _i525.AuthBloc(
         gh<_i800.AuthRepository>(),
         gh<_i682.WebSocketService>(),
       ),
-    );
-    gh.factory<_i367.FriendBloc>(
-      () => _i367.FriendBloc(gh<_i1069.FriendRepository>()),
     );
     gh.lazySingleton<_i877.AppRouter>(
       () => _i877.AppRouter(gh<_i525.AuthBloc>()),
