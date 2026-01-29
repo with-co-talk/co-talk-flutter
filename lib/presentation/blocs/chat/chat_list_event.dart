@@ -39,6 +39,7 @@ class ChatRoomUpdated extends ChatListEvent {
   final int chatRoomId;
   final String? eventType; // NEW_MESSAGE, READ 등 (서버에서 전달)
   final String? lastMessage;
+  final String? lastMessageType; // TEXT, IMAGE, FILE
   final DateTime? lastMessageAt;
   final int? unreadCount;
   final int? senderId; // 마지막 메시지 발신자 ID (내 메시지 제외 처리용)
@@ -47,13 +48,14 @@ class ChatRoomUpdated extends ChatListEvent {
     required this.chatRoomId,
     this.eventType,
     this.lastMessage,
+    this.lastMessageType,
     this.lastMessageAt,
     this.unreadCount,
     this.senderId,
   });
 
   @override
-  List<Object?> get props => [chatRoomId, eventType, lastMessage, lastMessageAt, unreadCount, senderId];
+  List<Object?> get props => [chatRoomId, eventType, lastMessage, lastMessageType, lastMessageAt, unreadCount, senderId];
 }
 
 /// WebSocket 구독 시작 이벤트
@@ -94,4 +96,20 @@ class ChatRoomEntered extends ChatListEvent {
 /// 채팅방 퇴장 이벤트
 class ChatRoomExited extends ChatListEvent {
   const ChatRoomExited();
+}
+
+/// 사용자 온라인 상태 변경 이벤트
+class UserOnlineStatusChanged extends ChatListEvent {
+  final int userId;
+  final bool isOnline;
+  final DateTime? lastActiveAt;
+
+  const UserOnlineStatusChanged({
+    required this.userId,
+    required this.isOnline,
+    this.lastActiveAt,
+  });
+
+  @override
+  List<Object?> get props => [userId, isOnline, lastActiveAt];
 }

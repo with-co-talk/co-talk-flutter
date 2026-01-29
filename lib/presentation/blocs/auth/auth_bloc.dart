@@ -18,6 +18,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthSignUpRequested>(_onSignUpRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
+    on<AuthProfileUpdateRequested>(_onProfileUpdateRequested);
+    on<AuthAvatarUploadRequested>(_onAvatarUploadRequested);
   }
 
   Future<void> _onCheckRequested(
@@ -136,6 +138,92 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       emit(AuthState.failure(message));
+    }
+  }
+
+  Future<void> _onProfileUpdateRequested(
+    AuthProfileUpdateRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final currentUser = state.user;
+    if (currentUser == null) return;
+
+    emit(const AuthState.loading());
+
+    try {
+      await _authRepository.updateProfile(
+        userId: currentUser.id,
+        nickname: event.nickname,
+        avatarUrl: event.avatarUrl,
+      );
+
+      // 프로필 업데이트 후 사용자 정보 다시 가져오기
+      final updatedUser = await _authRepository.getCurrentUser();
+      if (updatedUser != null) {
+        emit(AuthState.authenticated(updatedUser));
+      } else {
+        // 업데이트는 성공했지만 사용자 정보를 가져오지 못한 경우
+        // 로컬에서 업데이트된 정보로 대체
+        final localUpdatedUser = User(
+          id: currentUser.id,
+          email: currentUser.email,
+          nickname: event.nickname ?? currentUser.nickname,
+          avatarUrl: event.avatarUrl ?? currentUser.avatarUrl,
+          status: currentUser.status,
+          onlineStatus: currentUser.onlineStatus,
+          createdAt: currentUser.createdAt,
+        );
+        emit(AuthState.authenticated(localUpdatedUser));
+      }
+    } catch (e) {
+      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
+      // 실패 시 이전 상태 유지하고 에러 메시지만 표시
+      emit(AuthState.failure(message));
+      // 바로 이전 authenticated 상태로 복원
+      emit(AuthState.authenticated(currentUser));
+    }
+  }
+
+  Future<void> _onAvatarUploadRequested(
+    AuthAvatarUploadRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final currentUser = state.user;
+    if (currentUser == null) return;
+
+    emit(const AuthState.loading());
+
+    try {
+      // 1. 이미지 업로드
+      final avatarUrl = await _authRepository.uploadAvatar(event.imageFile);
+
+      // 2. 프로필 업데이트
+      await _authRepository.updateProfile(
+        userId: currentUser.id,
+        avatarUrl: avatarUrl,
+      );
+
+      // 3. 사용자 정보 다시 가져오기
+      final updatedUser = await _authRepository.getCurrentUser();
+      if (updatedUser != null) {
+        emit(AuthState.authenticated(updatedUser));
+      } else {
+        // 로컬에서 업데이트
+        final localUpdatedUser = User(
+          id: currentUser.id,
+          email: currentUser.email,
+          nickname: currentUser.nickname,
+          avatarUrl: avatarUrl,
+          status: currentUser.status,
+          onlineStatus: currentUser.onlineStatus,
+          createdAt: currentUser.createdAt,
+        );
+        emit(AuthState.authenticated(localUpdatedUser));
+      }
+    } catch (e) {
+      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
+      emit(AuthState.failure(message));
+      emit(AuthState.authenticated(currentUser));
     }
   }
 }

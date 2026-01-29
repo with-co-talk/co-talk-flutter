@@ -17,6 +17,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
 
   StreamSubscription<WebSocketChatRoomUpdateEvent>? _chatRoomUpdateSubscription;
   StreamSubscription<WebSocketReadEvent>? _readReceiptSubscription;
+  StreamSubscription<WebSocketOnlineStatusEvent>? _onlineStatusSubscription;
   int? _currentUserId;
   int? _currentlyOpenRoomId; // 현재 열려있는 채팅방 ID (unreadCount 증가 방지용)
   Timer? _refreshDebounceTimer;
@@ -37,6 +38,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     on<ChatRoomReadCompleted>(_onChatRoomReadCompleted);
     on<ChatRoomEntered>(_onChatRoomEntered);
     on<ChatRoomExited>(_onChatRoomExited);
+    on<UserOnlineStatusChanged>(_onUserOnlineStatusChanged);
   }
 
   Future<void> _onLoadRequested(
@@ -202,6 +204,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
 
         return room.copyWith(
           lastMessage: event.lastMessage ?? room.lastMessage,
+          lastMessageType: event.lastMessageType ?? room.lastMessageType,
           lastMessageAt: event.lastMessageAt ?? room.lastMessageAt,
           unreadCount: newUnreadCount,
         );
@@ -284,6 +287,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
           chatRoomId: update.chatRoomId,
           eventType: update.eventType,
           lastMessage: update.lastMessage,
+          lastMessageType: update.lastMessageType,
           lastMessageAt: update.lastMessageAt,
           unreadCount: update.unreadCount,
           senderId: update.senderId,
@@ -314,6 +318,24 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
       },
       cancelOnError: false,
     );
+
+    // 온라인 상태 리스너
+    _onlineStatusSubscription = _webSocketService.onlineStatusEvents.listen(
+      (event) {
+        // ignore: avoid_print
+        print('[ChatListBloc] Received onlineStatusEvent: userId=${event.userId}, isOnline=${event.isOnline}');
+        add(UserOnlineStatusChanged(
+          userId: event.userId,
+          isOnline: event.isOnline,
+          lastActiveAt: event.lastActiveAt,
+        ));
+      },
+      onError: (error) {
+        // ignore: avoid_print
+        print('[ChatListBloc] Error in onlineStatusEvents stream: $error');
+      },
+      cancelOnError: false,
+    );
   }
 
   void _onSubscriptionStopped(
@@ -326,7 +348,10 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     _chatRoomUpdateSubscription = null;
     _readReceiptSubscription?.cancel();
     _readReceiptSubscription = null;
-    _webSocketService.unsubscribeFromUserChannel();
+    _onlineStatusSubscription?.cancel();
+    _onlineStatusSubscription = null;
+    // NOTE: 사용자 채널 구독은 유지 (다른 탭에서도 온라인 상태 등을 받아야 함)
+    // _webSocketService.unsubscribeFromUserChannel();
   }
 
   void _onChatRoomReadCompleted(
@@ -376,10 +401,32 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     _currentlyOpenRoomId = null;
   }
 
+  void _onUserOnlineStatusChanged(
+    UserOnlineStatusChanged event,
+    Emitter<ChatListState> emit,
+  ) {
+    // ignore: avoid_print
+    print('[ChatListBloc] _onUserOnlineStatusChanged: userId=${event.userId}, isOnline=${event.isOnline}');
+
+    // 해당 유저가 포함된 1:1 채팅방의 온라인 상태 업데이트
+    final updatedChatRooms = state.chatRooms.map((room) {
+      if (room.otherUserId == event.userId) {
+        return room.copyWith(
+          isOtherUserOnline: event.isOnline,
+          otherUserLastActiveAt: event.lastActiveAt,
+        );
+      }
+      return room;
+    }).toList();
+
+    emit(state.copyWith(chatRooms: updatedChatRooms));
+  }
+
   @override
   Future<void> close() {
     _chatRoomUpdateSubscription?.cancel();
     _readReceiptSubscription?.cancel();
+    _onlineStatusSubscription?.cancel();
     _refreshDebounceTimer?.cancel();
     return super.close();
   }

@@ -63,3 +63,29 @@ class ReceivedFriendRequestsLoadRequested extends FriendEvent {
 class SentFriendRequestsLoadRequested extends FriendEvent {
   const SentFriendRequestsLoadRequested();
 }
+
+/// 친구 온라인 상태 변경 이벤트 (WebSocket)
+class FriendOnlineStatusChanged extends FriendEvent {
+  final int userId;
+  final bool isOnline;
+  final DateTime? lastActiveAt;
+
+  const FriendOnlineStatusChanged({
+    required this.userId,
+    required this.isOnline,
+    this.lastActiveAt,
+  });
+
+  @override
+  List<Object?> get props => [userId, isOnline, lastActiveAt];
+}
+
+/// WebSocket 구독 시작 이벤트
+class FriendListSubscriptionStarted extends FriendEvent {
+  const FriendListSubscriptionStarted();
+}
+
+/// WebSocket 구독 해제 이벤트
+class FriendListSubscriptionStopped extends FriendEvent {
+  const FriendListSubscriptionStopped();
+}

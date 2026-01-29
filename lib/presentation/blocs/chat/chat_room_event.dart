@@ -103,3 +103,58 @@ class UserStartedTyping extends ChatRoomEvent {
 class UserStoppedTyping extends ChatRoomEvent {
   const UserStoppedTyping();
 }
+
+/// 메시지 수정 요청 이벤트
+class MessageUpdateRequested extends ChatRoomEvent {
+  final int messageId;
+  final String content;
+
+  const MessageUpdateRequested({
+    required this.messageId,
+    required this.content,
+  });
+
+  @override
+  List<Object?> get props => [messageId, content];
+}
+
+/// 채팅방 나가기 요청 이벤트
+class ChatRoomLeaveRequested extends ChatRoomEvent {
+  const ChatRoomLeaveRequested();
+}
+
+/// 1:1 채팅방에서 나간 상대방 재초대 요청 이벤트
+class ReinviteUserRequested extends ChatRoomEvent {
+  final int inviteeId;
+
+  const ReinviteUserRequested({required this.inviteeId});
+
+  @override
+  List<Object?> get props => [inviteeId];
+}
+
+/// 1:1 채팅방에서 상대방이 나감/참여함 상태 변경 이벤트 (WebSocket 수신)
+class OtherUserLeftStatusChanged extends ChatRoomEvent {
+  final bool isOtherUserLeft;
+  final int? relatedUserId;
+  final String? relatedUserNickname;
+
+  const OtherUserLeftStatusChanged({
+    required this.isOtherUserLeft,
+    this.relatedUserId,
+    this.relatedUserNickname,
+  });
+
+  @override
+  List<Object?> get props => [isOtherUserLeft, relatedUserId, relatedUserNickname];
+}
+
+/// 파일/이미지 첨부 요청 이벤트
+class FileAttachmentRequested extends ChatRoomEvent {
+  final String filePath;
+
+  const FileAttachmentRequested(this.filePath);
+
+  @override
+  List<Object?> get props => [filePath];
+}
