@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum MessageType { text, image, file }
+enum MessageType { text, image, file, system }
 
 class Message extends Equatable {
   final int id;
@@ -48,6 +48,8 @@ class Message extends Equatable {
   });
 
   bool get isFile => type == MessageType.file || type == MessageType.image;
+
+  bool get isSystemMessage => type == MessageType.system;
 
   String get displayContent {
     if (isDeleted) {
