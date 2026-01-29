@@ -13,6 +13,7 @@ class ChatRoomModel {
   @JsonKey(fromJson: DateParser.parse, toJson: _dateTimeToJson)
   final DateTime createdAt;
   final String? lastMessage;
+  final String? lastMessageType;
   @JsonKey(fromJson: _parseNullableDateTime, toJson: _nullableDateTimeToJson)
   final DateTime? lastMessageAt;
   final int? unreadCount;
@@ -20,6 +21,12 @@ class ChatRoomModel {
   final int? otherUserId;
   final String? otherUserNickname;
   final String? otherUserAvatarUrl;
+  // 상대방이 채팅방을 나갔는지 여부
+  final bool? isOtherUserLeft;
+  // 상대방 온라인 상태
+  final bool? isOtherUserOnline;
+  @JsonKey(fromJson: _parseNullableDateTime, toJson: _nullableDateTimeToJson)
+  final DateTime? otherUserLastActiveAt;
 
   const ChatRoomModel({
     required this.id,
@@ -27,11 +34,15 @@ class ChatRoomModel {
     this.type,
     required this.createdAt,
     this.lastMessage,
+    this.lastMessageType,
     this.lastMessageAt,
     this.unreadCount,
     this.otherUserId,
     this.otherUserNickname,
     this.otherUserAvatarUrl,
+    this.isOtherUserLeft,
+    this.isOtherUserOnline,
+    this.otherUserLastActiveAt,
   });
 
   factory ChatRoomModel.fromJson(Map<String, dynamic> json) =>
@@ -46,11 +57,15 @@ class ChatRoomModel {
       type: _parseChatRoomType(type),
       createdAt: createdAt,
       lastMessage: lastMessage,
+      lastMessageType: lastMessageType,
       lastMessageAt: lastMessageAt,
       unreadCount: unreadCount ?? 0,
       otherUserId: otherUserId,
       otherUserNickname: otherUserNickname,
       otherUserAvatarUrl: otherUserAvatarUrl,
+      isOtherUserLeft: isOtherUserLeft ?? false,
+      isOtherUserOnline: isOtherUserOnline ?? false,
+      otherUserLastActiveAt: otherUserLastActiveAt,
     );
   }
 

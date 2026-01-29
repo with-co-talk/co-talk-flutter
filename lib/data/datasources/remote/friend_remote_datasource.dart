@@ -50,21 +50,37 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
           if (json.containsKey('nickname') && !json.containsKey('user')) {
             final friendUserId = json['id'] as int?;
 
+            // lastActiveAt 파싱 (배열 또는 문자열)
+            DateTime? lastActiveAt;
+            final rawLastActiveAt = json['lastActiveAt'];
+            if (rawLastActiveAt is List && rawLastActiveAt.length >= 6) {
+              lastActiveAt = DateTime(
+                rawLastActiveAt[0] as int,
+                rawLastActiveAt[1] as int,
+                rawLastActiveAt[2] as int,
+                rawLastActiveAt[3] as int,
+                rawLastActiveAt[4] as int,
+                rawLastActiveAt[5] as int,
+              );
+            } else if (rawLastActiveAt is String) {
+              lastActiveAt = DateTime.tryParse(rawLastActiveAt);
+            }
+
             // user 객체 생성
             final userJson = <String, dynamic>{
               'id': friendUserId ?? 0,
               'nickname': json['nickname'] as String? ?? '',
-              'email': '', // API 스펙에는 email이 없음
+              'email': json['email'] as String? ?? '',
               'avatarUrl': json['avatarUrl'],
               'onlineStatus': json['onlineStatus'],
-              'lastActiveAt': json['lastActiveAt'],
+              'lastActiveAt': lastActiveAt?.toIso8601String(),
             };
 
             // FriendModel을 위한 JSON 생성
             final friendJson = <String, dynamic>{
               'id': friendUserId ?? 0,
               'user': userJson,
-              'createdAt': json['lastActiveAt'] ?? DateTime.now().toIso8601String(),
+              'createdAt': lastActiveAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
             };
 
             return FriendModel.fromJson(friendJson);
