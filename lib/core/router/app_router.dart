@@ -16,6 +16,7 @@ import '../../presentation/pages/chat/chat_room_page.dart';
 import '../../presentation/pages/friends/friend_list_page.dart';
 import '../../presentation/pages/main/main_page.dart';
 import '../../presentation/pages/profile/profile_page.dart';
+import '../../presentation/pages/profile/edit_profile_page.dart';
 import '../../presentation/pages/settings/settings_page.dart';
 import '../../presentation/pages/splash/splash_page.dart';
 import '../../presentation/pages/error/error_page.dart';
@@ -29,6 +30,7 @@ class AppRoutes {
   static const String chatRoom = '/chat/:roomId';
   static const String friends = '/friends';
   static const String profile = '/profile';
+  static const String editProfile = '/profile/edit';
   static const String settings = '/settings';
 }
 
@@ -112,6 +114,10 @@ class AppRouter {
           GoRoute(
             path: AppRoutes.profile,
             builder: (context, state) => const ProfilePage(),
+          ),
+          GoRoute(
+            path: AppRoutes.editProfile,
+            builder: (context, state) => const EditProfilePage(),
           ),
           GoRoute(
             path: AppRoutes.settings,
