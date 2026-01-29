@@ -30,7 +30,9 @@ class _FriendListPageState extends State<FriendListPage>
     _tabController = TabController(length: 3, vsync: this);
     // 초기에는 친구 목록만 로드
     context.read<FriendBloc>().add(const FriendListLoadRequested());
-    
+    // WebSocket 온라인 상태 구독 시작
+    context.read<FriendBloc>().add(const FriendListSubscriptionStarted());
+
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         // 탭 변경 완료 시 해당 데이터 로드
@@ -47,6 +49,7 @@ class _FriendListPageState extends State<FriendListPage>
   void dispose() {
     _debounceTimer?.cancel();
     _tabController.dispose();
+    // NOTE: FriendBloc.close()에서 자동으로 구독 해제됨
     super.dispose();
   }
 
