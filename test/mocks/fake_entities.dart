@@ -43,6 +43,15 @@ class FakeEntities {
         otherUserAvatarUrl: null,
       );
 
+  /// 상대방 정보가 없는 1:1 채팅방 (테스트용)
+  static ChatRoom get directChatRoomWithoutOtherUser => ChatRoom(
+        id: 1,
+        name: null,
+        type: ChatRoomType.direct,
+        createdAt: DateTime(2024, 1, 1),
+        unreadCount: 0,
+      );
+
   static ChatRoom get groupChatRoom => ChatRoom(
         id: 2,
         name: '그룹 채팅방',

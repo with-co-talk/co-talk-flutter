@@ -56,7 +56,9 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.text('친구가 없습니다\n친구를 추가해보세요'), findsOneWidget);
+      // 실제 구현은 두 개의 별도 Text 위젯으로 되어 있음
+      expect(find.text('친구가 없습니다'), findsOneWidget);
+      expect(find.text('친구를 추가하고 대화를 시작해보세요'), findsOneWidget);
     });
 
     testWidgets('shows error message on failure', (tester) async {
@@ -177,15 +179,52 @@ void main() {
     });
 
     testWidgets('shows add friend button in app bar', (tester) async {
-      when(() => mockFriendBloc.state).thenReturn(const FriendState());
+      // 친구가 있을 때는 빈 상태 버튼이 안 보이므로 AppBar의 아이콘만 표시됨
+      final friends = [
+        Friend(
+          id: 1,
+          user: const User(
+            id: 2,
+            email: 'friend@test.com',
+            nickname: 'FriendUser',
+          ),
+          createdAt: DateTime(2024, 1, 1),
+        ),
+      ];
+
+      when(() => mockFriendBloc.state).thenReturn(
+        FriendState(
+          status: FriendStatus.success,
+          friends: friends,
+        ),
+      );
 
       await tester.pumpWidget(createWidgetUnderTest());
 
+      // AppBar에만 person_add 아이콘이 있음
       expect(find.byIcon(Icons.person_add), findsOneWidget);
     });
 
     testWidgets('opens add friend dialog when add button is tapped', (tester) async {
-      when(() => mockFriendBloc.state).thenReturn(const FriendState());
+      // 친구가 있을 때 테스트 (빈 상태 버튼 없음)
+      final friends = [
+        Friend(
+          id: 1,
+          user: const User(
+            id: 2,
+            email: 'friend@test.com',
+            nickname: 'FriendUser',
+          ),
+          createdAt: DateTime(2024, 1, 1),
+        ),
+      ];
+
+      when(() => mockFriendBloc.state).thenReturn(
+        FriendState(
+          status: FriendStatus.success,
+          friends: friends,
+        ),
+      );
 
       await tester.pumpWidget(createWidgetUnderTest());
 
@@ -262,6 +301,18 @@ void main() {
     });
 
     testWidgets('shows search results in add friend dialog', (tester) async {
+      final friends = [
+        Friend(
+          id: 1,
+          user: const User(
+            id: 2,
+            email: 'friend@test.com',
+            nickname: 'FriendUser',
+          ),
+          createdAt: DateTime(2024, 1, 1),
+        ),
+      ];
+
       final searchResults = [
         const User(
           id: 5,
@@ -273,6 +324,7 @@ void main() {
       when(() => mockFriendBloc.state).thenReturn(
         FriendState(
           status: FriendStatus.success,
+          friends: friends,
           searchResults: searchResults,
           hasSearched: true,
           searchQuery: 'Search',
@@ -289,11 +341,24 @@ void main() {
     });
 
     testWidgets('shows no results message in add friend dialog', (tester) async {
+      final friends = [
+        Friend(
+          id: 1,
+          user: const User(
+            id: 2,
+            email: 'friend@test.com',
+            nickname: 'FriendUser',
+          ),
+          createdAt: DateTime(2024, 1, 1),
+        ),
+      ];
+
       when(() => mockFriendBloc.state).thenReturn(
-        const FriendState(
+        FriendState(
           status: FriendStatus.success,
+          friends: friends,
           isSearching: false,
-          searchResults: [],
+          searchResults: const [],
           hasSearched: true,
           searchQuery: 'test',
         ),

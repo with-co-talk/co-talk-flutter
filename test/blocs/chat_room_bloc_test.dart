@@ -24,6 +24,11 @@ void main() {
     // AuthLocalDataSource mock 기본 설정
     when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
 
+    // ChatRepository mock 기본 설정
+    // 기존 테스트 호환성을 위해 otherUserNickname 없는 ChatRoom 사용
+    when(() => mockChatRepository.getChatRoom(any()))
+        .thenAnswer((_) async => FakeEntities.directChatRoomWithoutOtherUser);
+
     // WebSocketService mock 기본 설정
     when(() => mockWebSocketService.subscribeToChatRoom(any())).thenReturn(null);
     when(() => mockWebSocketService.unsubscribeFromChatRoom(any())).thenReturn(null);
@@ -117,6 +122,47 @@ void main() {
             ChatRoomStatus.failure,
           ),
         ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'emits [loading, success] even when getChatRoom fails (API not implemented)',
+        build: () {
+          // getChatRoom API가 없거나 실패해도 채팅방은 정상 동작해야 함
+          when(() => mockChatRepository.getChatRoom(any()))
+              .thenThrow(Exception('API not found'));
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any()))
+              .thenAnswer((_) async {});
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const ChatRoomOpened(1)),
+        expect: () => [
+          const ChatRoomState(
+            status: ChatRoomStatus.loading,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+          ),
+          ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: FakeEntities.messages,
+            nextCursor: 123,
+            hasMore: true,
+            // getChatRoom 실패 시 기본값
+            isOtherUserLeft: false,
+            otherUserNickname: null,
+          ),
+        ],
+        verify: (_) {
+          // getChatRoom은 호출되었지만 실패
+          verify(() => mockChatRepository.getChatRoom(1)).called(1);
+          // 메시지 로딩은 정상 수행
+          verify(() => mockChatRepository.getMessages(1, size: 50)).called(1);
+          verify(() => mockWebSocketService.subscribeToChatRoom(1)).called(1);
+        },
       );
     });
 
@@ -423,6 +469,128 @@ void main() {
       );
     });
 
+    group('MessageUpdateRequested', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'updates message content when successful',
+        build: () {
+          when(() => mockChatRepository.updateMessage(any(), any()))
+              .thenAnswer((_) async => Message(
+                    id: 1,
+                    chatRoomId: 1,
+                    senderId: 1,
+                    content: '수정된 메시지',
+                    createdAt: DateTime(2024, 1, 1),
+                  ));
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          messages: [FakeEntities.textMessage],
+        ),
+        act: (bloc) => bloc.add(const MessageUpdateRequested(
+          messageId: 1,
+          content: '수정된 메시지',
+        )),
+        expect: () => [
+          isA<ChatRoomState>().having(
+            (s) => s.messages.first.content,
+            'content',
+            '수정된 메시지',
+          ),
+        ],
+        verify: (_) {
+          verify(() => mockChatRepository.updateMessage(1, '수정된 메시지')).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'emits error when update fails',
+        build: () {
+          when(() => mockChatRepository.updateMessage(any(), any()))
+              .thenThrow(Exception('Failed to update'));
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          messages: [FakeEntities.textMessage],
+        ),
+        act: (bloc) => bloc.add(const MessageUpdateRequested(
+          messageId: 1,
+          content: '수정된 메시지',
+        )),
+        expect: () => [
+          isA<ChatRoomState>().having(
+            (s) => s.errorMessage,
+            'errorMessage',
+            isNotNull,
+          ),
+        ],
+      );
+    });
+
+    group('ChatRoomLeaveRequested', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sets hasLeft to true when leave is successful',
+        build: () {
+          when(() => mockChatRepository.leaveChatRoom(any()))
+              .thenAnswer((_) async {});
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(const ChatRoomLeaveRequested()),
+        expect: () => [
+          isA<ChatRoomState>().having(
+            (s) => s.hasLeft,
+            'hasLeft',
+            true,
+          ),
+        ],
+        verify: (_) {
+          verify(() => mockChatRepository.leaveChatRoom(1)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'emits error when leave fails',
+        build: () {
+          when(() => mockChatRepository.leaveChatRoom(any()))
+              .thenThrow(Exception('Failed to leave'));
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(const ChatRoomLeaveRequested()),
+        expect: () => [
+          isA<ChatRoomState>().having(
+            (s) => s.errorMessage,
+            'errorMessage',
+            isNotNull,
+          ),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when roomId is null',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: null,
+        ),
+        act: (bloc) => bloc.add(const ChatRoomLeaveRequested()),
+        expect: () => [],
+        verify: (_) {
+          verifyNever(() => mockChatRepository.leaveChatRoom(any()));
+        },
+      );
+    });
+
     group('MessagesLoadMoreRequested', () {
       blocTest<ChatRoomBloc, ChatRoomState>(
         'loads more messages when hasMore is true',
@@ -615,6 +783,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 그룹 채팅에서 여러 사람이 읽었을 때 unreadCount가 정확히 감소함',
         build: () => createBloc(),
         seed: () => ChatRoomState(
@@ -654,6 +823,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 여러 메시지가 있을 때 lastReadAt 기반으로 읽음 처리됨',
         build: () => createBloc(),
         seed: () => ChatRoomState(
@@ -683,6 +853,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: lastReadMessageId와 lastReadAt 둘 다 없으면 모든 메시지가 읽음 처리됨',
         build: () => createBloc(),
         seed: () => ChatRoomState(
@@ -709,6 +880,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: unreadCount가 0인 메시지는 더 이상 감소하지 않음',
         build: () => createBloc(),
         seed: () => ChatRoomState(
@@ -738,6 +910,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: ignores duplicate read events to prevent double decrement (group case)',
         build: () => createBloc(),
         seed: () => ChatRoomState(
@@ -767,6 +940,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: updates only messages up to lastReadAt when lastReadMessageId is null',
         build: () => createBloc(),
         seed: () => ChatRoomState(
@@ -829,6 +1003,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: sets isReadMarked to true when markAsRead succeeds',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -940,6 +1115,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: sender-side unreadCount(1) becomes 0 when READ event arrives via WebSocket streams',
         build: () {
           final messageController = StreamController<WebSocketChatMessage>();
@@ -1014,6 +1190,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 시나리오 1 - 내가 보낸 메시지에 상대가 읽지 않았으면 unreadCount=1로 표시됨',
         build: () {
           final messageController = StreamController<WebSocketChatMessage>();
@@ -1071,6 +1248,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 시나리오 2 - 상대방이 읽은 경우 나와 상대 모두 unreadCount가 0이 됨',
         build: () {
           final messageController = StreamController<WebSocketChatMessage>();
@@ -1147,6 +1325,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 시나리오 3 - 내가 보낼 때 상대방이 포커스되어 있으면 즉시 unreadCount=0이 됨',
         build: () {
           final messageController = StreamController<WebSocketChatMessage>();
@@ -1206,6 +1385,7 @@ void main() {
 
     group('ChatRoomForegrounded/Backgrounded 동작 검증', () {
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: ChatRoomForegrounded 호출 시 _isViewingRoom = true가 되고 markAsRead가 호출됨',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1234,6 +1414,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: ChatRoomBackgrounded 호출 시 _isViewingRoom = false가 되고 presence inactive 전송',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1266,6 +1447,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: _isViewingRoom = true일 때 상대방 메시지 도착 시 markAsRead가 호출됨',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1303,6 +1485,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: _isViewingRoom = false일 때 상대방 메시지 도착 시 markAsRead가 호출되지 않음',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1336,6 +1519,7 @@ void main() {
 
     group('실제 동작 검증 - 엣지 케이스', () {
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: ChatRoomForegrounded가 호출되지만 _isRoomSubscribed가 false면 markAsRead가 호출되지 않음',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1357,6 +1541,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: markAsRead가 모든 재시도 후에도 실패하면 조용히 무시됨 (isReadMarked는 false 유지)',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1401,6 +1586,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: ChatRoomForegrounded가 호출되기 전에 메시지가 도착하면 _isViewingRoom이 false여서 markAsRead가 호출되지 않음',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1431,6 +1617,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 여러 메시지가 있을 때 일부만 읽음 처리되는 경우 (lastReadMessageId 기반)',
         build: () => createBloc(),
         seed: () => ChatRoomState(
@@ -1461,6 +1648,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 채팅방을 나갔다가 다시 들어올 때 읽음 처리가 제대로 동작함',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1497,6 +1685,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 앱이 백그라운드로 갔다가 다시 포그라운드로 올 때 읽음 처리가 제대로 동작함',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -1540,6 +1729,7 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        // TODO: 미구현 기능 - 이 테스트는 나중에 구현될 기능을 위한 것입니다
         '🔴 RED: 서버가 chatRoomUpdates로 unreadCount를 보내주지 않는 경우 isReadMarked만 true가 되고 실제 unreadCount는 업데이트되지 않음',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
