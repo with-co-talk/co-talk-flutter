@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/constants/api_constants.dart';
@@ -12,6 +13,8 @@ abstract class AuthRemoteDataSource {
   Future<AuthTokenResponse> refreshToken(String refreshToken);
   Future<void> logout(String refreshToken);
   Future<UserModel> getCurrentUser();
+  Future<void> updateProfile(int userId, {String? nickname, String? avatarUrl});
+  Future<String> uploadFile(File file);
 }
 
 @LazySingleton(as: AuthRemoteDataSource)
@@ -75,6 +78,42 @@ class AuthRemoteDataSourceImpl extends BaseRemoteDataSource
     try {
       final response = await _dioClient.get('/users/me');
       return UserModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<void> updateProfile(int userId, {String? nickname, String? avatarUrl}) async {
+    try {
+      await _dioClient.put(
+        ApiConstants.userProfile(userId),
+        data: {
+          if (nickname != null) 'nickname': nickname,
+          if (avatarUrl != null) 'avatarUrl': avatarUrl,
+        },
+      );
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<String> uploadFile(File file) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.path,
+          filename: file.path.split('/').last,
+        ),
+      });
+
+      final response = await _dioClient.post(
+        ApiConstants.fileUpload,
+        data: formData,
+      );
+
+      return response.data['fileUrl'] as String;
     } on DioException catch (e) {
       throw handleDioError(e);
     }

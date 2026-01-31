@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:injectable/injectable.dart';
 import '../../domain/entities/chat_room.dart';
 import '../../domain/entities/message.dart';
@@ -16,6 +18,12 @@ class ChatRepositoryImpl implements ChatRepository {
     // JWT 토큰에서 userId를 추출하므로 파라미터 불필요
     final chatRoomModels = await _remoteDataSource.getChatRooms();
     return chatRoomModels.map((m) => m.toEntity()).toList();
+  }
+
+  @override
+  Future<ChatRoom> getChatRoom(int roomId) async {
+    final chatRoomModel = await _remoteDataSource.getChatRoom(roomId);
+    return chatRoomModel.toEntity();
   }
 
   @override
@@ -94,5 +102,47 @@ class ChatRepositoryImpl implements ChatRepository {
   Future<void> deleteMessage(int messageId) async {
     // JWT 토큰에서 userId를 추출하므로 파라미터 불필요
     await _remoteDataSource.deleteMessage(messageId);
+  }
+
+  @override
+  Future<void> reinviteUser(int roomId, int inviteeId) async {
+    // JWT 토큰에서 inviterId를 추출하므로 파라미터 불필요
+    await _remoteDataSource.reinviteUser(roomId, inviteeId);
+  }
+
+  @override
+  Future<FileUploadResult> uploadFile(File file) async {
+    final response = await _remoteDataSource.uploadFile(file);
+    return FileUploadResult(
+      fileUrl: response.fileUrl,
+      fileName: response.fileName,
+      contentType: response.contentType,
+      fileSize: response.fileSize,
+      isImage: response.isImage,
+    );
+  }
+
+  @override
+  Future<Message> sendFileMessage({
+    required int roomId,
+    required String fileUrl,
+    required String fileName,
+    required int fileSize,
+    required String contentType,
+    String? thumbnailUrl,
+  }) async {
+    // senderId는 서버에서 JWT 토큰으로부터 추출하므로 0으로 전달 (서버에서 무시됨)
+    final messageModel = await _remoteDataSource.sendFileMessage(
+      SendFileMessageRequest(
+        senderId: 0,
+        chatRoomId: roomId,
+        fileUrl: fileUrl,
+        fileName: fileName,
+        fileSize: fileSize,
+        contentType: contentType,
+        thumbnailUrl: thumbnailUrl,
+      ),
+    );
+    return messageModel.toEntity(overrideChatRoomId: roomId);
   }
 }

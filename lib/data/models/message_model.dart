@@ -114,6 +114,8 @@ class MessageModel {
         return MessageType.image;
       case 'FILE':
         return MessageType.file;
+      case 'SYSTEM':
+        return MessageType.system;
       default:
         return MessageType.text;
     }

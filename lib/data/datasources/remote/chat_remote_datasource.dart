@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/constants/api_constants.dart';
@@ -11,6 +13,7 @@ import '../local/auth_local_datasource.dart';
 
 abstract class ChatRemoteDataSource {
   Future<List<ChatRoomModel>> getChatRooms();
+  Future<ChatRoomModel> getChatRoom(int roomId);
   Future<ChatRoomModel> createDirectChatRoom(int otherUserId);
   Future<ChatRoomModel> createGroupChatRoom(String? name, List<int> memberIds);
   Future<void> leaveChatRoom(int roomId);
@@ -23,6 +26,13 @@ abstract class ChatRemoteDataSource {
   Future<MessageModel> sendMessage(SendMessageRequest request);
   Future<MessageModel> updateMessage(int messageId, String content);
   Future<void> deleteMessage(int messageId);
+  Future<void> reinviteUser(int roomId, int inviteeId);
+
+  /// 파일을 서버에 업로드합니다.
+  Future<FileUploadResponse> uploadFile(File file);
+
+  /// 파일/이미지 메시지를 전송합니다.
+  Future<MessageModel> sendFileMessage(SendFileMessageRequest request);
 }
 
 @LazySingleton(as: ChatRemoteDataSource)
@@ -77,6 +87,45 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
       }
       throw ServerException(
         message: '채팅방 목록을 불러오는 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
+    }
+  }
+
+  @override
+  Future<ChatRoomModel> getChatRoom(int roomId) async {
+    try {
+      final response = await _dioClient.get(
+        ApiConstants.chatRoom(roomId),
+      );
+
+      // 응답에서 data 추출 (래핑된 경우)
+      final responseData = response.data;
+      Map<String, dynamic> data;
+      if (responseData is Map<String, dynamic>) {
+        // {data: {...}} 또는 {room: {...}} 형태일 수 있음
+        if (responseData.containsKey('data')) {
+          data = responseData['data'] as Map<String, dynamic>;
+        } else if (responseData.containsKey('room')) {
+          data = responseData['room'] as Map<String, dynamic>;
+        } else {
+          data = responseData;
+        }
+      } else {
+        throw ServerException(
+          message: '채팅방 정보 응답 형식이 올바르지 않습니다',
+          statusCode: null,
+        );
+      }
+      return ChatRoomModel.fromJson(data);
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) {
+        rethrow;
+      }
+      throw ServerException(
+        message: '채팅방 정보를 불러오는 중 오류가 발생했습니다: ${e.toString()}',
         statusCode: null,
       );
     }
@@ -321,4 +370,168 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
     }
   }
 
+  @override
+  Future<void> reinviteUser(int roomId, int inviteeId) async {
+    try {
+      // JWT 토큰에서 inviterId를 추출하므로 body에 inviteeId만 전송
+      await _dioClient.post(
+        '${ApiConstants.chatRooms}/$roomId/reinvite',
+        data: {'inviteeId': inviteeId},
+      );
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<FileUploadResponse> uploadFile(File file) async {
+    try {
+      final fileName = file.path.split('/').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.path,
+          filename: fileName,
+        ),
+      });
+
+      final response = await _dioClient.post(
+        ApiConstants.fileUpload,
+        data: formData,
+      );
+
+      final responseData = response.data;
+      if (responseData is! Map<String, dynamic>) {
+        throw ServerException(
+          message: '파일 업로드 응답 형식이 올바르지 않습니다',
+          statusCode: null,
+        );
+      }
+
+      return FileUploadResponse.fromJson(responseData);
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) {
+        rethrow;
+      }
+      throw ServerException(
+        message: '파일 업로드 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
+    }
+  }
+
+  @override
+  Future<MessageModel> sendFileMessage(SendFileMessageRequest request) async {
+    try {
+      final response = await _dioClient.post(
+        '${ApiConstants.chatMessages}/file',
+        data: request.toJson(),
+      );
+
+      final responseData = response.data;
+      if (responseData is! Map) {
+        throw ServerException(
+          message: '파일 메시지 전송 응답 형식이 올바르지 않습니다',
+          statusCode: null,
+        );
+      }
+
+      // API 응답 형식 변환 (sendMessage와 동일한 형식)
+      final convertedData = <String, dynamic>{
+        'id': responseData['messageId'] ?? responseData['id'],
+        'chatRoomId': request.chatRoomId,
+        'senderId': responseData['senderId'] ?? 0,
+        'content': responseData['content'] ?? request.fileName,
+        'type': responseData['type'],
+        'fileUrl': responseData['fileUrl'] ?? request.fileUrl,
+        'fileName': responseData['fileName'] ?? request.fileName,
+        'fileSize': responseData['fileSize'] ?? request.fileSize,
+        'fileContentType': responseData['contentType'] ?? request.contentType,
+        'thumbnailUrl': responseData['thumbnailUrl'] ?? request.thumbnailUrl,
+        'replyToMessageId': responseData['replyToMessageId'],
+        'forwardedFromMessageId': responseData['forwardedFromMessageId'],
+        'isDeleted': responseData['isDeleted'] ?? false,
+        'createdAt': DateParser.toIso8601String(DateParser.parse(responseData['createdAt'])),
+        'updatedAt': responseData['updatedAt'] != null
+            ? DateParser.toIso8601String(DateParser.parse(responseData['updatedAt']))
+            : null,
+        'senderNickname': responseData['senderNickname'],
+        'senderAvatarUrl': responseData['senderAvatarUrl'],
+        'reactions': responseData['reactions'],
+      };
+
+      return MessageModel.fromJson(convertedData);
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) {
+        rethrow;
+      }
+      throw ServerException(
+        message: '파일 메시지 전송 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
+    }
+  }
+}
+
+/// 파일 업로드 응답 모델
+class FileUploadResponse {
+  final String fileUrl;
+  final String fileName;
+  final String contentType;
+  final int fileSize;
+  final bool isImage;
+
+  const FileUploadResponse({
+    required this.fileUrl,
+    required this.fileName,
+    required this.contentType,
+    required this.fileSize,
+    required this.isImage,
+  });
+
+  factory FileUploadResponse.fromJson(Map<String, dynamic> json) {
+    return FileUploadResponse(
+      fileUrl: json['fileUrl'] as String,
+      fileName: json['fileName'] as String,
+      contentType: json['contentType'] as String,
+      fileSize: (json['fileSize'] as num).toInt(),
+      isImage: json['isImage'] as bool? ?? false,
+    );
+  }
+}
+
+/// 파일 메시지 전송 요청 모델
+class SendFileMessageRequest {
+  final int senderId;
+  final int chatRoomId;
+  final String fileUrl;
+  final String fileName;
+  final int fileSize;
+  final String contentType;
+  final String? thumbnailUrl;
+
+  const SendFileMessageRequest({
+    required this.senderId,
+    required this.chatRoomId,
+    required this.fileUrl,
+    required this.fileName,
+    required this.fileSize,
+    required this.contentType,
+    this.thumbnailUrl,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'senderId': senderId,
+      'chatRoomId': chatRoomId,
+      'fileUrl': fileUrl,
+      'fileName': fileName,
+      'fileSize': fileSize,
+      'contentType': contentType,
+      if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
+    };
+  }
 }

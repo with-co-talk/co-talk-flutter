@@ -22,6 +22,11 @@ class _ChatListPageState extends State<ChatListPage> {
   late final ChatListBloc _chatListBloc;
   int? _subscribedUserId;
 
+  // 검색 관련 상태
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +35,13 @@ class _ChatListPageState extends State<ChatListPage> {
 
     // WebSocket 구독 시작 (사용자 채널)
     _syncSubscriptionWithAuthState(context.read<AuthBloc>().state);
+
+    // 검색어 변경 리스너
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+      });
+    });
   }
 
   void _syncSubscriptionWithAuthState(AuthState authState) {
@@ -59,7 +71,87 @@ class _ChatListPageState extends State<ChatListPage> {
   void dispose() {
     // WebSocket 구독 해제
     _chatListBloc.add(const ChatListSubscriptionStopped());
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchController.clear();
+        _searchQuery = '';
+      }
+    });
+  }
+
+  /// 검색어로 채팅방 필터링
+  List<ChatRoom> _filterChatRooms(List<ChatRoom> chatRooms) {
+    if (_searchQuery.isEmpty) return chatRooms;
+
+    return chatRooms.where((room) {
+      // 채팅방 이름 또는 상대방 닉네임으로 검색
+      final displayName = room.displayName.toLowerCase();
+      return displayName.contains(_searchQuery);
+    }).toList();
+  }
+
+  /// 일반 AppBar
+  AppBar _buildNormalAppBar() {
+    return AppBar(
+      title: const Text(
+        '채팅',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 18,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search),
+          onPressed: _toggleSearch,
+        ),
+      ],
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    );
+  }
+
+  /// 검색 모드 AppBar
+  AppBar _buildSearchAppBar() {
+    return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: _toggleSearch,
+      ),
+      title: TextField(
+        controller: _searchController,
+        autofocus: true,
+        decoration: InputDecoration(
+          hintText: '채팅방 검색',
+          hintStyle: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 16,
+          ),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+        ),
+        style: const TextStyle(
+          fontSize: 16,
+        ),
+      ),
+      actions: [
+        if (_searchQuery.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: () {
+              _searchController.clear();
+            },
+          ),
+      ],
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    );
   }
 
   @override
@@ -94,25 +186,7 @@ class _ChatListPageState extends State<ChatListPage> {
       ],
       child: Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: const Text(
-            '채팅',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-            ),
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () {
-                // TODO: Implement search
-              },
-            ),
-          ],
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-        ),
+        appBar: _isSearching ? _buildSearchAppBar() : _buildNormalAppBar(),
         body: BlocBuilder<ChatListBloc, ChatListState>(
         builder: (context, state) {
           if (state.status == ChatListStatus.loading &&
@@ -149,6 +223,33 @@ class _ChatListPageState extends State<ChatListPage> {
             );
           }
 
+          // 검색 필터 적용
+          final filteredChatRooms = _filterChatRooms(state.chatRooms);
+
+          // 검색 결과 없음
+          if (_isSearching && filteredChatRooms.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.search_off,
+                    size: 64,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '"$_searchQuery" 검색 결과가 없습니다',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return RefreshIndicator(
             onRefresh: () async {
               context
@@ -156,14 +257,14 @@ class _ChatListPageState extends State<ChatListPage> {
                   .add(const ChatListRefreshRequested());
             },
             child: ListView.separated(
-              itemCount: state.chatRooms.length,
+              itemCount: filteredChatRooms.length,
               separatorBuilder: (_, __) => Divider(
                 height: 1,
                 thickness: 1,
                 color: AppColors.divider,
               ),
               itemBuilder: (context, index) {
-                final chatRoom = state.chatRooms[index];
+                final chatRoom = filteredChatRooms[index];
                 return _ChatRoomTile(chatRoom: chatRoom);
               },
             ),
@@ -207,7 +308,24 @@ class _ChatRoomTile extends StatelessWidget {
                           ),
                         ),
                 ),
-                // 온라인 상태 표시 (추후 구현 가능)
+                // 온라인 상태 표시 (1:1 채팅방만)
+                if (chatRoom.type == ChatRoomType.direct && chatRoom.isOtherUserOnline)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(width: 16),
@@ -253,7 +371,7 @@ class _ChatRoomTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          chatRoom.lastMessage ?? '',
+                          chatRoom.lastMessagePreview,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

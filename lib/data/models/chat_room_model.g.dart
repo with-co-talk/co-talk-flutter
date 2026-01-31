@@ -13,6 +13,7 @@ ChatRoomModel _$ChatRoomModelFromJson(Map<String, dynamic> json) =>
       type: json['type'] as String?,
       createdAt: DateParser.parse(json['createdAt']),
       lastMessage: json['lastMessage'] as String?,
+      lastMessageType: json['lastMessageType'] as String?,
       lastMessageAt: ChatRoomModel._parseNullableDateTime(
         json['lastMessageAt'],
       ),
@@ -20,6 +21,11 @@ ChatRoomModel _$ChatRoomModelFromJson(Map<String, dynamic> json) =>
       otherUserId: (json['otherUserId'] as num?)?.toInt(),
       otherUserNickname: json['otherUserNickname'] as String?,
       otherUserAvatarUrl: json['otherUserAvatarUrl'] as String?,
+      isOtherUserLeft: json['isOtherUserLeft'] as bool?,
+      isOtherUserOnline: json['isOtherUserOnline'] as bool?,
+      otherUserLastActiveAt: ChatRoomModel._parseNullableDateTime(
+        json['otherUserLastActiveAt'],
+      ),
     );
 
 Map<String, dynamic> _$ChatRoomModelToJson(ChatRoomModel instance) =>
@@ -29,6 +35,7 @@ Map<String, dynamic> _$ChatRoomModelToJson(ChatRoomModel instance) =>
       'type': instance.type,
       'createdAt': ChatRoomModel._dateTimeToJson(instance.createdAt),
       'lastMessage': instance.lastMessage,
+      'lastMessageType': instance.lastMessageType,
       'lastMessageAt': ChatRoomModel._nullableDateTimeToJson(
         instance.lastMessageAt,
       ),
@@ -36,6 +43,11 @@ Map<String, dynamic> _$ChatRoomModelToJson(ChatRoomModel instance) =>
       'otherUserId': instance.otherUserId,
       'otherUserNickname': instance.otherUserNickname,
       'otherUserAvatarUrl': instance.otherUserAvatarUrl,
+      'isOtherUserLeft': instance.isOtherUserLeft,
+      'isOtherUserOnline': instance.isOtherUserOnline,
+      'otherUserLastActiveAt': ChatRoomModel._nullableDateTimeToJson(
+        instance.otherUserLastActiveAt,
+      ),
     };
 
 ChatRoomMemberModel _$ChatRoomMemberModelFromJson(Map<String, dynamic> json) =>

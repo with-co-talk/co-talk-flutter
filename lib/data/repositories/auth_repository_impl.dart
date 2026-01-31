@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:injectable/injectable.dart';
 import '../../core/errors/exceptions.dart';
 import '../../core/utils/exception_to_failure_mapper.dart';
@@ -114,5 +115,23 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<int?> getCurrentUserId() async {
     return _localDataSource.getUserId();
+  }
+
+  @override
+  Future<void> updateProfile({
+    required int userId,
+    String? nickname,
+    String? avatarUrl,
+  }) async {
+    await _remoteDataSource.updateProfile(
+      userId,
+      nickname: nickname,
+      avatarUrl: avatarUrl,
+    );
+  }
+
+  @override
+  Future<String> uploadAvatar(File file) async {
+    return await _remoteDataSource.uploadFile(file);
   }
 }

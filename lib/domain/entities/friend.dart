@@ -12,6 +12,18 @@ class Friend extends Equatable {
     required this.createdAt,
   });
 
+  Friend copyWith({
+    int? id,
+    User? user,
+    DateTime? createdAt,
+  }) {
+    return Friend(
+      id: id ?? this.id,
+      user: user ?? this.user,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   @override
   List<Object?> get props => [id, user, createdAt];
 }

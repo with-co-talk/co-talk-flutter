@@ -40,6 +40,10 @@ class ApiConstants {
   // User Endpoints
   static const String users = '/users';
   static const String userSearch = '/users/search';
+  static String userProfile(int userId) => '/users/$userId/profile';
+
+  // File Endpoints
+  static const String fileUpload = '/files/upload';
 
   // Friend Endpoints
   static const String friends = '/friends';
@@ -47,6 +51,7 @@ class ApiConstants {
 
   // Chat Endpoints
   static const String chatRooms = '/chat/rooms';
+  static String chatRoom(int roomId) => '/chat/rooms/$roomId';
   static const String chatMessages = '/chat/messages';
   static const String chatReactions = '/chat/reactions';
 

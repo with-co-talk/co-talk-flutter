@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
@@ -39,6 +40,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<TypingStatusChanged>(_onTypingStatusChanged);
     on<UserStartedTyping>(_onUserStartedTyping);
     on<UserStoppedTyping>(_onUserStoppedTyping);
+    on<MessageUpdateRequested>(_onMessageUpdateRequested);
+    on<ChatRoomLeaveRequested>(_onLeaveRequested);
+    on<ReinviteUserRequested>(_onReinviteUserRequested);
+    on<OtherUserLeftStatusChanged>(_onOtherUserLeftStatusChanged);
+    on<FileAttachmentRequested>(_onFileAttachmentRequested);
   }
 
   Future<void> _onOpened(
@@ -47,6 +53,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) async {
     // ignore: avoid_print
     print('[ChatRoomBloc] _onOpened called with roomId: ${event.roomId}');
+
+    // 플래그 초기화 (블록이 재사용될 경우를 대비)
+    _roomInitialized = false;
+    _pendingForegrounded = false;
+    _isViewingRoom = false;
 
     // 현재 사용자 ID 가져오기
     final currentUserId = await _authLocalDataSource.getUserId();
@@ -59,6 +70,25 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ));
 
     try {
+      // 0. 채팅방 정보 가져오기 (상대방 나감 여부 확인) - 선택적, 실패해도 계속 진행
+      bool isOtherUserLeft = false;
+      int? otherUserId;
+      String? otherUserNickname;
+      try {
+        // ignore: avoid_print
+        print('[ChatRoomBloc] Fetching chat room info...');
+        final chatRoom = await _chatRepository.getChatRoom(event.roomId);
+        isOtherUserLeft = chatRoom.isOtherUserLeft;
+        otherUserId = chatRoom.otherUserId;
+        otherUserNickname = chatRoom.otherUserNickname;
+        // ignore: avoid_print
+        print('[ChatRoomBloc] Chat room info: isOtherUserLeft=$isOtherUserLeft, otherUserId=$otherUserId, otherUserNickname=$otherUserNickname');
+      } catch (e) {
+        // getChatRoom API가 없어도 채팅방은 정상 동작해야 함
+        // ignore: avoid_print
+        print('[ChatRoomBloc] getChatRoom failed (API may not exist): $e');
+      }
+
       // 1. 먼저 메시지를 로드 (WebSocket 구독 전)
       // ignore: avoid_print
       print('[ChatRoomBloc] Fetching messages...');
@@ -82,16 +112,32 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         _startPresencePing();
       }
 
-      // 4. 상태 업데이트
+      // 4. 상태 업데이트 (채팅방 정보 포함)
       emit(state.copyWith(
         status: ChatRoomStatus.success,
         messages: messages,
         nextCursor: nextCursor,
         hasMore: hasMore,
+        isOtherUserLeft: isOtherUserLeft,
+        otherUserId: otherUserId,
+        otherUserNickname: otherUserNickname,
       ));
 
-      // NOTE: opened 시점의 자동 읽음 처리는 제거.
-      // (foreground 이벤트에서 markAsRead 수행)
+      // 5. 방 초기화 완료 표시
+      _roomInitialized = true;
+      // ignore: avoid_print
+      print('[ChatRoomBloc] Room initialization completed, _roomInitialized=true, _pendingForegrounded=$_pendingForegrounded');
+
+      // 6. 대기 중인 foreground 이벤트가 있으면 처리
+      // (ChatRoomForegrounded가 ChatRoomOpened 완료 전에 도착한 경우)
+      if (_pendingForegrounded) {
+        // ignore: avoid_print
+        print('[ChatRoomBloc] Processing pending foreground event');
+        _pendingForegrounded = false;
+        _isViewingRoom = true;
+        _startPresencePing();
+        await _markAsReadWithRetry(event.roomId, emit);
+      }
     } catch (e, stackTrace) {
       // ignore: avoid_print
       print('[ChatRoomBloc] Error in _onOpened: $e');
@@ -107,6 +153,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   int? _lastKnownMessageId;
   bool _isRoomSubscribed = false;
   bool _isViewingRoom = false;
+  bool _roomInitialized = false;
+  bool _pendingForegrounded = false;
 
   void _subscribeToWebSocket(int roomId, {int? lastMessageId}) {
     // ignore: avoid_print
@@ -148,6 +196,25 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         // 서버가 보내준 메시지의 unreadCount를 그대로 사용
         // (서버가 읽음 처리 후 업데이트된 unreadCount를 포함해서 보내줄 수 있음)
         add(MessageReceived(_convertToMessage(wsMessage)));
+
+        // USER_LEFT/USER_JOINED 이벤트 처리 (1:1 채팅방에서 상대방 상태 변경)
+        if (wsMessage.eventType == 'USER_LEFT') {
+          // ignore: avoid_print
+          print('[ChatRoomBloc] 🚪 USER_LEFT event: relatedUserId=${wsMessage.relatedUserId}, relatedUserNickname=${wsMessage.relatedUserNickname}');
+          add(OtherUserLeftStatusChanged(
+            isOtherUserLeft: true,
+            relatedUserId: wsMessage.relatedUserId,
+            relatedUserNickname: wsMessage.relatedUserNickname,
+          ));
+        } else if (wsMessage.eventType == 'USER_JOINED') {
+          // ignore: avoid_print
+          print('[ChatRoomBloc] 👋 USER_JOINED event: relatedUserId=${wsMessage.relatedUserId}, relatedUserNickname=${wsMessage.relatedUserNickname}');
+          add(OtherUserLeftStatusChanged(
+            isOtherUserLeft: false,
+            relatedUserId: wsMessage.relatedUserId,
+            relatedUserNickname: wsMessage.relatedUserNickname,
+          ));
+        }
       } else {
         // ignore: avoid_print
         print('[ChatRoomBloc] ❌ Ignoring message for different room (state.roomId=${state.roomId}, wsMessage.roomId=${wsMessage.chatRoomId})');
@@ -217,6 +284,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       id: wsMessage.messageId,
       chatRoomId: wsMessage.chatRoomId,
       senderId: wsMessage.senderId ?? 0,
+      senderNickname: wsMessage.senderNickname,
       content: wsMessage.content,
       type: _parseMessageType(wsMessage.type),
       createdAt: wsMessage.createdAt,
@@ -235,6 +303,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         return MessageType.image;
       case 'FILE':
         return MessageType.file;
+      case 'SYSTEM':
+        return MessageType.system;
       default:
         return MessageType.text;
     }
@@ -249,6 +319,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _webSocketService.unsubscribeFromChatRoom(state.roomId!);
     }
     _isRoomSubscribed = false;
+    _isViewingRoom = false;
+    _roomInitialized = false;
+    _pendingForegrounded = false;
     _messageSubscription?.cancel();
     _messageSubscription = null;
     _readEventSubscription?.cancel();
@@ -292,8 +365,19 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // ignore: avoid_print
     print('[ChatRoomBloc] _isRoomSubscribed: $_isRoomSubscribed');
     // ignore: avoid_print
+    print('[ChatRoomBloc] _roomInitialized: $_roomInitialized');
+    // ignore: avoid_print
     print('[ChatRoomBloc] ===========================================');
-    
+
+    // 방 초기화가 완료되지 않았으면 대기 상태로 설정
+    // (ChatRoomOpened가 완료되면 pending foreground 이벤트를 처리함)
+    if (!_roomInitialized) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] _onForegrounded: room not initialized yet, setting _pendingForegrounded=true');
+      _pendingForegrounded = true;
+      return;
+    }
+
     // 다시 활성화되면 presence ping을 재개하고, 화면에 보이는 상태이므로 읽음 처리를 다시 시도한다.
     if (state.roomId == null) {
       // ignore: avoid_print
@@ -305,7 +389,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       print('[ChatRoomBloc] _onForegrounded: currentUserId is null, returning');
       return;
     }
-    
+
     // _isRoomSubscribed 체크를 제거: 구독이 완료되지 않았어도 markAsRead는 호출 가능
     // (서버는 roomId만 있으면 읽음 처리를 할 수 있음)
     // 구독이 완료되지 않았으면 나중에 구독이 완료되면 자동으로 markAsRead가 호출될 수 있지만,
@@ -314,7 +398,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       // ignore: avoid_print
       print('[ChatRoomBloc] _onForegrounded: _isRoomSubscribed is false, but proceeding with markAsRead anyway');
     }
-    
+
     _isViewingRoom = true;
     _startPresencePing();
 
@@ -690,5 +774,162 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       userId: state.currentUserId!,
       isTyping: false,
     );
+  }
+
+  Future<void> _onMessageUpdateRequested(
+    MessageUpdateRequested event,
+    Emitter<ChatRoomState> emit,
+  ) async {
+    try {
+      final updatedMessage = await _chatRepository.updateMessage(
+        event.messageId,
+        event.content,
+      );
+
+      final updatedMessages = state.messages.map((m) {
+        if (m.id == event.messageId) {
+          return m.copyWith(content: updatedMessage.content);
+        }
+        return m;
+      }).toList();
+
+      emit(state.copyWith(messages: updatedMessages));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onLeaveRequested(
+    ChatRoomLeaveRequested event,
+    Emitter<ChatRoomState> emit,
+  ) async {
+    final roomId = state.roomId;
+    if (roomId == null) return;
+
+    try {
+      await _chatRepository.leaveChatRoom(roomId);
+      emit(state.copyWith(hasLeft: true));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onReinviteUserRequested(
+    ReinviteUserRequested event,
+    Emitter<ChatRoomState> emit,
+  ) async {
+    final roomId = state.roomId;
+    if (roomId == null) return;
+
+    emit(state.copyWith(isReinviting: true, reinviteSuccess: false));
+
+    try {
+      await _chatRepository.reinviteUser(roomId, event.inviteeId);
+      // 재초대 성공 시 isOtherUserLeft를 false로 변경
+      emit(state.copyWith(
+        isReinviting: false,
+        reinviteSuccess: true,
+        isOtherUserLeft: false,
+      ));
+      // ignore: avoid_print
+      print('[ChatRoomBloc] User reinvited successfully: inviteeId=${event.inviteeId}');
+    } catch (e) {
+      emit(state.copyWith(
+        isReinviting: false,
+        reinviteSuccess: false,
+        errorMessage: e.toString(),
+      ));
+      // ignore: avoid_print
+      print('[ChatRoomBloc] Failed to reinvite user: $e');
+    }
+  }
+
+  /// WebSocket에서 USER_LEFT/USER_JOINED 이벤트를 수신했을 때 상태를 업데이트합니다.
+  /// 이 핸들러를 통해 채팅방을 나갔다 다시 들어오지 않아도 실시간으로
+  /// 상대방의 나감/참여 상태가 UI에 반영됩니다.
+  void _onOtherUserLeftStatusChanged(
+    OtherUserLeftStatusChanged event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ========== _onOtherUserLeftStatusChanged ==========');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] isOtherUserLeft: ${event.isOtherUserLeft}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] relatedUserId: ${event.relatedUserId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] relatedUserNickname: ${event.relatedUserNickname}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ==================================================');
+
+    emit(state.copyWith(
+      isOtherUserLeft: event.isOtherUserLeft,
+      otherUserId: event.relatedUserId,
+      otherUserNickname: event.relatedUserNickname,
+    ));
+
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ✅ State updated: isOtherUserLeft=${event.isOtherUserLeft}, otherUserId=${event.relatedUserId}');
+  }
+
+  /// 파일/이미지 첨부를 처리합니다.
+  /// 1. 파일을 서버에 업로드
+  /// 2. 업로드 완료 후 파일 메시지 전송
+  Future<void> _onFileAttachmentRequested(
+    FileAttachmentRequested event,
+    Emitter<ChatRoomState> emit,
+  ) async {
+    if (state.roomId == null) return;
+
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ========== _onFileAttachmentRequested ==========');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] filePath: ${event.filePath}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] roomId: ${state.roomId}');
+    // ignore: avoid_print
+    print('[ChatRoomBloc] ================================================');
+
+    emit(state.copyWith(isUploadingFile: true, uploadProgress: 0.0));
+
+    try {
+      final file = File(event.filePath);
+
+      // 1. 파일 업로드
+      // ignore: avoid_print
+      print('[ChatRoomBloc] Uploading file...');
+      final uploadResult = await _chatRepository.uploadFile(file);
+      // ignore: avoid_print
+      print('[ChatRoomBloc] File uploaded: ${uploadResult.fileUrl}');
+
+      emit(state.copyWith(uploadProgress: 0.5));
+
+      // 2. 파일 메시지 전송 (senderId는 서버에서 JWT로 추출)
+      // ignore: avoid_print
+      print('[ChatRoomBloc] Sending file message...');
+      await _chatRepository.sendFileMessage(
+        roomId: state.roomId!,
+        fileUrl: uploadResult.fileUrl,
+        fileName: uploadResult.fileName,
+        fileSize: uploadResult.fileSize,
+        contentType: uploadResult.contentType,
+        thumbnailUrl: uploadResult.isImage ? uploadResult.fileUrl : null,
+      );
+      // ignore: avoid_print
+      print('[ChatRoomBloc] ✅ File message sent successfully');
+
+      emit(state.copyWith(
+        isUploadingFile: false,
+        uploadProgress: 1.0,
+      ));
+    } catch (e) {
+      // ignore: avoid_print
+      print('[ChatRoomBloc] ❌ File attachment failed: $e');
+      emit(state.copyWith(
+        isUploadingFile: false,
+        uploadProgress: 0.0,
+        errorMessage: '파일 전송에 실패했습니다: ${e.toString()}',
+      ));
+    }
   }
 }

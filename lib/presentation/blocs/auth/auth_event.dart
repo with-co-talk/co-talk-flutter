@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:equatable/equatable.dart';
 
 abstract class AuthEvent extends Equatable {
@@ -41,4 +42,26 @@ class AuthSignUpRequested extends AuthEvent {
 
 class AuthLogoutRequested extends AuthEvent {
   const AuthLogoutRequested();
+}
+
+class AuthProfileUpdateRequested extends AuthEvent {
+  final String? nickname;
+  final String? avatarUrl;
+
+  const AuthProfileUpdateRequested({
+    this.nickname,
+    this.avatarUrl,
+  });
+
+  @override
+  List<Object?> get props => [nickname, avatarUrl];
+}
+
+class AuthAvatarUploadRequested extends AuthEvent {
+  final File imageFile;
+
+  const AuthAvatarUploadRequested({required this.imageFile});
+
+  @override
+  List<Object?> get props => [imageFile];
 }

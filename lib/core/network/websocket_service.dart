@@ -46,6 +46,7 @@ final class ParsedUnknownPayload extends ParsedRoomPayload {
 /// WebSocket 수신 JSON을 도메인 이벤트로 변환하는 파서.
 ///
 /// STOMP 연결 없이도 테스트 가능하도록 분리한다.
+@singleton
 class WebSocketPayloadParser {
   const WebSocketPayloadParser();
 
@@ -56,9 +57,14 @@ class WebSocketPayloadParser {
     final json = jsonDecode(body) as Map<String, dynamic>;
     final eventType = json['eventType'] as String?;
 
-    // 채팅 메시지 (기존 서버 payload: messageId 존재 + eventType 없음)
-    if (json.containsKey('messageId') && eventType == null) {
-      return ParsedChatMessagePayload(WebSocketChatMessage.fromJson(json, roomId));
+    // 채팅 메시지 (messageId 존재)
+    // - 일반 메시지: eventType 없음
+    // - 시스템 메시지: eventType = USER_LEFT, USER_JOINED 등
+    if (json.containsKey('messageId')) {
+      final isSystemEvent = eventType == 'USER_LEFT' || eventType == 'USER_JOINED';
+      if (eventType == null || isSystemEvent) {
+        return ParsedChatMessagePayload(WebSocketChatMessage.fromJson(json, roomId));
+      }
     }
 
     if (eventType == 'READ') {
@@ -101,6 +107,7 @@ class WebSocketChatMessage {
   final String? eventId;
   final int messageId;
   final int? senderId;
+  final String? senderNickname;
   final int chatRoomId; // 구독 시 전달받은 roomId로 설정
   final String content;
   final String type;
@@ -113,12 +120,16 @@ class WebSocketChatMessage {
   final int? replyToMessageId;
   final int? forwardedFromMessageId;
   final int unreadCount;
+  final String? eventType; // USER_LEFT, USER_JOINED 등 (시스템 메시지 이벤트 유형)
+  final int? relatedUserId; // 나간 사용자, 참여한 사용자 등 (시스템 메시지 관련 사용자 ID)
+  final String? relatedUserNickname; // 관련 사용자 닉네임
 
   WebSocketChatMessage({
     this.schemaVersion,
     this.eventId,
     required this.messageId,
     this.senderId,
+    this.senderNickname,
     required this.chatRoomId,
     required this.content,
     required this.type,
@@ -131,6 +142,9 @@ class WebSocketChatMessage {
     this.replyToMessageId,
     this.forwardedFromMessageId,
     this.unreadCount = 0,
+    this.eventType,
+    this.relatedUserId,
+    this.relatedUserNickname,
   });
 
   factory WebSocketChatMessage.fromJson(Map<String, dynamic> json, int roomId) {
@@ -139,6 +153,7 @@ class WebSocketChatMessage {
       eventId: json['eventId'] as String?,
       messageId: json['messageId'] as int,
       senderId: json['senderId'] as int?,
+      senderNickname: json['senderNickname'] as String?,
       chatRoomId: json['roomId'] as int? ?? roomId,
       content: json['content'] as String? ?? '',
       type: json['type'] as String,
@@ -151,6 +166,9 @@ class WebSocketChatMessage {
       replyToMessageId: json['replyToMessageId'] as int?,
       forwardedFromMessageId: json['forwardedFromMessageId'] as int?,
       unreadCount: json['unreadCount'] as int? ?? 0,
+      eventType: json['eventType'] as String?,
+      relatedUserId: json['relatedUserId'] as int?,
+      relatedUserNickname: json['relatedUserNickname'] as String?,
     );
   }
 
@@ -315,6 +333,35 @@ class WebSocketTypingEvent {
   }
 }
 
+/// WebSocket으로 수신된 온라인 상태 이벤트
+class WebSocketOnlineStatusEvent {
+  final int? schemaVersion;
+  final String? eventId;
+  final int userId;
+  final bool isOnline;
+  final DateTime? lastActiveAt;
+
+  WebSocketOnlineStatusEvent({
+    this.schemaVersion,
+    this.eventId,
+    required this.userId,
+    required this.isOnline,
+    this.lastActiveAt,
+  });
+
+  factory WebSocketOnlineStatusEvent.fromJson(Map<String, dynamic> json) {
+    return WebSocketOnlineStatusEvent(
+      schemaVersion: json['schemaVersion'] as int?,
+      eventId: json['eventId'] as String?,
+      userId: json['userId'] as int,
+      isOnline: json['isOnline'] as bool? ?? false,
+      lastActiveAt: json['lastActiveAt'] != null
+          ? WebSocketChatMessage._parseDateTime(json['lastActiveAt'])
+          : null,
+    );
+  }
+}
+
 /// STOMP WebSocket 서비스
 ///
 /// 채팅 메시지 실시간 송수신을 담당합니다.
@@ -354,9 +401,13 @@ class WebSocketService {
   // 타이핑 이벤트 스트림
   final _typingController = StreamController<WebSocketTypingEvent>.broadcast();
 
+  // 온라인 상태 이벤트 스트림
+  final _onlineStatusController = StreamController<WebSocketOnlineStatusEvent>.broadcast();
+
   // 사용자 채널 구독 (전역 업데이트용)
   StompUnsubscribe? _chatListSubscription;
   StompUnsubscribe? _readReceiptSubscription;
+  StompUnsubscribe? _onlineStatusSubscription;
   int? _subscribedUserId;
 
   // 재연결 설정
@@ -391,6 +442,9 @@ class WebSocketService {
 
   /// 타이핑 이벤트 스트림
   Stream<WebSocketTypingEvent> get typingEvents => _typingController.stream;
+
+  /// 온라인 상태 이벤트 스트림
+  Stream<WebSocketOnlineStatusEvent> get onlineStatusEvents => _onlineStatusController.stream;
 
   /// 연결 여부
   bool get isConnected => _connectionState == WebSocketConnectionState.connected;
@@ -464,6 +518,8 @@ class WebSocketService {
     _chatListSubscription = null;
     _readReceiptSubscription?.call();
     _readReceiptSubscription = null;
+    _onlineStatusSubscription?.call();
+    _onlineStatusSubscription = null;
 
     _stompClient?.deactivate();
     _stompClient = null;
@@ -571,6 +627,8 @@ class WebSocketService {
     _chatListSubscription = null;
     _readReceiptSubscription?.call();
     _readReceiptSubscription = null;
+    _onlineStatusSubscription?.call();
+    _onlineStatusSubscription = null;
 
     if (!isConnected || _stompClient == null) {
       // ignore: avoid_print
@@ -628,6 +686,23 @@ class WebSocketService {
       );
       // ignore: avoid_print
       print('[WebSocket] ✅ Successfully subscribed to read-receipt channel: $readReceiptDestination');
+
+      // 온라인 상태 채널 구독
+      final onlineStatusDestination = '/topic/user/$userId/online-status';
+      // ignore: avoid_print
+      print('[WebSocket] Subscribing to online-status channel: $onlineStatusDestination');
+
+      _onlineStatusSubscription = _stompClient!.subscribe(
+        destination: onlineStatusDestination,
+        callback: (frame) {
+          // ignore: avoid_print
+          print('[WebSocket] ✅ Online-status channel message received');
+          _handleOnlineStatusMessage(frame);
+        },
+      );
+      // ignore: avoid_print
+      print('[WebSocket] ✅ Successfully subscribed to online-status channel: $onlineStatusDestination');
+
       // ignore: avoid_print
       print('[WebSocket] ========== User channel subscription completed ==========');
       // ignore: avoid_print
@@ -636,6 +711,8 @@ class WebSocketService {
       print('[WebSocket] chat-list destination: $chatListDestination');
       // ignore: avoid_print
       print('[WebSocket] read-receipt destination: $readReceiptDestination');
+      // ignore: avoid_print
+      print('[WebSocket] online-status destination: $onlineStatusDestination');
       // ignore: avoid_print
       print('[WebSocket] =========================================================');
 
@@ -650,6 +727,8 @@ class WebSocketService {
       _chatListSubscription = null;
       _readReceiptSubscription?.call();
       _readReceiptSubscription = null;
+      _onlineStatusSubscription?.call();
+      _onlineStatusSubscription = null;
     }
   }
 
@@ -661,6 +740,8 @@ class WebSocketService {
     _chatListSubscription = null;
     _readReceiptSubscription?.call();
     _readReceiptSubscription = null;
+    _onlineStatusSubscription?.call();
+    _onlineStatusSubscription = null;
     _subscribedUserId = null;
   }
 
@@ -1013,6 +1094,33 @@ class WebSocketService {
     } catch (e, stackTrace) {
       // ignore: avoid_print
       print('[WebSocket] Error parsing read-receipt message: $e');
+      // ignore: avoid_print
+      print('[WebSocket] Stack trace: $stackTrace');
+    }
+  }
+
+  void _handleOnlineStatusMessage(StompFrame frame) {
+    // ignore: avoid_print
+    print('[WebSocket] _handleOnlineStatusMessage called');
+    // ignore: avoid_print
+    print('[WebSocket] Frame body: ${frame.body}');
+
+    if (frame.body == null) {
+      // ignore: avoid_print
+      print('[WebSocket] Frame body is null, returning');
+      return;
+    }
+
+    try {
+      final json = jsonDecode(frame.body!) as Map<String, dynamic>;
+      final event = WebSocketOnlineStatusEvent.fromJson(json);
+      if (_dedupeCache.isDuplicate(event.eventId)) return;
+      // ignore: avoid_print
+      print('[WebSocket] Online status event: userId=${event.userId}, isOnline=${event.isOnline}');
+      _onlineStatusController.add(event);
+    } catch (e, stackTrace) {
+      // ignore: avoid_print
+      print('[WebSocket] Error parsing online-status message: $e');
       // ignore: avoid_print
       print('[WebSocket] Stack trace: $stackTrace');
     }
