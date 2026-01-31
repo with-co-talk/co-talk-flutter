@@ -118,7 +118,7 @@ void main() {
         createdAt: DateTime(2024, 1, 1),
       );
 
-      expect(user.props.length, 9);
+      expect(user.props.length, 11);
       expect(user.props.contains(1), isTrue);
       expect(user.props.contains('test@example.com'), isTrue);
       expect(user.props.contains('TestUser'), isTrue);

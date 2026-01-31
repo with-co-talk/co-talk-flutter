@@ -11,6 +11,8 @@ class User extends Equatable {
   final String email;
   final String nickname;
   final String? avatarUrl;
+  final String? statusMessage;
+  final String? backgroundUrl;
   final UserStatus status;
   final UserRole role;
   final OnlineStatus onlineStatus;
@@ -22,6 +24,8 @@ class User extends Equatable {
     required this.email,
     required this.nickname,
     this.avatarUrl,
+    this.statusMessage,
+    this.backgroundUrl,
     this.status = UserStatus.active,
     this.role = UserRole.user,
     this.onlineStatus = OnlineStatus.offline,
@@ -34,6 +38,8 @@ class User extends Equatable {
     String? email,
     String? nickname,
     String? avatarUrl,
+    String? statusMessage,
+    String? backgroundUrl,
     UserStatus? status,
     UserRole? role,
     OnlineStatus? onlineStatus,
@@ -45,6 +51,8 @@ class User extends Equatable {
       email: email ?? this.email,
       nickname: nickname ?? this.nickname,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      statusMessage: statusMessage ?? this.statusMessage,
+      backgroundUrl: backgroundUrl ?? this.backgroundUrl,
       status: status ?? this.status,
       role: role ?? this.role,
       onlineStatus: onlineStatus ?? this.onlineStatus,
@@ -59,6 +67,8 @@ class User extends Equatable {
         email,
         nickname,
         avatarUrl,
+        statusMessage,
+        backgroundUrl,
         status,
         role,
         onlineStatus,

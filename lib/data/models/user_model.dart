@@ -9,6 +9,8 @@ class UserModel {
   final String email;
   final String nickname;
   final String? avatarUrl;
+  final String? statusMessage;
+  final String? backgroundUrl;
   final String? status;
   final String? role;
   final String? onlineStatus;
@@ -20,6 +22,8 @@ class UserModel {
     required this.email,
     required this.nickname,
     this.avatarUrl,
+    this.statusMessage,
+    this.backgroundUrl,
     this.status,
     this.role,
     this.onlineStatus,
@@ -38,6 +42,8 @@ class UserModel {
       email: email,
       nickname: nickname,
       avatarUrl: avatarUrl,
+      statusMessage: statusMessage,
+      backgroundUrl: backgroundUrl,
       status: _parseUserStatus(status),
       role: _parseUserRole(role),
       onlineStatus: _parseOnlineStatus(onlineStatus),

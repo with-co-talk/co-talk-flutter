@@ -36,45 +36,50 @@ class ProfilePage extends StatelessWidget {
             child: Column(
               children: [
                 Center(
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: AppColors.primaryLight,
-                        backgroundImage: user.avatarUrl != null
-                            ? NetworkImage(user.avatarUrl!)
-                            : null,
-                        child: user.avatarUrl == null
-                            ? Text(
-                                user.nickname.isNotEmpty
-                                    ? user.nickname[0].toUpperCase()
-                                    : '?',
-                                style: const TextStyle(
-                                  fontSize: 40,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              )
-                            : null,
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            size: 20,
-                            color: Colors.white,
+                  child: GestureDetector(
+                    onTap: () {
+                      context.push(AppRoutes.profileViewPath(user.id));
+                    },
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: AppColors.primaryLight,
+                          backgroundImage: user.avatarUrl != null
+                              ? NetworkImage(user.avatarUrl!)
+                              : null,
+                          child: user.avatarUrl == null
+                              ? Text(
+                                  user.nickname.isNotEmpty
+                                      ? user.nickname[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                    fontSize: 40,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 20,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -91,6 +96,20 @@ class ProfilePage extends StatelessWidget {
                         color: AppColors.textSecondary,
                       ),
                 ),
+                if (user.statusMessage != null && user.statusMessage!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      user.statusMessage!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 32),
                 _ProfileInfoCard(
                   children: [

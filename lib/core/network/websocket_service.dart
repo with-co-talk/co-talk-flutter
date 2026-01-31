@@ -108,6 +108,7 @@ class WebSocketChatMessage {
   final int messageId;
   final int? senderId;
   final String? senderNickname;
+  final String? senderAvatarUrl;
   final int chatRoomId; // 구독 시 전달받은 roomId로 설정
   final String content;
   final String type;
@@ -130,6 +131,7 @@ class WebSocketChatMessage {
     required this.messageId,
     this.senderId,
     this.senderNickname,
+    this.senderAvatarUrl,
     required this.chatRoomId,
     required this.content,
     required this.type,
@@ -154,6 +156,7 @@ class WebSocketChatMessage {
       messageId: json['messageId'] as int,
       senderId: json['senderId'] as int?,
       senderNickname: json['senderNickname'] as String?,
+      senderAvatarUrl: json['senderAvatarUrl'] as String?,
       chatRoomId: json['roomId'] as int? ?? roomId,
       content: json['content'] as String? ?? '',
       type: json['type'] as String,

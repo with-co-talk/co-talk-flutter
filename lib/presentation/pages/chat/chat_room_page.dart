@@ -15,6 +15,9 @@ import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_room_bloc.dart';
 import '../../blocs/chat/chat_room_event.dart';
 import '../../blocs/chat/chat_room_state.dart';
+import '../../blocs/chat/message_search/message_search_bloc.dart';
+import '../../blocs/chat/message_search/message_search_event.dart';
+import '../../widgets/message_search_widget.dart';
 
 class ChatRoomPage extends StatefulWidget {
   final int roomId;
@@ -43,6 +46,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
   bool? _lastWindowFocused;
   Timer? _focusTimer;
   bool? _hasFocusTracking;
+  bool _isSearchMode = false;
 
   @override
   void initState() {
@@ -61,8 +65,23 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
       // 포커스 추적이 지원되는 경우 blur/focus를 "읽음 처리 여부"의 기준으로 사용한다.
       // 같은 값 연속 방출은 무시한다.
       if (_lastWindowFocused == focused) return;
+
+      final wasNull = _lastWindowFocused == null;
       _lastWindowFocused = focused;
+
+      // 초기 이벤트(첫 번째 이벤트)는 상태만 저장하고 이벤트를 보내지 않음
+      // _syncFocusOnce()가 초기 상태를 처리하므로 중복 방지
+      if (wasNull) {
+        debugPrint('[ChatRoomPage] focusStream: Initial event, saving state only (focused=$focused)');
+        return;
+      }
+
       if (_chatRoomBloc.isClosed) return;
+
+      // 이벤트 전송 플래그 설정 - _syncFocusOnce()가 중복 이벤트를 보내지 않도록
+      _initialFocusEventSent = true;
+
+      debugPrint('[ChatRoomPage] focusStream: Sending ${focused ? "ChatRoomForegrounded" : "ChatRoomBackgrounded"}');
       _chatRoomBloc.add(focused
           ? const ChatRoomForegrounded()
           : const ChatRoomBackgrounded());
@@ -86,17 +105,17 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
       if (_hasFocusTracking == true) {
         debugPrint('[ChatRoomPage] Focus tracking is enabled, using _syncFocusOnce()');
         // 포커스 추적이 지원되는 경우: 초기 포커스 상태를 조회해 foreground/background를 동기화
-        // _syncFocusOnce()는 focused == null일 때 기본적으로 ChatRoomForegrounded를 보냄
+        // _syncFocusOnce()는 focused == null 또는 false일 때 ChatRoomBackgrounded를 보냄
         debugPrint('[ChatRoomPage] Desktop: calling _syncFocusOnce()');
         _syncFocusOnce().then((_) {
           debugPrint('[ChatRoomPage] Desktop: _syncFocusOnce() completed successfully');
         }).catchError((error) {
-          debugPrint('[ChatRoomPage] Desktop: _syncFocusOnce failed: $error, sending default ChatRoomForegrounded');
-          // 예외 발생 시에도 기본적으로 foreground로 가정 (페이지 진입 = 보고 있음)
-          if (!_chatRoomBloc.isClosed && mounted && _lastWindowFocused != true) {
-            _lastWindowFocused = true;
-            _chatRoomBloc.add(const ChatRoomForegrounded());
-            debugPrint('[ChatRoomPage] Desktop: Sent ChatRoomForegrounded as fallback');
+          debugPrint('[ChatRoomPage] Desktop: _syncFocusOnce failed: $error, treating as background');
+          // 예외 발생 시 background로 처리 (포커스 확인 불가 = 읽음 처리 안 함)
+          if (!_chatRoomBloc.isClosed && mounted && _lastWindowFocused != false) {
+            _lastWindowFocused = false;
+            _chatRoomBloc.add(const ChatRoomBackgrounded());
+            debugPrint('[ChatRoomPage] Desktop: Sent ChatRoomBackgrounded as fallback');
           }
         });
         // 입력창에 자동 포커스
@@ -124,40 +143,59 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     });
   }
 
+  bool _initialFocusEventSent = false;
+
   Future<void> _syncFocusOnce() async {
     if (_chatRoomBloc.isClosed) {
       debugPrint('[ChatRoomPage] _syncFocusOnce: bloc is closed, skipping');
       return;
     }
+
+    // 이미 focusStream에서 초기 이벤트 이후 다른 이벤트가 전송되었으면 스킵
+    // (focusStream이 더 최신 상태를 반영)
+    if (_initialFocusEventSent) {
+      debugPrint('[ChatRoomPage] _syncFocusOnce: focusStream already sent event, skipping');
+      return;
+    }
+
     debugPrint('[ChatRoomPage] _syncFocusOnce: calling currentFocus()');
     final focused = await _windowFocusTracker.currentFocus();
     if (_chatRoomBloc.isClosed) {
       debugPrint('[ChatRoomPage] _syncFocusOnce: bloc closed after currentFocus(), skipping');
       return;
     }
+
+    // 비동기 호출 중에 focusStream에서 이벤트가 전송되었으면 스킵
+    if (_initialFocusEventSent) {
+      debugPrint('[ChatRoomPage] _syncFocusOnce: focusStream sent event during await, skipping');
+      return;
+    }
+
     debugPrint('[ChatRoomPage] _syncFocusOnce: currentFocus() returned: $focused, _lastWindowFocused: $_lastWindowFocused');
-    // focused가 null이면 포커스 상태를 확인할 수 없으므로 기본적으로 foreground로 가정
-    // (페이지 진입 자체가 '보고 있음'이므로)
+
+    // focused가 null이면 포커스 상태를 확인할 수 없으므로 background로 처리
+    // (포커스 없이 채팅방에 들어온 경우 읽음 처리를 하지 않음)
     if (focused == null) {
-      debugPrint('[ChatRoomPage] _syncFocusOnce: focused is null, assuming foreground');
-      if (_lastWindowFocused != true) {
-        _lastWindowFocused = true;
-        _chatRoomBloc.add(const ChatRoomForegrounded());
-        debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomForegrounded (focused=null)');
-      }
+      debugPrint('[ChatRoomPage] _syncFocusOnce: focused is null, treating as background');
+      _lastWindowFocused = false;
+      _initialFocusEventSent = true;
+      _chatRoomBloc.add(const ChatRoomBackgrounded());
+      debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomBackgrounded (focused=null)');
       return;
     }
-    if (_lastWindowFocused == focused) {
-      debugPrint('[ChatRoomPage] _syncFocusOnce: focus state unchanged ($focused), skipping');
-      return;
-    }
-    _lastWindowFocused = focused;
-    if (focused) {
+
+    // _lastWindowFocused를 사용 (focusStream에서 이미 설정된 경우 그 값이 더 최신)
+    // currentFocus()는 비동기 호출이므로 호출 시점의 상태일 수 있음
+    final actualFocused = _lastWindowFocused ?? focused;
+    _lastWindowFocused = actualFocused;
+    _initialFocusEventSent = true;
+
+    if (actualFocused) {
       _chatRoomBloc.add(const ChatRoomForegrounded());
-      debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomForegrounded (focused=true)');
+      debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomForegrounded (actualFocused=true)');
     } else {
       _chatRoomBloc.add(const ChatRoomBackgrounded());
-      debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomBackgrounded (focused=false)');
+      debugPrint('[ChatRoomPage] _syncFocusOnce: Sent ChatRoomBackgrounded (actualFocused=false)');
     }
   }
 
@@ -311,6 +349,25 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     );
   }
 
+  void _toggleSearchMode() {
+    setState(() {
+      _isSearchMode = !_isSearchMode;
+      if (!_isSearchMode) {
+        // 검색 모드 종료 시 검색 상태 초기화
+        context.read<MessageSearchBloc>().add(const MessageSearchCleared());
+      }
+    });
+  }
+
+  void _onMessageSelected(int messageId) {
+    // 검색 모드 종료
+    setState(() {
+      _isSearchMode = false;
+    });
+    // 선택한 메시지로 스크롤 (TODO: 메시지 위치 찾아서 스크롤)
+    // 현재는 검색 결과 선택 시 검색 모드만 종료
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -337,10 +394,21 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
             ),
           ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.more_vert),
-              onPressed: () => _showChatRoomOptions(context),
-            ),
+            if (!_isSearchMode) ...[
+              IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: _toggleSearchMode,
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => _showChatRoomOptions(context),
+              ),
+            ] else ...[
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _toggleSearchMode,
+              ),
+            ],
           ],
           elevation: 0,
           surfaceTintColor: Colors.transparent,
@@ -430,7 +498,13 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
               },
             ),
           ],
-          child: Column(
+          child: _isSearchMode
+              ? MessageSearchWidget(
+                  chatRoomId: widget.roomId,
+                  onMessageSelected: _onMessageSelected,
+                  onClose: _toggleSearchMode,
+                )
+              : Column(
         children: [
           Expanded(
             child: BlocBuilder<ChatRoomBloc, ChatRoomState>(
@@ -1047,18 +1121,26 @@ class _MessageBubble extends StatelessWidget {
           children: [
             // 상대방 메시지: 아바타 + 닉네임 + 버블 + 시간
             if (!isMe) ...[
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: AppColors.primaryLight,
-                child: Text(
-                  message.senderNickname?.isNotEmpty == true
-                      ? message.senderNickname![0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
+              GestureDetector(
+                onTap: () => context.push(AppRoutes.profileViewPath(message.senderId)),
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppColors.primaryLight,
+                  backgroundImage: message.senderAvatarUrl != null
+                      ? NetworkImage(message.senderAvatarUrl!)
+                      : null,
+                  child: message.senderAvatarUrl == null
+                      ? Text(
+                          message.senderNickname?.isNotEmpty == true
+                              ? message.senderNickname![0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
                 ),
               ),
               const SizedBox(width: 8),
@@ -1066,15 +1148,18 @@ class _MessageBubble extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 상대방 닉네임 표시
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4, bottom: 4),
-                      child: Text(
-                        message.senderNickname ?? '알 수 없음',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                    // 상대방 닉네임 표시 (탭하면 프로필로 이동)
+                    GestureDetector(
+                      onTap: () => context.push(AppRoutes.profileViewPath(message.senderId)),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 4),
+                        child: Text(
+                          message.senderNickname ?? '알 수 없음',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),

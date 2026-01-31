@@ -17,6 +17,7 @@ import '../../presentation/pages/friends/friend_list_page.dart';
 import '../../presentation/pages/main/main_page.dart';
 import '../../presentation/pages/profile/profile_page.dart';
 import '../../presentation/pages/profile/edit_profile_page.dart';
+import '../../presentation/pages/profile/profile_view_page.dart';
 import '../../presentation/pages/settings/settings_page.dart';
 import '../../presentation/pages/splash/splash_page.dart';
 import '../../presentation/pages/error/error_page.dart';
@@ -25,13 +26,15 @@ class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
   static const String signUp = '/signup';
-  static const String main = '/main';
   static const String chatList = '/chat';
   static const String chatRoom = '/chat/:roomId';
   static const String friends = '/friends';
   static const String profile = '/profile';
   static const String editProfile = '/profile/edit';
+  static const String profileView = '/profile/view/:userId';
   static const String settings = '/settings';
+
+  static String profileViewPath(int userId) => '/profile/view/$userId';
 }
 
 @lazySingleton
@@ -51,8 +54,7 @@ class AppRouter {
       final isAuthRoute = state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.signUp;
       final isSplash = state.matchedLocation == AppRoutes.splash;
-      final isMainRoute = state.matchedLocation == AppRoutes.main ||
-          state.matchedLocation == AppRoutes.chatList ||
+      final isMainRoute = state.matchedLocation == AppRoutes.chatList ||
           state.matchedLocation == AppRoutes.friends ||
           state.matchedLocation == AppRoutes.profile ||
           state.matchedLocation == AppRoutes.settings;
@@ -71,7 +73,7 @@ class AppRouter {
       }
 
       if (isLoggedIn && isAuthRoute) {
-        return AppRoutes.main;
+        return AppRoutes.chatList;
       }
 
       return null;
@@ -91,18 +93,14 @@ class AppRouter {
         builder: (context, state) => const SignUpPage(),
       ),
       ShellRoute(
-        builder: (context, state, child) => MainPage(child: child),
+        builder: (context, state, child) => BlocProvider.value(
+          value: getIt<ChatListBloc>(),
+          child: MainPage(child: child),
+        ),
         routes: [
           GoRoute(
-            path: AppRoutes.main,
-            redirect: (context, state) => AppRoutes.chatList,
-          ),
-          GoRoute(
             path: AppRoutes.chatList,
-            builder: (context, state) => BlocProvider(
-              create: (_) => getIt<ChatListBloc>(),
-              child: const ChatListPage(),
-            ),
+            builder: (context, state) => const ChatListPage(),
           ),
           GoRoute(
             path: AppRoutes.friends,
@@ -118,6 +116,25 @@ class AppRouter {
           GoRoute(
             path: AppRoutes.editProfile,
             builder: (context, state) => const EditProfilePage(),
+          ),
+          GoRoute(
+            path: AppRoutes.profileView,
+            builder: (context, state) {
+              final userIdStr = state.pathParameters['userId'];
+              if (userIdStr == null) {
+                return const ErrorPage(message: '사용자 ID가 없습니다');
+              }
+              final userId = int.tryParse(userIdStr);
+              if (userId == null) {
+                return const ErrorPage(message: '유효하지 않은 사용자 ID입니다');
+              }
+              final authState = context.read<AuthBloc>().state;
+              final isMyProfile = authState.user?.id == userId;
+              return ProfileViewPage(
+                userId: userId,
+                isMyProfile: isMyProfile,
+              );
+            },
           ),
           GoRoute(
             path: AppRoutes.settings,
@@ -143,9 +160,9 @@ class AppRouter {
               BlocProvider(
                 create: (_) => getIt<ChatRoomBloc>(),
               ),
-              // ChatRoomPage에서 ChatListBloc에 접근할 수 있도록 제공
-              BlocProvider(
-                create: (_) => getIt<ChatListBloc>(),
+              // ChatRoomPage에서 ChatListBloc에 접근할 수 있도록 제공 (singleton)
+              BlocProvider.value(
+                value: getIt<ChatListBloc>(),
               ),
             ],
             child: ChatRoomPage(roomId: roomId),

@@ -50,4 +50,29 @@ abstract class ChatRepository {
     required String contentType,
     String? thumbnailUrl,
   });
+
+  // Local-first methods
+
+  /// 로컬 캐시에서 메시지를 가져옵니다.
+  Future<List<Message>> getLocalMessages(
+    int roomId, {
+    int? limit,
+    int? beforeMessageId,
+  });
+
+  /// 메시지를 검색합니다 (FTS5 전문 검색).
+  Future<List<Message>> searchMessages(
+    String query, {
+    int? chatRoomId,
+    int limit = 50,
+  });
+
+  /// 로컬에 메시지를 저장합니다 (WebSocket 메시지 수신 시).
+  Future<void> saveMessageLocally(Message message);
+
+  /// 로컬 캐시에서 채팅방 목록을 가져옵니다.
+  Future<List<ChatRoom>> getLocalChatRooms();
+
+  /// 로컬 데이터를 모두 삭제합니다 (로그아웃 시).
+  Future<void> clearLocalData();
 }

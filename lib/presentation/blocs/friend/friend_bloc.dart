@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/errors/exceptions.dart';
@@ -30,24 +31,26 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     on<FriendListSubscriptionStopped>(_onSubscriptionStopped);
   }
 
+  void _log(String message) {
+    if (kDebugMode) {
+      debugPrint('[FriendBloc] $message');
+    }
+  }
+
   void _onSubscriptionStarted(
     FriendListSubscriptionStarted event,
     Emitter<FriendState> emit,
   ) {
-    // ignore: avoid_print
-    print('[FriendBloc] ========== Subscription Started ==========');
+    _log('Subscription started');
     _onlineStatusSubscription?.cancel();
     _onlineStatusSubscription = _webSocketService.onlineStatusEvents.listen((wsEvent) {
-      // ignore: avoid_print
-      print('[FriendBloc] ✅ Received online status event: userId=${wsEvent.userId}, isOnline=${wsEvent.isOnline}');
+      _log('Received online status: userId=${wsEvent.userId}, isOnline=${wsEvent.isOnline}');
       add(FriendOnlineStatusChanged(
         userId: wsEvent.userId,
         isOnline: wsEvent.isOnline,
         lastActiveAt: wsEvent.lastActiveAt,
       ));
     });
-    // ignore: avoid_print
-    print('[FriendBloc] ✅ Subscribed to onlineStatusEvents stream');
   }
 
   void _onSubscriptionStopped(
@@ -62,19 +65,11 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     FriendOnlineStatusChanged event,
     Emitter<FriendState> emit,
   ) {
-    // ignore: avoid_print
-    print('[FriendBloc] ========== Online Status Changed ==========');
-    // ignore: avoid_print
-    print('[FriendBloc] userId: ${event.userId}, isOnline: ${event.isOnline}');
-    // ignore: avoid_print
-    print('[FriendBloc] Current friends count: ${state.friends.length}');
-    // ignore: avoid_print
-    print('[FriendBloc] Friend IDs: ${state.friends.map((f) => f.user.id).toList()}');
+    _log('Online status changed: userId=${event.userId}, isOnline=${event.isOnline}');
 
     final updatedFriends = state.friends.map((friend) {
       if (friend.user.id == event.userId) {
-        // ignore: avoid_print
-        print('[FriendBloc] ✅ Found matching friend: ${friend.user.nickname}');
+        _log('Updating friend: ${friend.user.nickname}');
         return friend.copyWith(
           user: friend.user.copyWith(
             onlineStatus: event.isOnline ? OnlineStatus.online : OnlineStatus.offline,
@@ -86,8 +81,6 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     }).toList();
 
     emit(state.copyWith(friends: updatedFriends));
-    // ignore: avoid_print
-    print('[FriendBloc] ✅ Emitted new state with updated friends');
   }
 
   @override
@@ -123,7 +116,6 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     emit(state.copyWith(clearErrorMessage: true));
     try {
       await _friendRepository.sendFriendRequest(event.receiverId);
-      // 성공 시 보낸 요청 목록도 업데이트
       final sentRequests = await _friendRepository.getSentFriendRequests();
       emit(state.copyWith(
         sentRequests: sentRequests,
@@ -141,7 +133,6 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     emit(state.copyWith(clearErrorMessage: true));
     try {
       await _friendRepository.acceptFriendRequest(event.requestId);
-      // 친구 목록과 받은 요청 목록을 모두 새로고침
       final friends = await _friendRepository.getFriends();
       final receivedRequests = await _friendRepository.getReceivedFriendRequests();
       emit(state.copyWith(
@@ -162,7 +153,6 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     emit(state.copyWith(clearErrorMessage: true));
     try {
       await _friendRepository.rejectFriendRequest(event.requestId);
-      // 받은 요청 목록 새로고침
       final receivedRequests = await _friendRepository.getReceivedFriendRequests();
       emit(state.copyWith(
         receivedRequests: receivedRequests,
@@ -276,7 +266,6 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     if (error is CacheException) {
       return error.message;
     }
-    // 알 수 없는 에러의 경우
     return error.toString();
   }
 }

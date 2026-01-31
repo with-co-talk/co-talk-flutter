@@ -5,8 +5,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/chat_room.dart';
-import '../../blocs/auth/auth_bloc.dart';
-import '../../blocs/auth/auth_state.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_list_state.dart';
@@ -19,9 +17,6 @@ class ChatListPage extends StatefulWidget {
 }
 
 class _ChatListPageState extends State<ChatListPage> {
-  late final ChatListBloc _chatListBloc;
-  int? _subscribedUserId;
-
   // 검색 관련 상태
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
@@ -30,11 +25,13 @@ class _ChatListPageState extends State<ChatListPage> {
   @override
   void initState() {
     super.initState();
-    _chatListBloc = context.read<ChatListBloc>();
-    _chatListBloc.add(const ChatListLoadRequested());
-
-    // WebSocket 구독 시작 (사용자 채널)
-    _syncSubscriptionWithAuthState(context.read<AuthBloc>().state);
+    // ChatListBloc은 MainPage에서 초기화되므로 여기서는 새로고침만 수행
+    // (이미 데이터가 있으면 캐시된 데이터 사용, 없으면 로드)
+    final chatListBloc = context.read<ChatListBloc>();
+    if (chatListBloc.state.chatRooms.isEmpty &&
+        chatListBloc.state.status != ChatListStatus.loading) {
+      chatListBloc.add(const ChatListLoadRequested());
+    }
 
     // 검색어 변경 리스너
     _searchController.addListener(() {
@@ -44,33 +41,10 @@ class _ChatListPageState extends State<ChatListPage> {
     });
   }
 
-  void _syncSubscriptionWithAuthState(AuthState authState) {
-    final nextUserId =
-        (authState.status == AuthStatus.authenticated) ? authState.user?.id : null;
-
-    if (nextUserId == null) {
-      // 로그아웃/미인증 상태로 전환되면 구독 해제
-      if (_subscribedUserId != null) {
-        _chatListBloc.add(const ChatListSubscriptionStopped());
-        _subscribedUserId = null;
-      }
-      return;
-    }
-
-    // 동일 userId면 유지, 변경되면 재구독
-    if (_subscribedUserId == nextUserId) return;
-
-    if (_subscribedUserId != null) {
-      _chatListBloc.add(const ChatListSubscriptionStopped());
-    }
-    _chatListBloc.add(ChatListSubscriptionStarted(nextUserId));
-    _subscribedUserId = nextUserId;
-  }
-
   @override
   void dispose() {
-    // WebSocket 구독 해제
-    _chatListBloc.add(const ChatListSubscriptionStopped());
+    // ChatListBloc은 singleton이므로 구독 해제하지 않음
+    // (MainPage에서 관리)
     _searchController.dispose();
     super.dispose();
   }
@@ -158,14 +132,7 @@ class _ChatListPageState extends State<ChatListPage> {
   Widget build(BuildContext context) {
     return MultiBlocListener(
       listeners: [
-        BlocListener<AuthBloc, AuthState>(
-          listenWhen: (previous, current) =>
-              previous.status != current.status ||
-              previous.user?.id != current.user?.id,
-          listener: (context, authState) {
-            _syncSubscriptionWithAuthState(authState);
-          },
-        ),
+        // AuthBloc 구독 로직은 MainPage로 이동됨
         BlocListener<ChatListBloc, ChatListState>(
           listenWhen: (previous, current) =>
               previous.errorMessage != current.errorMessage &&
@@ -295,18 +262,24 @@ class _ChatRoomTile extends StatelessWidget {
                 CircleAvatar(
                   radius: 28,
                   backgroundColor: AppColors.primaryLight,
+                  backgroundImage: chatRoom.type == ChatRoomType.direct &&
+                          chatRoom.otherUserAvatarUrl != null
+                      ? NetworkImage(chatRoom.otherUserAvatarUrl!)
+                      : null,
                   child: chatRoom.type == ChatRoomType.group
                       ? const Icon(Icons.group, color: Colors.white, size: 28)
-                      : Text(
-                          chatRoom.displayName.isNotEmpty
-                              ? chatRoom.displayName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      : (chatRoom.otherUserAvatarUrl == null
+                          ? Text(
+                              chatRoom.displayName.isNotEmpty
+                                  ? chatRoom.displayName[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null),
                 ),
                 // 온라인 상태 표시 (1:1 채팅방만)
                 if (chatRoom.type == ChatRoomType.direct && chatRoom.isOtherUserOnline)

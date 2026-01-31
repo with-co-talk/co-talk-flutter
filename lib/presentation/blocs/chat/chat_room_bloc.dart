@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/websocket_service.dart';
+import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
 import '../../../domain/entities/message.dart';
 import '../../../domain/repositories/chat_repository.dart';
@@ -16,6 +18,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   final ChatRepository _chatRepository;
   final WebSocketService _webSocketService;
   final AuthLocalDataSource _authLocalDataSource;
+  final DesktopNotificationBridge _desktopNotificationBridge;
 
   StreamSubscription<WebSocketChatMessage>? _messageSubscription;
   StreamSubscription<WebSocketReadEvent>? _readEventSubscription;
@@ -27,6 +30,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     this._chatRepository,
     this._webSocketService,
     this._authLocalDataSource,
+    this._desktopNotificationBridge,
   ) : super(const ChatRoomState()) {
     on<ChatRoomOpened>(_onOpened);
     on<ChatRoomClosed>(_onClosed);
@@ -47,72 +51,90 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<FileAttachmentRequested>(_onFileAttachmentRequested);
   }
 
+  void _log(String message) {
+    if (kDebugMode) {
+      debugPrint('[ChatRoomBloc] $message');
+    }
+  }
+
   Future<void> _onOpened(
     ChatRoomOpened event,
     Emitter<ChatRoomState> emit,
   ) async {
-    // ignore: avoid_print
-    print('[ChatRoomBloc] _onOpened called with roomId: ${event.roomId}');
+    _log('_onOpened: roomId=${event.roomId}');
 
-    // 플래그 초기화 (블록이 재사용될 경우를 대비)
     _roomInitialized = false;
     _pendingForegrounded = false;
     _isViewingRoom = false;
 
-    // 현재 사용자 ID 가져오기
     final currentUserId = await _authLocalDataSource.getUserId();
+
+    // 데스크톱 알림 억제를 위해 현재 채팅방 ID 설정
+    _desktopNotificationBridge.setActiveRoomId(event.roomId);
 
     emit(state.copyWith(
       status: ChatRoomStatus.loading,
       roomId: event.roomId,
       currentUserId: currentUserId,
       messages: [],
+      isOfflineData: false,
     ));
 
+    // 1. 로컬 캐시 먼저 로드 (빠른 초기 표시)
     try {
-      // 0. 채팅방 정보 가져오기 (상대방 나감 여부 확인) - 선택적, 실패해도 계속 진행
+      final cachedMessages = await _chatRepository.getLocalMessages(
+        event.roomId,
+        limit: AppConstants.messagePageSize,
+      );
+
+      if (cachedMessages.isNotEmpty) {
+        _log('Loaded ${cachedMessages.length} cached messages');
+        emit(state.copyWith(
+          status: ChatRoomStatus.success,
+          messages: cachedMessages,
+          hasMore: cachedMessages.length >= AppConstants.messagePageSize,
+          isOfflineData: true,
+        ));
+      }
+    } catch (e) {
+      _log('Failed to load cached messages: $e');
+    }
+
+    // 2. 서버에서 최신 데이터 동기화
+    try {
       bool isOtherUserLeft = false;
       int? otherUserId;
       String? otherUserNickname;
       try {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] Fetching chat room info...');
         final chatRoom = await _chatRepository.getChatRoom(event.roomId);
         isOtherUserLeft = chatRoom.isOtherUserLeft;
         otherUserId = chatRoom.otherUserId;
         otherUserNickname = chatRoom.otherUserNickname;
-        // ignore: avoid_print
-        print('[ChatRoomBloc] Chat room info: isOtherUserLeft=$isOtherUserLeft, otherUserId=$otherUserId, otherUserNickname=$otherUserNickname');
       } catch (e) {
-        // getChatRoom API가 없어도 채팅방은 정상 동작해야 함
-        // ignore: avoid_print
-        print('[ChatRoomBloc] getChatRoom failed (API may not exist): $e');
+        _log('getChatRoom failed: $e');
       }
 
-      // 1. 먼저 메시지를 로드 (WebSocket 구독 전)
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Fetching messages...');
       final (messages, nextCursor, hasMore) = await _chatRepository.getMessages(
         event.roomId,
         size: AppConstants.messagePageSize,
       );
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Fetched ${messages.length} messages');
+      _log('Fetched ${messages.length} messages from server');
 
-      // 2. 마지막 메시지 ID 저장 (메시지 손실 방지용)
       final lastMessageId = messages.isNotEmpty ? messages.first.id : null;
 
-      // 3. WebSocket 구독 시작 (메시지 로드 후)
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Calling _subscribeToWebSocket...');
       _subscribeToWebSocket(event.roomId, lastMessageId: lastMessageId);
-      // "읽음 처리"는 foreground(진짜 보고 있을 때) 기준으로 수행한다.
-      // 데스크탑에서는 포커스가 없을 수 있으므로 opened 시점에 자동 markAsRead를 하지 않는다.
       if (_isViewingRoom) {
         _startPresencePing();
+      } else if (state.currentUserId != null) {
+        // 포커스가 없으면 서버에 "보고 있지 않다"고 알림
+        // 서버가 WebSocket 구독만으로 "보고 있다"고 인식하지 않도록
+        _log('Sending presenceInactive (not viewing room)');
+        _webSocketService.sendPresenceInactive(
+          roomId: event.roomId,
+          userId: state.currentUserId!,
+        );
       }
 
-      // 4. 상태 업데이트 (채팅방 정보 포함)
       emit(state.copyWith(
         status: ChatRoomStatus.success,
         messages: messages,
@@ -121,32 +143,35 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         isOtherUserLeft: isOtherUserLeft,
         otherUserId: otherUserId,
         otherUserNickname: otherUserNickname,
+        isOfflineData: false,
       ));
 
-      // 5. 방 초기화 완료 표시
       _roomInitialized = true;
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Room initialization completed, _roomInitialized=true, _pendingForegrounded=$_pendingForegrounded');
 
-      // 6. 대기 중인 foreground 이벤트가 있으면 처리
-      // (ChatRoomForegrounded가 ChatRoomOpened 완료 전에 도착한 경우)
       if (_pendingForegrounded) {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] Processing pending foreground event');
+        _log('Processing pending foreground event');
         _pendingForegrounded = false;
         _isViewingRoom = true;
         _startPresencePing();
         await _markAsReadWithRetry(event.roomId, emit);
       }
     } catch (e, stackTrace) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Error in _onOpened: $e');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Stack trace: $stackTrace');
-      emit(state.copyWith(
-        status: ChatRoomStatus.failure,
-        errorMessage: e.toString(),
-      ));
+      _log('Error in _onOpened: $e\n$stackTrace');
+
+      // 오프라인 모드: 캐시된 메시지가 있으면 유지
+      if (state.messages.isNotEmpty) {
+        _log('Keeping cached messages due to network error');
+        _roomInitialized = true;
+        // 캐시된 데이터로 성공 상태 유지
+        emit(state.copyWith(
+          isOfflineData: true,
+        ));
+      } else {
+        emit(state.copyWith(
+          status: ChatRoomStatus.failure,
+          errorMessage: e.toString(),
+        ));
+      }
     }
   }
 
@@ -157,114 +182,56 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   bool _pendingForegrounded = false;
 
   void _subscribeToWebSocket(int roomId, {int? lastMessageId}) {
-    // ignore: avoid_print
-    print('[ChatRoomBloc] _subscribeToWebSocket called with roomId: $roomId, lastMessageId: $lastMessageId');
+    _log('_subscribeToWebSocket: roomId=$roomId, lastMessageId=$lastMessageId');
 
-    // 마지막 메시지 ID 저장 (중복 방지용)
     _lastKnownMessageId = lastMessageId;
-
-    // 기존 구독 해제
     _messageSubscription?.cancel();
 
-    // WebSocket 채팅방 구독
     _webSocketService.subscribeToChatRoom(roomId);
     _isRoomSubscribed = true;
 
-    // 메시지 수신 리스너 - state.roomId를 사용하여 최신 roomId 확인
-    // 서버가 보내주는 메시지의 unreadCount를 그대로 사용 (서버가 최종 소스)
     _messageSubscription = _webSocketService.messages.listen((wsMessage) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ========== WebSocket Message Received ==========');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] messageId: ${wsMessage.messageId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] roomId: ${wsMessage.chatRoomId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] content: ${wsMessage.content}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] unreadCount: ${wsMessage.unreadCount}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] senderId: ${wsMessage.senderId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Current state.roomId: ${state.roomId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ================================================');
-      
+      _log('WebSocket message: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}, unreadCount=${wsMessage.unreadCount}');
+
       if (state.roomId != null && wsMessage.chatRoomId == state.roomId) {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] ✅ Room ID matches, adding MessageReceived event');
-        // 서버가 보내준 메시지의 unreadCount를 그대로 사용
-        // (서버가 읽음 처리 후 업데이트된 unreadCount를 포함해서 보내줄 수 있음)
         add(MessageReceived(_convertToMessage(wsMessage)));
 
-        // USER_LEFT/USER_JOINED 이벤트 처리 (1:1 채팅방에서 상대방 상태 변경)
         if (wsMessage.eventType == 'USER_LEFT') {
-          // ignore: avoid_print
-          print('[ChatRoomBloc] 🚪 USER_LEFT event: relatedUserId=${wsMessage.relatedUserId}, relatedUserNickname=${wsMessage.relatedUserNickname}');
+          _log('USER_LEFT event: relatedUserId=${wsMessage.relatedUserId}');
           add(OtherUserLeftStatusChanged(
             isOtherUserLeft: true,
             relatedUserId: wsMessage.relatedUserId,
             relatedUserNickname: wsMessage.relatedUserNickname,
           ));
         } else if (wsMessage.eventType == 'USER_JOINED') {
-          // ignore: avoid_print
-          print('[ChatRoomBloc] 👋 USER_JOINED event: relatedUserId=${wsMessage.relatedUserId}, relatedUserNickname=${wsMessage.relatedUserNickname}');
+          _log('USER_JOINED event: relatedUserId=${wsMessage.relatedUserId}');
           add(OtherUserLeftStatusChanged(
             isOtherUserLeft: false,
             relatedUserId: wsMessage.relatedUserId,
             relatedUserNickname: wsMessage.relatedUserNickname,
           ));
         }
-      } else {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] ❌ Ignoring message for different room (state.roomId=${state.roomId}, wsMessage.roomId=${wsMessage.chatRoomId})');
       }
     }, onError: (error) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ❌ Error in message stream: $error');
+      _log('Error in message stream: $error');
     });
 
-    // readEvents 리스너: 서버가 읽음 처리 후 업데이트된 메시지를 보내주지 않을 경우를 대비
-    // readEvents를 받으면 해당 사용자가 읽은 메시지의 unreadCount를 감소시킴
     _readEventSubscription = _webSocketService.readEvents.listen((readEvent) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ========== ReadEvent Received ==========');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] roomId: ${readEvent.chatRoomId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] userId: ${readEvent.userId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] lastReadMessageId: ${readEvent.lastReadMessageId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] state.roomId: ${state.roomId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] state.currentUserId: ${state.currentUserId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ========================================');
-      
+      _log('ReadEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
+
       if (state.roomId != null && readEvent.chatRoomId == state.roomId) {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] ✅ Room ID matches, adding MessagesReadUpdated event');
         add(MessagesReadUpdated(
           userId: readEvent.userId,
           lastReadMessageId: readEvent.lastReadMessageId,
           lastReadAt: readEvent.lastReadAt,
         ));
-      } else {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] ❌ Ignoring readEvent for different room');
       }
     }, onError: (error) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ❌ Error in readEvent stream: $error');
+      _log('Error in readEvent stream: $error');
     });
 
-    // 타이핑 이벤트 리스너
     _typingSubscription = _webSocketService.typingEvents.listen((typingEvent) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Received typingEvent: roomId=${typingEvent.chatRoomId}, userId=${typingEvent.userId}, isTyping=${typingEvent.isTyping}');
       if (state.roomId != null && typingEvent.chatRoomId == state.roomId) {
-        // 본인 타이핑은 무시
         if (typingEvent.userId == state.currentUserId) return;
 
         add(TypingStatusChanged(
@@ -274,8 +241,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         ));
       }
     }, onError: (error) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Error in typing event stream: $error');
+      _log('Error in typing event stream: $error');
     });
   }
 
@@ -285,6 +251,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       chatRoomId: wsMessage.chatRoomId,
       senderId: wsMessage.senderId ?? 0,
       senderNickname: wsMessage.senderNickname,
+      senderAvatarUrl: wsMessage.senderAvatarUrl,
       content: wsMessage.content,
       type: _parseMessageType(wsMessage.type),
       createdAt: wsMessage.createdAt,
@@ -314,7 +281,6 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomClosed event,
     Emitter<ChatRoomState> emit,
   ) {
-    // WebSocket 구독 해제
     if (state.roomId != null) {
       _webSocketService.unsubscribeFromChatRoom(state.roomId!);
     }
@@ -333,6 +299,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _presencePingTimer?.cancel();
     _presencePingTimer = null;
 
+    // 데스크톱 알림 억제 해제
+    _desktopNotificationBridge.setActiveRoomId(null);
+
     emit(const ChatRoomState());
   }
 
@@ -340,9 +309,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomBackgrounded event,
     Emitter<ChatRoomState> emit,
   ) {
-    // 카톡/라인 스타일:
-    // - 포커스가 없어도 메시지 수신은 유지(구독 유지)해서 유실을 방지한다.
-    // - 대신 presence/읽음만 inactive로 전환해 "읽음"이 발생하지 않게 한다.
+    _log('_onBackgrounded: roomId=${state.roomId}, initialized=$_roomInitialized, pendingForegrounded=$_pendingForegrounded');
+
+    // 초기화 전에 background 이벤트가 오면 pending foregrounded를 취소
+    // 이렇게 하면 창이 포커스 빠진 상태에서 초기화가 완료되어도 읽음 처리를 하지 않음
+    if (_pendingForegrounded) {
+      _log('Cancelling pending foregrounded event');
+      _pendingForegrounded = false;
+    }
+
     if (state.roomId == null || state.currentUserId == null || !_isRoomSubscribed) return;
     _isViewingRoom = false;
     _stopPresencePing();
@@ -356,53 +331,18 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomForegrounded event,
     Emitter<ChatRoomState> emit,
   ) async {
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ========== _onForegrounded called ==========');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] state.roomId: ${state.roomId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] state.currentUserId: ${state.currentUserId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] _isRoomSubscribed: $_isRoomSubscribed');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] _roomInitialized: $_roomInitialized');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ===========================================');
+    _log('_onForegrounded: roomId=${state.roomId}, initialized=$_roomInitialized');
 
-    // 방 초기화가 완료되지 않았으면 대기 상태로 설정
-    // (ChatRoomOpened가 완료되면 pending foreground 이벤트를 처리함)
     if (!_roomInitialized) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] _onForegrounded: room not initialized yet, setting _pendingForegrounded=true');
       _pendingForegrounded = true;
       return;
     }
 
-    // 다시 활성화되면 presence ping을 재개하고, 화면에 보이는 상태이므로 읽음 처리를 다시 시도한다.
-    if (state.roomId == null) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] _onForegrounded: roomId is null, returning');
-      return;
-    }
-    if (state.currentUserId == null) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] _onForegrounded: currentUserId is null, returning');
-      return;
-    }
-
-    // _isRoomSubscribed 체크를 제거: 구독이 완료되지 않았어도 markAsRead는 호출 가능
-    // (서버는 roomId만 있으면 읽음 처리를 할 수 있음)
-    // 구독이 완료되지 않았으면 나중에 구독이 완료되면 자동으로 markAsRead가 호출될 수 있지만,
-    // 여기서도 호출하는 것이 더 안전함 (타이밍 이슈 방지)
-    if (!_isRoomSubscribed) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] _onForegrounded: _isRoomSubscribed is false, but proceeding with markAsRead anyway');
-    }
+    if (state.roomId == null || state.currentUserId == null) return;
 
     _isViewingRoom = true;
     _startPresencePing();
 
-    // REST API로 읽음 처리 (하이브리드 방식)
     await _markAsReadWithRetry(state.roomId!, emit);
   }
 
@@ -413,7 +353,6 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _typingSubscription?.cancel();
     _typingDebounceTimer?.cancel();
     _presencePingTimer?.cancel();
-    // 이미 background/closed 처리로 구독 해제된 경우 중복 unsubscribe 방지
     if (state.roomId != null && _isRoomSubscribed) {
       _webSocketService.unsubscribeFromChatRoom(state.roomId!);
     }
@@ -426,7 +365,6 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     final userId = state.currentUserId;
     if (roomId == null || userId == null) return;
 
-    // 방을 "보고 있는 동안" 주기적으로 TTL 갱신
     _webSocketService.sendPresencePing(roomId: roomId, userId: userId);
     _presencePingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (state.roomId == null || state.currentUserId == null) return;
@@ -485,24 +423,13 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         return;
       }
 
-      // WebSocket STOMP로 메시지 전송
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ========== Sending message ==========');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] roomId: ${state.roomId}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] senderId: $userId');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] content: ${event.content}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] =====================================');
+      _log('Sending message: roomId=${state.roomId}, content=${event.content}');
       _webSocketService.sendMessage(
         roomId: state.roomId!,
         senderId: userId,
         content: event.content,
       );
 
-      // 메시지는 WebSocket broadcast로 수신됨 (MessageReceived 이벤트)
       emit(state.copyWith(isSending: false));
     } catch (e) {
       emit(state.copyWith(
@@ -516,126 +443,63 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     MessageReceived event,
     Emitter<ChatRoomState> emit,
   ) async {
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ========== _onMessageReceived ==========');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] messageId: ${event.message.id}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] roomId: state=${state.roomId}, event=${event.message.chatRoomId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] unreadCount from server: ${event.message.unreadCount}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] senderId: ${event.message.senderId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] currentUserId: ${state.currentUserId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] =========================================');
+    _log('_onMessageReceived: id=${event.message.id}, unreadCount=${event.message.unreadCount}');
 
-    if (state.roomId != event.message.chatRoomId) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Room ID mismatch, ignoring');
-      return;
+    if (state.roomId != event.message.chatRoomId) return;
+
+    // 로컬 캐시에 메시지 저장
+    try {
+      await _chatRepository.saveMessageLocally(event.message);
+    } catch (e) {
+      _log('Failed to save message locally: $e');
     }
 
-    // 기존 메시지가 있으면 서버가 보내준 unreadCount로 업데이트
-    // (서버가 읽음 처리 후 업데이트된 메시지를 보내줄 수 있음)
     final existingMessage = state.messages.firstWhere(
       (m) => m.id == event.message.id,
       orElse: () => Message(id: -1, chatRoomId: 0, senderId: 0, content: '', type: MessageType.text, createdAt: DateTime.now()),
     );
-    
+
     if (existingMessage.id != -1) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ========== UPDATING EXISTING MESSAGE ==========');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] messageId: ${event.message.id}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] OLD unreadCount: ${existingMessage.unreadCount}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] NEW unreadCount: ${event.message.unreadCount}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Changed: ${existingMessage.unreadCount != event.message.unreadCount}');
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ===============================================');
-      
       final updatedMessages = state.messages.map((m) {
         if (m.id == event.message.id) {
-          return event.message; // 서버가 보내준 값으로 교체 (unreadCount 포함)
+          return event.message;
         }
         return m;
       }).toList();
       emit(state.copyWith(messages: updatedMessages));
-      
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ✅ State updated with new unreadCount');
       return;
     }
 
-    // 구독 시작 전 메시지는 무시 (메시지 손실 방지 로직)
     if (_lastKnownMessageId != null && event.message.id <= _lastKnownMessageId!) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Message ID ${event.message.id} <= lastKnownMessageId $_lastKnownMessageId, ignoring');
       return;
     }
 
-    // ignore: avoid_print
-    print('[ChatRoomBloc] Adding message to state: ${event.message.content}');
     emit(state.copyWith(
       messages: [event.message, ...state.messages],
+      isOfflineData: false,
     ));
-    // ignore: avoid_print
-    print('[ChatRoomBloc] State updated, total messages: ${state.messages.length + 1}');
 
-    // 채팅방이 열려있을 때 상대방이 보낸 메시지를 받으면 즉시 읽음 처리
-    // (채팅방이 열려있다는 것은 사용자가 보고 있다는 의미이므로)
-    // 읽음 처리가 완료되면 isReadMarked 상태가 변경되어 ChatRoomPage의 BlocListener가
-    // ChatListBloc에 알려서 unreadCount를 0으로 업데이트함
     if (_isViewingRoom &&
         state.currentUserId != null &&
         event.message.senderId != state.currentUserId &&
         state.roomId != null) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Auto marking as read for message from other user (room is open)');
-      // 읽음 처리 전송 (REST API로 전송, 하이브리드 방식)
       await _markAsReadWithRetry(state.roomId!, emit);
     }
   }
 
-  /// 읽음 처리를 REST API로 전송합니다 (하이브리드 방식).
-  /// 서버에서 읽음 처리를 완료하면 WebSocket으로 업데이트된 메시지나 readEvents를 전송하므로
-  /// 클라이언트는 별도로 상태를 업데이트할 필요 없음
   Future<void> _markAsReadWithRetry(
     int roomId,
     Emitter<ChatRoomState> emit,
   ) async {
-    if (state.currentUserId == null) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] _markAsReadWithRetry: currentUserId is null, cannot send');
-      return;
-    }
+    if (state.currentUserId == null) return;
 
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ========== Sending markAsRead via REST API ==========');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] roomId: $roomId');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] userId: ${state.currentUserId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ======================================================');
-    
+    _log('markAsRead: roomId=$roomId');
+
     try {
-      // REST API로 읽음 처리 전송 (하이브리드 방식: 요청은 REST, 업데이트는 WebSocket)
-      // 서버가 읽음 처리를 완료하면 WebSocket으로 업데이트된 메시지나 readEvents를 전송함
       await _chatRepository.markAsRead(roomId);
-      
-      // 읽음 처리 전송 완료를 상태로 표시 (테스트 및 UI 동기화용)
       emit(state.copyWith(isReadMarked: true));
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ✅ markAsRead sent via REST API, waiting for server WebSocket response...');
     } catch (e) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ❌ Failed to mark as read: $e');
-      // 에러가 발생해도 상태는 유지 (서버가 재시도하거나 나중에 다시 시도 가능)
+      _log('Failed to mark as read: $e');
     }
   }
 
@@ -659,71 +523,34 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
-  /// readEvents를 처리하여 메시지의 unreadCount를 업데이트
-  /// 서버가 읽음 처리 후 업데이트된 메시지를 다시 보내주지 않을 경우를 대비
   void _onMessagesReadUpdated(
     MessagesReadUpdated event,
     Emitter<ChatRoomState> emit,
   ) {
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ========== _onMessagesReadUpdated ==========');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] userId: ${event.userId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] lastReadMessageId: ${event.lastReadMessageId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] state.currentUserId: ${state.currentUserId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ============================================');
+    _log('_onMessagesReadUpdated: userId=${event.userId}, lastReadMessageId=${event.lastReadMessageId}');
 
-    if (state.currentUserId == null) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] currentUserId is null, ignoring');
-      return;
-    }
+    if (state.currentUserId == null) return;
 
-    // 내가 보낸 메시지에 대해서만 unreadCount 업데이트
-    // (상대방이 읽었으면 내가 보낸 메시지의 unreadCount가 감소해야 함)
-    if (event.userId == state.currentUserId) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] This is my own read event, ignoring (I don\'t need to update my own messages)');
-      return;
-    }
+    if (event.userId == state.currentUserId) return;
 
-    // 상대방이 읽은 경우, 내가 보낸 메시지 중 lastReadMessageId 이하의 메시지들의 unreadCount를 감소
-    if (event.lastReadMessageId == null) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] lastReadMessageId is null, cannot update');
-      return;
-    }
+    if (event.lastReadMessageId == null) return;
 
-    // ignore: avoid_print
-    print('[ChatRoomBloc] Updating unreadCount for messages <= ${event.lastReadMessageId}');
-    
     final updatedMessages = state.messages.map((message) {
-      // 내가 보낸 메시지이고, 상대방이 읽은 메시지 ID 이하인 경우 unreadCount 감소
-      if (message.senderId == state.currentUserId && 
+      if (message.senderId == state.currentUserId &&
           message.id <= event.lastReadMessageId! &&
           message.unreadCount > 0) {
-        // ignore: avoid_print
-        print('[ChatRoomBloc] Updating message ${message.id}: unreadCount ${message.unreadCount} -> ${message.unreadCount - 1}');
         return message.copyWith(unreadCount: message.unreadCount - 1);
       }
       return message;
     }).toList();
 
     emit(state.copyWith(messages: updatedMessages));
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ✅ State updated with new unreadCount');
   }
 
   void _onTypingStatusChanged(
     TypingStatusChanged event,
     Emitter<ChatRoomState> emit,
   ) {
-    // ignore: avoid_print
-    print('[ChatRoomBloc] _onTypingStatusChanged: userId=${event.userId}, isTyping=${event.isTyping}');
-
     final updatedTypingUsers = Map<int, String>.from(state.typingUsers);
 
     if (event.isTyping) {
@@ -741,16 +568,12 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
 
-    // ignore: avoid_print
-    print('[ChatRoomBloc] _onUserStartedTyping: sending typing status');
-
     _webSocketService.sendTypingStatus(
       roomId: state.roomId!,
       userId: state.currentUserId!,
       isTyping: true,
     );
 
-    // 3초 후 자동으로 타이핑 중단
     _typingDebounceTimer?.cancel();
     _typingDebounceTimer = Timer(const Duration(seconds: 3), () {
       add(const UserStoppedTyping());
@@ -762,9 +585,6 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
-
-    // ignore: avoid_print
-    print('[ChatRoomBloc] _onUserStoppedTyping: sending stop typing status');
 
     _typingDebounceTimer?.cancel();
     _typingDebounceTimer = null;
@@ -825,88 +645,53 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     try {
       await _chatRepository.reinviteUser(roomId, event.inviteeId);
-      // 재초대 성공 시 isOtherUserLeft를 false로 변경
       emit(state.copyWith(
         isReinviting: false,
         reinviteSuccess: true,
         isOtherUserLeft: false,
       ));
-      // ignore: avoid_print
-      print('[ChatRoomBloc] User reinvited successfully: inviteeId=${event.inviteeId}');
+      _log('User reinvited: inviteeId=${event.inviteeId}');
     } catch (e) {
       emit(state.copyWith(
         isReinviting: false,
         reinviteSuccess: false,
         errorMessage: e.toString(),
       ));
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Failed to reinvite user: $e');
+      _log('Failed to reinvite user: $e');
     }
   }
 
-  /// WebSocket에서 USER_LEFT/USER_JOINED 이벤트를 수신했을 때 상태를 업데이트합니다.
-  /// 이 핸들러를 통해 채팅방을 나갔다 다시 들어오지 않아도 실시간으로
-  /// 상대방의 나감/참여 상태가 UI에 반영됩니다.
   void _onOtherUserLeftStatusChanged(
     OtherUserLeftStatusChanged event,
     Emitter<ChatRoomState> emit,
   ) {
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ========== _onOtherUserLeftStatusChanged ==========');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] isOtherUserLeft: ${event.isOtherUserLeft}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] relatedUserId: ${event.relatedUserId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] relatedUserNickname: ${event.relatedUserNickname}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ==================================================');
+    _log('_onOtherUserLeftStatusChanged: isOtherUserLeft=${event.isOtherUserLeft}');
 
     emit(state.copyWith(
       isOtherUserLeft: event.isOtherUserLeft,
       otherUserId: event.relatedUserId,
       otherUserNickname: event.relatedUserNickname,
     ));
-
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ✅ State updated: isOtherUserLeft=${event.isOtherUserLeft}, otherUserId=${event.relatedUserId}');
   }
 
-  /// 파일/이미지 첨부를 처리합니다.
-  /// 1. 파일을 서버에 업로드
-  /// 2. 업로드 완료 후 파일 메시지 전송
   Future<void> _onFileAttachmentRequested(
     FileAttachmentRequested event,
     Emitter<ChatRoomState> emit,
   ) async {
     if (state.roomId == null) return;
 
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ========== _onFileAttachmentRequested ==========');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] filePath: ${event.filePath}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] roomId: ${state.roomId}');
-    // ignore: avoid_print
-    print('[ChatRoomBloc] ================================================');
+    _log('_onFileAttachmentRequested: filePath=${event.filePath}');
 
     emit(state.copyWith(isUploadingFile: true, uploadProgress: 0.0));
 
     try {
       final file = File(event.filePath);
 
-      // 1. 파일 업로드
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Uploading file...');
       final uploadResult = await _chatRepository.uploadFile(file);
-      // ignore: avoid_print
-      print('[ChatRoomBloc] File uploaded: ${uploadResult.fileUrl}');
+      _log('File uploaded: ${uploadResult.fileUrl}');
 
       emit(state.copyWith(uploadProgress: 0.5));
 
-      // 2. 파일 메시지 전송 (senderId는 서버에서 JWT로 추출)
-      // ignore: avoid_print
-      print('[ChatRoomBloc] Sending file message...');
       await _chatRepository.sendFileMessage(
         roomId: state.roomId!,
         fileUrl: uploadResult.fileUrl,
@@ -915,16 +700,13 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         contentType: uploadResult.contentType,
         thumbnailUrl: uploadResult.isImage ? uploadResult.fileUrl : null,
       );
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ✅ File message sent successfully');
 
       emit(state.copyWith(
         isUploadingFile: false,
         uploadProgress: 1.0,
       ));
     } catch (e) {
-      // ignore: avoid_print
-      print('[ChatRoomBloc] ❌ File attachment failed: $e');
+      _log('File attachment failed: $e');
       emit(state.copyWith(
         isUploadingFile: false,
         uploadProgress: 0.0,
