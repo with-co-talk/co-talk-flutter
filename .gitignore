@@ -48,3 +48,7 @@ app.*.map.json
 android/key.properties
 *.jks
 *.keystore
+
+# Firebase 설정 (프로젝트별, 커밋 제외)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
