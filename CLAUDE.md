@@ -45,3 +45,34 @@
 - Injectable for DI
 - Dio for HTTP
 - STOMP WebSocket for real-time messaging
+- Firebase Cloud Messaging (FCM) for push notifications (Android only)
+- Flutter Local Notifications for local notifications
+
+## Pending Tasks
+
+### iOS 푸시 알림 활성화 (Apple Developer 유료 가입 필요)
+
+현재 FCM 푸시 알림은 **Android만 지원**합니다. iOS 푸시 알림을 활성화하려면:
+
+#### 1. Apple Developer Program 가입 ($99/년)
+- https://developer.apple.com/programs/enroll/
+
+#### 2. Xcode 설정
+- Signing & Capabilities > **Push Notifications** 추가
+- Signing & Capabilities > **Background Modes** > Remote notifications 체크
+
+#### 3. APNs 키 발급
+- Apple Developer > Certificates, Identifiers & Profiles > Keys
+- 새 키 생성 > Apple Push Notifications service (APNs) 체크
+- `.p8` 파일 다운로드 (한 번만 가능, 잘 보관)
+
+#### 4. Firebase Console 설정
+- 프로젝트 설정 > 클라우드 메시징 > Apple 앱 구성
+- APNs 인증 키 (.p8 파일) 업로드
+- Key ID, Team ID 입력
+
+#### 5. 코드 수정 (TODO 검색)
+다음 파일들에서 `TODO: iOS` 검색 후 `Platform.isIOS` 조건 추가:
+- `lib/main.dart`
+- `lib/core/services/fcm_service.dart`
+- `lib/presentation/blocs/auth/auth_bloc.dart`
