@@ -257,10 +257,11 @@ void main() {
 
   group('MessageType', () {
     test('has all expected values', () {
-      expect(MessageType.values.length, 3);
+      expect(MessageType.values.length, 4);
       expect(MessageType.values, contains(MessageType.text));
       expect(MessageType.values, contains(MessageType.image));
       expect(MessageType.values, contains(MessageType.file));
+      expect(MessageType.values, contains(MessageType.system));
     });
   });
 }

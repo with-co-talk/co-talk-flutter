@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:co_talk_flutter/data/datasources/local/chat_local_datasource.dart';
 import 'package:co_talk_flutter/data/datasources/remote/chat_remote_datasource.dart';
 import 'package:co_talk_flutter/data/models/chat_room_model.dart';
 import 'package:co_talk_flutter/data/models/message_model.dart';
@@ -8,14 +9,33 @@ import 'package:co_talk_flutter/domain/entities/chat_room.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 
 class MockChatRemoteDataSource extends Mock implements ChatRemoteDataSource {}
+class MockChatLocalDataSource extends Mock implements ChatLocalDataSource {}
 
 void main() {
   late MockChatRemoteDataSource mockRemoteDataSource;
+  late MockChatLocalDataSource mockLocalDataSource;
   late ChatRepositoryImpl repository;
 
   setUp(() {
     mockRemoteDataSource = MockChatRemoteDataSource();
-    repository = ChatRepositoryImpl(mockRemoteDataSource);
+    mockLocalDataSource = MockChatLocalDataSource();
+    repository = ChatRepositoryImpl(mockRemoteDataSource, mockLocalDataSource);
+
+    // Setup default behavior for local data source
+    when(() => mockLocalDataSource.saveChatRooms(any())).thenAnswer((_) async {});
+    when(() => mockLocalDataSource.saveChatRoom(any())).thenAnswer((_) async {});
+    when(() => mockLocalDataSource.saveMessages(any())).thenAnswer((_) async {});
+    when(() => mockLocalDataSource.saveMessage(any(), syncStatus: any(named: 'syncStatus'))).thenAnswer((_) async {});
+    when(() => mockLocalDataSource.deleteChatRoom(any())).thenAnswer((_) async {});
+    when(() => mockLocalDataSource.resetUnreadCount(any())).thenAnswer((_) async {});
+    when(() => mockLocalDataSource.markMessageAsDeleted(any())).thenAnswer((_) async {});
+    when(() => mockLocalDataSource.updateLastMessage(
+      roomId: any(named: 'roomId'),
+      lastMessage: any(named: 'lastMessage'),
+      lastMessageType: any(named: 'lastMessageType'),
+      lastMessageAt: any(named: 'lastMessageAt'),
+    )).thenAnswer((_) async {});
+    when(() => mockLocalDataSource.updateOtherUserLeftStatus(any(), any())).thenAnswer((_) async {});
   });
 
   setUpAll(() {
@@ -23,6 +43,22 @@ void main() {
       chatRoomId: 1,
       content: 'test',
     ));
+    // Register fallback values for local data source methods
+    registerFallbackValue(ChatRoom(
+      id: 1,
+      type: ChatRoomType.direct,
+      createdAt: DateTime(2024, 1, 1),
+      unreadCount: 0,
+    ));
+    registerFallbackValue(Message(
+      id: 1,
+      chatRoomId: 1,
+      senderId: 1,
+      content: 'test',
+      createdAt: DateTime(2024, 1, 1),
+    ));
+    registerFallbackValue(<ChatRoom>[]);
+    registerFallbackValue(<Message>[]);
   });
 
   final testChatRoomModel = ChatRoomModel(
