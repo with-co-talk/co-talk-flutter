@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../di/injection.dart';
@@ -743,43 +744,46 @@ class _FriendTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            // 아바타
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.primaryLight,
-                  backgroundImage: friend.user.avatarUrl != null
-                      ? NetworkImage(friend.user.avatarUrl!)
-                      : null,
-                  child: friend.user.avatarUrl == null
-                      ? Text(
-                          friend.user.nickname.isNotEmpty
-                              ? friend.user.nickname[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      : null,
-                ),
-                // 온라인 상태 표시
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: _getOnlineStatusColor(friend.user.onlineStatus),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2.5),
+            // 아바타 (탭하면 프로필로 이동)
+            GestureDetector(
+              onTap: () => _navigateToProfile(context, friend.user.id),
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppColors.primaryLight,
+                    backgroundImage: friend.user.avatarUrl != null
+                        ? NetworkImage(friend.user.avatarUrl!)
+                        : null,
+                    child: friend.user.avatarUrl == null
+                        ? Text(
+                            friend.user.nickname.isNotEmpty
+                                ? friend.user.nickname[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
+                  ),
+                  // 온라인 상태 표시
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: _getOnlineStatusColor(friend.user.onlineStatus),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2.5),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(width: 16),
             // 친구 정보
@@ -827,6 +831,16 @@ class _FriendTile extends StatelessWidget {
               ),
               itemBuilder: (context) => [
                 PopupMenuItem(
+                  value: 'profile',
+                  child: const Row(
+                    children: [
+                      Icon(Icons.person, size: 20),
+                      SizedBox(width: 12),
+                      Text('프로필 보기'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
                   value: 'chat',
                   child: const Row(
                     children: [
@@ -848,7 +862,9 @@ class _FriendTile extends StatelessWidget {
                 ),
               ],
               onSelected: (value) async {
-                if (value == 'chat') {
+                if (value == 'profile') {
+                  _navigateToProfile(context, friend.user.id);
+                } else if (value == 'chat') {
                   await _navigateToChat(context, friend.user.id);
                 } else if (value == 'remove') {
                   _showRemoveFriendDialog(context);
@@ -859,6 +875,10 @@ class _FriendTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _navigateToProfile(BuildContext context, int userId) {
+    context.push(AppRoutes.profileViewPath(userId));
   }
 
   Color _getOnlineStatusColor(onlineStatus) {

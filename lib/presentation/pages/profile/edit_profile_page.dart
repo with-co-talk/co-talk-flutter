@@ -16,6 +16,7 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _nicknameController;
+  late final TextEditingController _statusMessageController;
   final _formKey = GlobalKey<FormState>();
   final _imagePicker = ImagePicker();
   bool _isLoading = false;
@@ -26,11 +27,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.initState();
     final user = context.read<AuthBloc>().state.user;
     _nicknameController = TextEditingController(text: user?.nickname ?? '');
+    _statusMessageController = TextEditingController(text: user?.statusMessage ?? '');
   }
 
   @override
   void dispose() {
     _nicknameController.dispose();
+    _statusMessageController.dispose();
     super.dispose();
   }
 
@@ -41,7 +44,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
     context.read<AuthBloc>().add(AuthProfileUpdateRequested(nickname: nickname));
   }
 
+  /// 플랫폼이 데스크톱(macOS, Windows, Linux)인지 확인
+  bool get _isDesktop =>
+      Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+
   Future<void> _pickImage() async {
+    // 데스크톱에서는 파일 선택기를 바로 열기
+    if (_isDesktop) {
+      await _pickFromFile();
+      return;
+    }
+
+    // 모바일에서는 카메라/갤러리 선택 시트 표시
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -86,6 +100,27 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
       ),
     );
+  }
+
+  /// 데스크톱에서 파일 선택기로 이미지 선택
+  Future<void> _pickFromFile() async {
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery, // 데스크톱에서는 파일 선택기로 동작
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (pickedFile != null) {
+        _uploadImage(File(pickedFile.path));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('파일을 선택할 수 없습니다')),
+        );
+      }
+    }
   }
 
   Future<void> _pickFromCamera() async {
@@ -271,6 +306,25 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         }
                         if (value.trim().length > 20) {
                           return '닉네임은 20자 이하여야 합니다';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 상태메시지 입력
+                    TextFormField(
+                      controller: _statusMessageController,
+                      decoration: const InputDecoration(
+                        labelText: '상태메시지',
+                        hintText: '상태메시지를 입력하세요 (최대 60자)',
+                        prefixIcon: Icon(Icons.chat_bubble_outline),
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLength: 60,
+                      validator: (value) {
+                        if (value != null && value.length > 60) {
+                          return '상태메시지는 60자 이하여야 합니다';
                         }
                         return null;
                       },

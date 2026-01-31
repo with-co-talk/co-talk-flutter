@@ -1,9 +1,15 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/network/websocket_service.dart';
+import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
+import '../../../domain/repositories/chat_repository.dart';
+import '../../../domain/repositories/notification_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
@@ -11,9 +17,17 @@ import 'auth_state.dart';
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
   final WebSocketService _webSocketService;
+  final ChatRepository _chatRepository;
+  final NotificationRepository _notificationRepository;
+  final DesktopNotificationBridge _desktopNotificationBridge;
 
-  AuthBloc(this._authRepository, this._webSocketService)
-      : super(const AuthState.initial()) {
+  AuthBloc(
+    this._authRepository,
+    this._webSocketService,
+    this._chatRepository,
+    this._notificationRepository,
+    this._desktopNotificationBridge,
+  ) : super(const AuthState.initial()) {
     on<AuthCheckRequested>(_onCheckRequested);
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthSignUpRequested>(_onSignUpRequested);
@@ -35,6 +49,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (user != null) {
           // WebSocket 연결
           _webSocketService.connect();
+          // FCM 토큰 등록 (모바일만)
+          await _registerFcmTokenIfMobile();
+          // 데스크톱 알림에 현재 사용자 ID 설정
+          _desktopNotificationBridge.setCurrentUserId(user.id);
           emit(AuthState.authenticated(user));
         } else {
           emit(const AuthState.unauthenticated());
@@ -64,7 +82,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final user = await _authRepository.getCurrentUser();
       // WebSocket 연결
       _webSocketService.connect();
+      // FCM 토큰 등록 (모바일만)
+      await _registerFcmTokenIfMobile();
       if (user != null) {
+        // 데스크톱 알림에 현재 사용자 ID 설정
+        _desktopNotificationBridge.setCurrentUserId(user.id);
         emit(AuthState.authenticated(user));
       } else {
         // 로그인은 성공했지만 사용자 정보를 가져올 수 없는 경우
@@ -75,6 +97,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           email: event.email,
           nickname: event.email.split('@').first,
         );
+        // 데스크톱 알림에 현재 사용자 ID 설정
+        _desktopNotificationBridge.setCurrentUserId(placeholderUser.id);
         emit(AuthState.authenticated(placeholderUser));
       }
     } catch (e) {
@@ -105,7 +129,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final user = await _authRepository.getCurrentUser();
       // WebSocket 연결
       _webSocketService.connect();
+      // FCM 토큰 등록 (모바일만)
+      await _registerFcmTokenIfMobile();
       if (user != null) {
+        // 데스크톱 알림에 현재 사용자 ID 설정
+        _desktopNotificationBridge.setCurrentUserId(user.id);
         emit(AuthState.authenticated(user));
       } else {
         // 회원가입 후 사용자 정보를 가져올 수 없는 경우
@@ -116,6 +144,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           email: event.email,
           nickname: event.nickname,
         );
+        // 데스크톱 알림에 현재 사용자 ID 설정
+        _desktopNotificationBridge.setCurrentUserId(placeholderUser.id);
         emit(AuthState.authenticated(placeholderUser));
       }
     } catch (e) {
@@ -133,6 +163,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       // WebSocket 연결 해제
       _webSocketService.disconnect();
+      // FCM 토큰 삭제 (모바일만)
+      await _unregisterFcmTokenIfMobile();
+      // 데스크톱 알림 사용자 ID 초기화
+      _desktopNotificationBridge.setCurrentUserId(null);
+      // 로컬 채팅 데이터 삭제
+      await _chatRepository.clearLocalData();
       await _authRepository.logout();
       emit(const AuthState.unauthenticated());
     } catch (e) {
@@ -224,6 +260,42 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       emit(AuthState.failure(message));
       emit(AuthState.authenticated(currentUser));
+    }
+  }
+
+  /// 모바일 플랫폼에서 FCM 토큰 등록 (현재 Android만 지원)
+  /// TODO: iOS 푸시 알림 활성화 시 Platform.isIOS 조건 추가
+  Future<void> _registerFcmTokenIfMobile() async {
+    // 현재 Android만 지원 - iOS는 Apple Developer 유료 가입 후 활성화
+    if (kIsWeb || !Platform.isAndroid) {
+      return;
+    }
+
+    try {
+      await _notificationRepository.registerToken(platform: 'android');
+      _notificationRepository.setupTokenRefreshListener(platform: 'android');
+    } catch (e) {
+      // FCM 토큰 등록 실패는 치명적이지 않음 - 로그만 남김
+      // ignore: avoid_print
+      print('[AuthBloc] Failed to register FCM token: $e');
+    }
+  }
+
+  /// 모바일 플랫폼에서 FCM 토큰 삭제 (현재 Android만 지원)
+  /// TODO: iOS 푸시 알림 활성화 시 Platform.isIOS 조건 추가
+  Future<void> _unregisterFcmTokenIfMobile() async {
+    // 현재 Android만 지원 - iOS는 Apple Developer 유료 가입 후 활성화
+    if (kIsWeb || !Platform.isAndroid) {
+      return;
+    }
+
+    try {
+      _notificationRepository.disposeTokenRefreshListener();
+      await _notificationRepository.unregisterToken();
+    } catch (e) {
+      // FCM 토큰 삭제 실패는 치명적이지 않음 - 로그만 남김
+      // ignore: avoid_print
+      print('[AuthBloc] Failed to unregister FCM token: $e');
     }
   }
 }

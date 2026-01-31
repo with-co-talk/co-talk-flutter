@@ -79,7 +79,7 @@ class _SignUpPageState extends State<SignUpPage> {
         listener: (context, state) {
           if (state.status == AuthStatus.authenticated) {
             // 회원가입 성공 후 메인 페이지로 이동
-            context.go(AppRoutes.main);
+            context.go(AppRoutes.chatList);
           } else if (state.status == AuthStatus.failure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

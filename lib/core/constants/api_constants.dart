@@ -40,7 +40,13 @@ class ApiConstants {
   // User Endpoints
   static const String users = '/users';
   static const String userSearch = '/users/search';
+  static const String fcmToken = '/users/fcm-token';
   static String userProfile(int userId) => '/users/$userId/profile';
+
+  // Profile History Endpoints
+  static String profileHistory(int userId) => '/users/$userId/profile/history';
+  static String profileHistoryItem(int userId, int historyId) => '/users/$userId/profile/history/$historyId';
+  static String profileHistoryCurrent(int userId, int historyId) => '/users/$userId/profile/history/$historyId/current';
 
   // File Endpoints
   static const String fileUpload = '/files/upload';
