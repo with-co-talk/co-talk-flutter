@@ -10,17 +10,43 @@ import '../mocks/fake_entities.dart';
 void main() {
   late MockAuthRepository mockAuthRepository;
   late MockWebSocketService mockWebSocketService;
+  late MockChatRepository mockChatRepository;
+  late MockNotificationRepository mockNotificationRepository;
+  late MockDesktopNotificationBridge mockDesktopNotificationBridge;
 
   setUp(() {
     mockAuthRepository = MockAuthRepository();
     mockWebSocketService = MockWebSocketService();
+    mockChatRepository = MockChatRepository();
+    mockNotificationRepository = MockNotificationRepository();
+    mockDesktopNotificationBridge = MockDesktopNotificationBridge();
 
     // WebSocketService mock 기본 설정
     when(() => mockWebSocketService.connect()).thenAnswer((_) async {});
     when(() => mockWebSocketService.disconnect()).thenReturn(null);
+
+    // ChatRepository mock 기본 설정
+    when(() => mockChatRepository.clearLocalData()).thenAnswer((_) async {});
+
+    // NotificationRepository mock 기본 설정
+    when(() => mockNotificationRepository.registerToken(platform: any(named: 'platform')))
+        .thenAnswer((_) async {});
+    when(() => mockNotificationRepository.setupTokenRefreshListener(platform: any(named: 'platform')))
+        .thenReturn(null);
+    when(() => mockNotificationRepository.unregisterToken()).thenAnswer((_) async {});
+    when(() => mockNotificationRepository.disposeTokenRefreshListener()).thenReturn(null);
+
+    // DesktopNotificationBridge mock 기본 설정
+    when(() => mockDesktopNotificationBridge.setCurrentUserId(any())).thenReturn(null);
   });
 
-  AuthBloc createBloc() => AuthBloc(mockAuthRepository, mockWebSocketService);
+  AuthBloc createBloc() => AuthBloc(
+        mockAuthRepository,
+        mockWebSocketService,
+        mockChatRepository,
+        mockNotificationRepository,
+        mockDesktopNotificationBridge,
+      );
 
   group('AuthBloc', () {
     test('initial state is AuthState.initial', () {
@@ -318,6 +344,22 @@ void main() {
             AuthStatus.failure,
           ),
         ],
+      );
+
+      blocTest<AuthBloc, AuthState>(
+        'logout 시 로컬 채팅 데이터를 삭제함',
+        build: () {
+          when(() => mockAuthRepository.logout()).thenAnswer((_) async {});
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const AuthLogoutRequested()),
+        expect: () => [
+          const AuthState.loading(),
+          const AuthState.unauthenticated(),
+        ],
+        verify: (_) {
+          verify(() => mockChatRepository.clearLocalData()).called(1);
+        },
       );
     });
   });

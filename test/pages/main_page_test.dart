@@ -1,9 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
+import 'package:co_talk_flutter/presentation/blocs/auth/auth_state.dart';
+import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_bloc.dart';
+import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_state.dart';
 import 'package:co_talk_flutter/presentation/pages/main/main_page.dart';
+import '../mocks/fake_entities.dart';
+
+class MockChatListBloc extends Mock implements ChatListBloc {
+  @override
+  ChatListState get state => const ChatListState();
+
+  @override
+  Stream<ChatListState> get stream => const Stream.empty();
+
+  @override
+  Future<void> close() async {}
+}
+
+class MockAuthBloc extends Mock implements AuthBloc {
+  @override
+  AuthState get state => AuthState.authenticated(FakeEntities.user);
+
+  @override
+  Stream<AuthState> get stream => const Stream.empty();
+
+  @override
+  Future<void> close() async {}
+}
 
 void main() {
+  late MockChatListBloc mockChatListBloc;
+  late MockAuthBloc mockAuthBloc;
+
+  setUp(() {
+    mockChatListBloc = MockChatListBloc();
+    mockAuthBloc = MockAuthBloc();
+  });
+
   Widget createTestWidget({required Widget child, Size size = const Size(400, 800)}) {
     final router = GoRouter(
       initialLocation: '/chat',
@@ -32,8 +69,14 @@ void main() {
       ],
     );
 
-    return MaterialApp.router(
-      routerConfig: router,
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+        BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+      ],
+      child: MaterialApp.router(
+        routerConfig: router,
+      ),
     );
   }
 

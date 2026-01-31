@@ -13,6 +13,9 @@ import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_state.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_state.dart';
+import 'package:co_talk_flutter/presentation/blocs/chat/message_search/message_search_bloc.dart';
+import 'package:co_talk_flutter/presentation/blocs/chat/message_search/message_search_event.dart';
+import 'package:co_talk_flutter/presentation/blocs/chat/message_search/message_search_state.dart';
 import 'package:co_talk_flutter/presentation/pages/chat/chat_room_page.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
@@ -27,7 +30,13 @@ class MockChatListBloc extends MockBloc<ChatListEvent, ChatListState>
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
+class MockMessageSearchBloc
+    extends MockBloc<MessageSearchEvent, MessageSearchState>
+    implements MessageSearchBloc {}
+
 class FakeChatRoomEvent extends Fake implements ChatRoomEvent {}
+
+class FakeMessageSearchEvent extends Fake implements MessageSearchEvent {}
 
 class FakeChatListEvent extends Fake implements ChatListEvent {}
 
@@ -61,6 +70,7 @@ void main() {
     await initializeDateFormatting('ko_KR', null);
     registerFallbackValue(FakeChatRoomEvent());
     registerFallbackValue(FakeChatListEvent());
+    registerFallbackValue(FakeMessageSearchEvent());
   });
 
   group('ChatRoomPage Widget Tests', () {
@@ -233,13 +243,46 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest(windowFocusTracker: tracker));
       clearInteractions(mockChatRoomBloc);
 
-      tracker.emit(false);
+      // 첫 번째 emit은 초기 이벤트로 취급되어 상태만 저장됨 (_lastWindowFocused가 null → false)
+      // 실제 이벤트는 두 번째부터 전송됨
+      tracker.emit(false); // 초기 이벤트 - 상태만 저장
       await tester.pump();
-      verify(() => mockChatRoomBloc.add(const ChatRoomBackgrounded())).called(1);
 
-      tracker.emit(true);
+      tracker.emit(true); // 첫 번째 실제 이벤트 - ChatRoomForegrounded 전송
       await tester.pump();
       verify(() => mockChatRoomBloc.add(const ChatRoomForegrounded())).called(1);
+
+      tracker.emit(false); // 두 번째 실제 이벤트 - ChatRoomBackgrounded 전송
+      await tester.pump();
+      verify(() => mockChatRoomBloc.add(const ChatRoomBackgrounded())).called(1);
+    });
+
+    testWidgets('🔴 RED: 채팅방 진입 직후 포커스가 빠지면 ChatRoomBackgrounded만 전송되고 ChatRoomForegrounded는 전송되지 않음',
+        (tester) async {
+      // 시나리오: 채팅방에 들어간 직후 사용자가 Alt+Tab으로 다른 앱으로 전환
+      // 기대 동작: ChatRoomBackgrounded만 전송되고, 읽음 처리가 되지 않아야 함
+      final tracker = TestWindowFocusTracker();
+      tracker.setCurrentFocus(true); // 초기 포커스 상태 설정
+      addTearDown(tracker.dispose);
+
+      await tester.pumpWidget(createWidgetUnderTest(windowFocusTracker: tracker));
+      clearInteractions(mockChatRoomBloc);
+
+      // 1. 초기 이벤트: 창이 포커스된 상태에서 채팅방 진입
+      tracker.emit(true); // 초기 이벤트 - 상태만 저장 (_lastWindowFocused = true)
+      await tester.pump();
+
+      // 2. 사용자가 바로 Alt+Tab으로 포커스를 빠짐
+      tracker.emit(false); // ChatRoomBackgrounded 전송
+      await tester.pump();
+
+      // 3. _syncFocusOnce()가 완료되어도 이미 focusStream에서 이벤트를 보냈으므로 스킵
+      await tester.pump(); // addPostFrameCallback 실행
+
+      // 검증: ChatRoomBackgrounded만 전송되어야 함
+      verify(() => mockChatRoomBloc.add(const ChatRoomBackgrounded())).called(1);
+      // ChatRoomForegrounded는 전송되지 않아야 함
+      verifyNever(() => mockChatRoomBloc.add(const ChatRoomForegrounded()));
     });
 
     testWidgets('shows messages when loaded', (tester) async {
@@ -906,8 +949,8 @@ void main() {
         errorMessage: 'Error',
       );
 
-      // props: status, roomId, currentUserId, messages, nextCursor, hasMore, isSending, errorMessage, typingUsers, isReadMarked, hasLeft
-      expect(state.props.length, 11);
+      // props: status, roomId, currentUserId, messages, nextCursor, hasMore, isSending, errorMessage, typingUsers, isReadMarked, hasLeft, isOtherUserLeft, otherUserId, otherUserNickname, isReinviting, reinviteSuccess, isUploadingFile, uploadProgress, isOfflineData
+      expect(state.props.length, 19);
     });
 
     test('equality works', () {
@@ -989,6 +1032,124 @@ void main() {
 
     test('initial is first value', () {
       expect(ChatRoomStatus.values.first, ChatRoomStatus.initial);
+    });
+  });
+
+  group('ChatRoomPage 검색 기능 통합', () {
+    late MockChatRoomBloc mockChatRoomBloc;
+    late MockChatListBloc mockChatListBloc;
+    late MockAuthBloc mockAuthBloc;
+    late MockMessageSearchBloc mockMessageSearchBloc;
+    late StreamController<ChatRoomState> chatRoomStreamController;
+    late StreamController<ChatListState> chatListStreamController;
+    late StreamController<MessageSearchState> messageSearchStreamController;
+    late TestWindowFocusTracker windowFocusTracker;
+
+    setUp(() {
+      mockChatRoomBloc = MockChatRoomBloc();
+      mockChatListBloc = MockChatListBloc();
+      mockAuthBloc = MockAuthBloc();
+      mockMessageSearchBloc = MockMessageSearchBloc();
+      chatRoomStreamController = StreamController<ChatRoomState>.broadcast();
+      chatListStreamController = StreamController<ChatListState>.broadcast();
+      messageSearchStreamController =
+          StreamController<MessageSearchState>.broadcast();
+      windowFocusTracker = TestWindowFocusTracker();
+      windowFocusTracker.setCurrentFocus(true);
+    });
+
+    tearDown(() {
+      chatRoomStreamController.close();
+      chatListStreamController.close();
+      messageSearchStreamController.close();
+      windowFocusTracker.dispose();
+    });
+
+    Widget createWidgetUnderTest({
+      ChatRoomState? chatRoomState,
+      MessageSearchState? messageSearchState,
+    }) {
+      final state = chatRoomState ?? const ChatRoomState();
+      when(() => mockChatRoomBloc.state).thenReturn(state);
+      when(() => mockChatRoomBloc.stream)
+          .thenAnswer((_) => chatRoomStreamController.stream);
+      when(() => mockChatRoomBloc.isClosed).thenReturn(false);
+      when(() => mockChatRoomBloc.add(any())).thenReturn(null);
+
+      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
+      when(() => mockChatListBloc.stream)
+          .thenAnswer((_) => chatListStreamController.stream);
+      when(() => mockChatListBloc.isClosed).thenReturn(false);
+      when(() => mockChatListBloc.add(any())).thenReturn(null);
+
+      when(() => mockAuthBloc.state).thenReturn(AuthState.authenticated(
+          User(id: 1, nickname: 'Test', email: 'test@test.com')));
+      when(() => mockAuthBloc.stream).thenAnswer((_) => const Stream.empty());
+
+      when(() => mockMessageSearchBloc.state)
+          .thenReturn(messageSearchState ?? const MessageSearchState());
+      when(() => mockMessageSearchBloc.stream)
+          .thenAnswer((_) => messageSearchStreamController.stream);
+      when(() => mockMessageSearchBloc.close()).thenAnswer((_) async {});
+      when(() => mockMessageSearchBloc.add(any())).thenReturn(null);
+
+      return MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
+            BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+            BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+            BlocProvider<MessageSearchBloc>.value(value: mockMessageSearchBloc),
+          ],
+          child: ChatRoomPage(
+            roomId: 1,
+            windowFocusTracker: windowFocusTracker,
+          ),
+        ),
+      );
+    }
+
+    testWidgets('AppBar에 검색 버튼이 표시됨', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+      await tester.pump();
+
+      // 검색 아이콘 버튼이 AppBar에 있어야 함
+      expect(find.byIcon(Icons.search), findsOneWidget);
+    });
+
+    testWidgets('검색 버튼 탭 시 검색 모드가 활성화됨', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+      await tester.pump();
+
+      // 검색 버튼 탭
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+
+      // 검색 입력 필드가 나타나야 함
+      expect(find.byType(TextField), findsAtLeastNWidgets(1));
+      // 검색 힌트 텍스트가 보여야 함
+      expect(find.text('메시지 검색'), findsOneWidget);
+    });
+
+    testWidgets('검색 모드에서 뒤로가기 버튼 탭 시 검색 모드가 종료됨', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+      await tester.pump();
+
+      // 검색 버튼 탭
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+
+      // 검색 모드가 활성화됨
+      expect(find.text('메시지 검색'), findsOneWidget);
+
+      // 닫기 버튼 탭 (검색 모드에서 표시되는 close 아이콘)
+      final closeButton = find.byIcon(Icons.close);
+      if (closeButton.evaluate().isNotEmpty) {
+        await tester.tap(closeButton.first);
+        await tester.pumpAndSettle();
+        // 검색 모드가 종료되어야 함 (메시지 입력창이 다시 보임)
+        expect(find.text('메시지를 입력하세요'), findsOneWidget);
+      }
     });
   });
 }

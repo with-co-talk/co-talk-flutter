@@ -9,14 +9,19 @@ import '../mocks/fake_entities.dart';
 
 void main() {
   late MockFriendRepository mockFriendRepository;
+  late MockWebSocketService mockWebSocketService;
 
   setUp(() {
     mockFriendRepository = MockFriendRepository();
+    mockWebSocketService = MockWebSocketService();
+
+    // Setup default WebSocket behavior
+    when(() => mockWebSocketService.onlineStatusEvents).thenAnswer((_) => const Stream.empty());
   });
 
   group('FriendBloc', () {
     test('initial state is FriendState with initial status', () {
-      final bloc = FriendBloc(mockFriendRepository);
+      final bloc = FriendBloc(mockFriendRepository, mockWebSocketService);
       expect(bloc.state.status, FriendStatus.initial);
       expect(bloc.state.friends, isEmpty);
       expect(bloc.state.searchResults, isEmpty);
@@ -28,7 +33,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.getFriends())
               .thenAnswer((_) async => FakeEntities.friends);
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const FriendListLoadRequested()),
         expect: () => [
@@ -48,7 +53,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.getFriends())
               .thenAnswer((_) async => []);
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const FriendListLoadRequested()),
         expect: () => [
@@ -62,7 +67,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.getFriends())
               .thenThrow(Exception('Network error'));
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const FriendListLoadRequested()),
         expect: () => [
@@ -84,7 +89,7 @@ void main() {
               .thenAnswer((_) async {});
           when(() => mockFriendRepository.getSentFriendRequests())
               .thenAnswer((_) async => FakeEntities.sentFriendRequests);
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const FriendRequestSent(2)),
         expect: () => [
@@ -104,7 +109,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.sendFriendRequest(any()))
               .thenThrow(Exception('Already sent request'));
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const FriendRequestSent(2)),
         expect: () => [
@@ -130,7 +135,7 @@ void main() {
               .thenAnswer((_) async => FakeEntities.friends);
           when(() => mockFriendRepository.getReceivedFriendRequests())
               .thenAnswer((_) async => FakeEntities.receivedFriendRequests);
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const FriendRequestAccepted(1)),
         expect: () => [
@@ -164,7 +169,7 @@ void main() {
               .thenAnswer((_) async {});
           when(() => mockFriendRepository.getReceivedFriendRequests())
               .thenAnswer((_) async => FakeEntities.receivedFriendRequests);
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const FriendRequestRejected(1)),
         expect: () => [
@@ -193,7 +198,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.removeFriend(any()))
               .thenAnswer((_) async {});
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         seed: () => FriendState(
           status: FriendStatus.success,
@@ -219,7 +224,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.searchUsers(any()))
               .thenAnswer((_) async => [FakeEntities.user, FakeEntities.otherUser]);
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const UserSearchRequested('test')),
         expect: () => [
@@ -242,7 +247,7 @@ void main() {
 
       blocTest<FriendBloc, FriendState>(
         'clears search results when query is empty',
-        build: () => FriendBloc(mockFriendRepository),
+        build: () => FriendBloc(mockFriendRepository, mockWebSocketService),
         seed: () => FriendState(
           searchResults: [FakeEntities.user],
           isSearching: false,
@@ -268,7 +273,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.searchUsers(any()))
               .thenThrow(Exception('Search failed'));
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const UserSearchRequested('test')),
         expect: () => [
@@ -292,7 +297,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.getReceivedFriendRequests())
               .thenAnswer((_) async => FakeEntities.receivedFriendRequests);
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const ReceivedFriendRequestsLoadRequested()),
         expect: () => [
@@ -316,7 +321,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.getReceivedFriendRequests())
               .thenThrow(Exception('Network error'));
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const ReceivedFriendRequestsLoadRequested()),
         expect: () => [
@@ -340,7 +345,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.getSentFriendRequests())
               .thenAnswer((_) async => FakeEntities.sentFriendRequests);
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const SentFriendRequestsLoadRequested()),
         expect: () => [
@@ -364,7 +369,7 @@ void main() {
         build: () {
           when(() => mockFriendRepository.getSentFriendRequests())
               .thenThrow(Exception('Network error'));
-          return FriendBloc(mockFriendRepository);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
         act: (bloc) => bloc.add(const SentFriendRequestsLoadRequested()),
         expect: () => [
