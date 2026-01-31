@@ -191,7 +191,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _isRoomSubscribed = true;
 
     _messageSubscription = _webSocketService.messages.listen((wsMessage) {
-      _log('WebSocket message: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}');
+      _log('WebSocket message: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}, unreadCount=${wsMessage.unreadCount}');
 
       if (state.roomId != null && wsMessage.chatRoomId == state.roomId) {
         add(MessageReceived(_convertToMessage(wsMessage)));
