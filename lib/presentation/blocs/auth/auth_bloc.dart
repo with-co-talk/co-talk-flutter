@@ -34,6 +34,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthProfileUpdateRequested>(_onProfileUpdateRequested);
     on<AuthAvatarUploadRequested>(_onAvatarUploadRequested);
+    on<AuthUserLocalUpdated>(_onUserLocalUpdated);
   }
 
   Future<void> _onCheckRequested(
@@ -190,6 +191,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _authRepository.updateProfile(
         userId: currentUser.id,
         nickname: event.nickname,
+        statusMessage: event.statusMessage,
         avatarUrl: event.avatarUrl,
       );
 
@@ -204,6 +206,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           id: currentUser.id,
           email: currentUser.email,
           nickname: event.nickname ?? currentUser.nickname,
+          statusMessage: event.statusMessage ?? currentUser.statusMessage,
           avatarUrl: event.avatarUrl ?? currentUser.avatarUrl,
           status: currentUser.status,
           onlineStatus: currentUser.onlineStatus,
@@ -261,6 +264,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthState.failure(message));
       emit(AuthState.authenticated(currentUser));
     }
+  }
+
+  void _onUserLocalUpdated(
+    AuthUserLocalUpdated event,
+    Emitter<AuthState> emit,
+  ) {
+    final currentUser = state.user;
+    if (currentUser == null) return;
+
+    final updatedUser = currentUser.copyWith(
+      avatarUrl: event.avatarUrl ?? currentUser.avatarUrl,
+      backgroundUrl: event.backgroundUrl ?? currentUser.backgroundUrl,
+      statusMessage: event.statusMessage ?? currentUser.statusMessage,
+    );
+
+    emit(AuthState.authenticated(updatedUser));
   }
 
   /// 모바일 플랫폼에서 FCM 토큰 등록 (현재 Android만 지원)

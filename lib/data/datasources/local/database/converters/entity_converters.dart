@@ -159,6 +159,8 @@ String _chatRoomTypeToString(domain.ChatRoomType type) {
       return 'DIRECT';
     case domain.ChatRoomType.group:
       return 'GROUP';
+    case domain.ChatRoomType.self:
+      return 'SELF';
   }
 }
 
@@ -166,6 +168,8 @@ domain.ChatRoomType _parseChatRoomType(String value) {
   switch (value.toUpperCase()) {
     case 'GROUP':
       return domain.ChatRoomType.group;
+    case 'SELF':
+      return domain.ChatRoomType.self;
     default:
       return domain.ChatRoomType.direct;
   }

@@ -73,6 +73,8 @@ class ChatRoomModel {
     switch (value?.toUpperCase()) {
       case 'GROUP':
         return ChatRoomType.group;
+      case 'SELF':
+        return ChatRoomType.self;
       default:
         return ChatRoomType.direct;
     }
