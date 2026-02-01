@@ -40,7 +40,7 @@ class ApiConstants {
   // User Endpoints
   static const String users = '/users';
   static const String userSearch = '/users/search';
-  static const String fcmToken = '/users/fcm-token';
+  static const String fcmToken = '/devices/token';
   static String userProfile(int userId) => '/users/$userId/profile';
 
   // Profile History Endpoints

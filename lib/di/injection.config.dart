@@ -64,8 +64,8 @@ import '../presentation/blocs/settings/notification_settings_cubit.dart'
 import '../presentation/blocs/theme/theme_cubit.dart' as _i450;
 import 'injection.dart' as _i464;
 
-const String _mobile = 'mobile';
 const String _desktop = 'desktop';
+const String _mobile = 'mobile';
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -96,10 +96,6 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i860.AuthLocalDataSource>(
       () => _i860.AuthLocalDataSourceImpl(gh<_i558.FlutterSecureStorage>()),
-    );
-    gh.lazySingleton<_i892.FirebaseMessaging>(
-      () => registerModule.firebaseMessaging,
-      registerFor: {_mobile},
     );
     gh.lazySingleton<_i809.FcmService>(
       () => _i809.NoOpFcmService(),

@@ -102,7 +102,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         _desktopNotificationBridge.setCurrentUserId(placeholderUser.id);
         emit(AuthState.authenticated(placeholderUser));
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // ignore: avoid_print
+      print('[AuthBloc] Login error: $e');
+      // ignore: avoid_print
+      print('[AuthBloc] Error type: ${e.runtimeType}');
+      // ignore: avoid_print
+      print('[AuthBloc] Stack trace: $stackTrace');
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       emit(AuthState.failure(message));
     }
@@ -149,7 +155,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         _desktopNotificationBridge.setCurrentUserId(placeholderUser.id);
         emit(AuthState.authenticated(placeholderUser));
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // ignore: avoid_print
+      print('[AuthBloc] SignUp error: $e');
+      // ignore: avoid_print
+      print('[AuthBloc] Error type: ${e.runtimeType}');
+      // ignore: avoid_print
+      print('[AuthBloc] Stack trace: $stackTrace');
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       emit(AuthState.failure(message));
     }
@@ -282,17 +294,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthState.authenticated(updatedUser));
   }
 
-  /// 모바일 플랫폼에서 FCM 토큰 등록 (현재 Android만 지원)
-  /// TODO: iOS 푸시 알림 활성화 시 Platform.isIOS 조건 추가
+  /// 모바일 플랫폼에서 FCM 토큰 등록 (Android 및 iOS)
   Future<void> _registerFcmTokenIfMobile() async {
-    // 현재 Android만 지원 - iOS는 Apple Developer 유료 가입 후 활성화
-    if (kIsWeb || !Platform.isAndroid) {
+    // Android 및 iOS만 지원
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
       return;
     }
 
     try {
-      await _notificationRepository.registerToken(platform: 'android');
-      _notificationRepository.setupTokenRefreshListener(platform: 'android');
+      final user = await _authRepository.getCurrentUser();
+      if (user == null) {
+        // ignore: avoid_print
+        print('[AuthBloc] Cannot register FCM token: user is null');
+        return;
+      }
+
+      final deviceType = Platform.isAndroid ? 'ANDROID' : 'IOS';
+      await _notificationRepository.registerToken(
+        userId: user.id,
+        deviceType: deviceType,
+      );
+      _notificationRepository.setupTokenRefreshListener(
+        userId: user.id,
+        deviceType: deviceType,
+      );
     } catch (e) {
       // FCM 토큰 등록 실패는 치명적이지 않음 - 로그만 남김
       // ignore: avoid_print
@@ -300,11 +325,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  /// 모바일 플랫폼에서 FCM 토큰 삭제 (현재 Android만 지원)
-  /// TODO: iOS 푸시 알림 활성화 시 Platform.isIOS 조건 추가
+  /// 모바일 플랫폼에서 FCM 토큰 삭제 (Android 및 iOS)
   Future<void> _unregisterFcmTokenIfMobile() async {
-    // 현재 Android만 지원 - iOS는 Apple Developer 유료 가입 후 활성화
-    if (kIsWeb || !Platform.isAndroid) {
+    // Android 및 iOS만 지원
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
       return;
     }
 
