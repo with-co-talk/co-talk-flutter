@@ -29,6 +29,12 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     on<FriendOnlineStatusChanged>(_onFriendOnlineStatusChanged);
     on<FriendListSubscriptionStarted>(_onSubscriptionStarted);
     on<FriendListSubscriptionStopped>(_onSubscriptionStopped);
+    on<HideFriendRequested>(_onHideFriendRequested);
+    on<UnhideFriendRequested>(_onUnhideFriendRequested);
+    on<HiddenFriendsLoadRequested>(_onHiddenFriendsLoadRequested);
+    on<BlockUserRequested>(_onBlockUserRequested);
+    on<UnblockUserRequested>(_onUnblockUserRequested);
+    on<BlockedUsersLoadRequested>(_onBlockedUsersLoadRequested);
   }
 
   void _log(String message) {
@@ -247,6 +253,120 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
       ));
     } catch (e) {
       emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+    }
+  }
+
+  Future<void> _onHideFriendRequested(
+    HideFriendRequested event,
+    Emitter<FriendState> emit,
+  ) async {
+    emit(state.copyWith(clearErrorMessage: true));
+    try {
+      await _friendRepository.hideFriend(event.friendId);
+      final friends = await _friendRepository.getFriends();
+      emit(state.copyWith(
+        friends: friends,
+        clearErrorMessage: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+    }
+  }
+
+  Future<void> _onUnhideFriendRequested(
+    UnhideFriendRequested event,
+    Emitter<FriendState> emit,
+  ) async {
+    emit(state.copyWith(clearErrorMessage: true));
+    try {
+      await _friendRepository.unhideFriend(event.friendId);
+      final hiddenFriends = await _friendRepository.getHiddenFriends();
+      emit(state.copyWith(
+        hiddenFriends: hiddenFriends,
+        clearErrorMessage: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+    }
+  }
+
+  Future<void> _onHiddenFriendsLoadRequested(
+    HiddenFriendsLoadRequested event,
+    Emitter<FriendState> emit,
+  ) async {
+    emit(state.copyWith(
+      isHiddenFriendsLoading: true,
+      clearErrorMessage: true,
+    ));
+    try {
+      final hiddenFriends = await _friendRepository.getHiddenFriends();
+      emit(state.copyWith(
+        hiddenFriends: hiddenFriends,
+        isHiddenFriendsLoading: false,
+        clearErrorMessage: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isHiddenFriendsLoading: false,
+        errorMessage: _extractErrorMessage(e),
+      ));
+    }
+  }
+
+  Future<void> _onBlockUserRequested(
+    BlockUserRequested event,
+    Emitter<FriendState> emit,
+  ) async {
+    emit(state.copyWith(clearErrorMessage: true));
+    try {
+      await _friendRepository.blockUser(event.userId);
+      final friends = await _friendRepository.getFriends();
+      emit(state.copyWith(
+        friends: friends,
+        clearErrorMessage: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+    }
+  }
+
+  Future<void> _onUnblockUserRequested(
+    UnblockUserRequested event,
+    Emitter<FriendState> emit,
+  ) async {
+    emit(state.copyWith(clearErrorMessage: true));
+    try {
+      await _friendRepository.unblockUser(event.userId);
+      final blockedUsers = await _friendRepository.getBlockedUsers();
+      emit(state.copyWith(
+        blockedUsers: blockedUsers,
+        clearErrorMessage: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+    }
+  }
+
+  Future<void> _onBlockedUsersLoadRequested(
+    BlockedUsersLoadRequested event,
+    Emitter<FriendState> emit,
+  ) async {
+    emit(state.copyWith(
+      isBlockedUsersLoading: true,
+      clearErrorMessage: true,
+    ));
+    try {
+      final blockedUsers = await _friendRepository.getBlockedUsers();
+      emit(state.copyWith(
+        blockedUsers: blockedUsers,
+        isBlockedUsersLoading: false,
+        clearErrorMessage: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isBlockedUsersLoading: false,
+        errorMessage: _extractErrorMessage(e),
+      ));
     }
   }
 

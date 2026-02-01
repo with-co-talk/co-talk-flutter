@@ -9,11 +9,13 @@ class FriendModel {
   final int id;
   final UserModel user;
   final DateTime createdAt;
+  final bool isHidden;
 
   const FriendModel({
     required this.id,
     required this.user,
     required this.createdAt,
+    this.isHidden = false,
   });
 
   factory FriendModel.fromJson(Map<String, dynamic> json) =>
@@ -26,6 +28,7 @@ class FriendModel {
       id: id,
       user: user.toEntity(),
       createdAt: createdAt,
+      isHidden: isHidden,
     );
   }
 }

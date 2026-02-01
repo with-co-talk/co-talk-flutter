@@ -10,6 +10,7 @@ FriendModel _$FriendModelFromJson(Map<String, dynamic> json) => FriendModel(
   id: (json['id'] as num).toInt(),
   user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
   createdAt: DateTime.parse(json['createdAt'] as String),
+  isHidden: json['isHidden'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$FriendModelToJson(FriendModel instance) =>
@@ -17,6 +18,7 @@ Map<String, dynamic> _$FriendModelToJson(FriendModel instance) =>
       'id': instance.id,
       'user': instance.user,
       'createdAt': instance.createdAt.toIso8601String(),
+      'isHidden': instance.isHidden,
     };
 
 FriendRequestModel _$FriendRequestModelFromJson(Map<String, dynamic> json) =>
