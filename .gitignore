@@ -52,3 +52,13 @@ android/key.properties
 # Firebase 설정 (프로젝트별, 커밋 제외)
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+ios/GoogleService-Info.plist
+
+# Fastlane
+ios/fastlane/.env
+ios/fastlane/report.xml
+ios/fastlane/Preview.html
+ios/fastlane/screenshots/
+ios/fastlane/test_output/
+ios/*.ipa
+ios/*.dSYM.zip
