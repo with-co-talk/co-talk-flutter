@@ -10,6 +10,7 @@ import 'app.dart';
 import 'core/constants/app_constants.dart';
 import 'core/services/desktop_notification_bridge.dart';
 import 'core/services/fcm_service.dart';
+import 'core/services/notification_click_handler.dart';
 import 'core/services/notification_service.dart';
 import 'di/injection.dart';
 
@@ -70,6 +71,11 @@ Future<void> _initializeNotifications() async {
   // 로컬 알림 서비스 초기화 (모든 플랫폼)
   final notificationService = getIt<NotificationService>();
   await notificationService.initialize();
+
+  // 알림 클릭 핸들러 초기화 (모든 플랫폼)
+  // 알림 클릭 시 해당 채팅방으로 네비게이션
+  final notificationClickHandler = getIt<NotificationClickHandler>();
+  notificationClickHandler.startListening();
 
   // FCM 서비스 초기화 (Android만 - iOS는 Apple Developer 유료 가입 후 활성화)
   // TODO: iOS 푸시 알림 활성화 시 Platform.isIOS 조건 추가

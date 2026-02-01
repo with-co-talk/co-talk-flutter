@@ -54,6 +54,8 @@ class ApiConstants {
   // Friend Endpoints
   static const String friends = '/friends';
   static const String friendRequests = '/friends/requests';
+  static String friendHide(int id) => '/friends/$id/hide';
+  static const String hiddenFriends = '/friends/hidden';
 
   // Chat Endpoints
   static const String chatRooms = '/chat/rooms';
@@ -63,7 +65,12 @@ class ApiConstants {
 
   // Block & Report
   static const String blocks = '/blocks';
+  static String blockUser(int id) => '/blocks/$id';
   static const String reports = '/reports';
+
+  // Settings Endpoints
+  static const String notificationSettings = '/notifications/settings';
+  static String accountDeletion(int userId) => '/account/$userId';
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);
