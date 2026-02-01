@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/error_message_mapper.dart';
@@ -85,6 +86,10 @@ class _ChatListPageState extends State<ChatListPage> {
           icon: const Icon(Icons.search),
           onPressed: _toggleSearch,
         ),
+        IconButton(
+          icon: const Icon(Icons.settings),
+          onPressed: () => context.push(AppRoutes.settings),
+        ),
       ],
       elevation: 0,
       surfaceTintColor: Colors.transparent,
@@ -104,14 +109,15 @@ class _ChatListPageState extends State<ChatListPage> {
         decoration: InputDecoration(
           hintText: '채팅방 검색',
           hintStyle: TextStyle(
-            color: AppColors.textSecondary,
+            color: context.textSecondaryColor,
             fontSize: 16,
           ),
           border: InputBorder.none,
           contentPadding: EdgeInsets.zero,
         ),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 16,
+          color: context.textPrimaryColor,
         ),
       ),
       actions: [
@@ -152,7 +158,6 @@ class _ChatListPageState extends State<ChatListPage> {
         ),
       ],
       child: Scaffold(
-        backgroundColor: AppColors.background,
         appBar: _isSearching ? _buildSearchAppBar() : _buildNormalAppBar(),
         body: BlocBuilder<ChatListBloc, ChatListState>(
         builder: (context, state) {
@@ -168,7 +173,7 @@ class _ChatListPageState extends State<ChatListPage> {
                 children: [
                   Text(
                     '채팅방을 불러오는데 실패했습니다',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: context.textSecondaryColor),
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
@@ -202,13 +207,13 @@ class _ChatListPageState extends State<ChatListPage> {
                   Icon(
                     Icons.search_off,
                     size: 64,
-                    color: AppColors.textSecondary,
+                    color: context.textSecondaryColor,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     '"$_searchQuery" 검색 결과가 없습니다',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: context.textSecondaryColor,
                       fontSize: 16,
                     ),
                   ),
@@ -228,7 +233,7 @@ class _ChatListPageState extends State<ChatListPage> {
               separatorBuilder: (_, __) => Divider(
                 height: 1,
                 thickness: 1,
-                color: AppColors.divider,
+                color: context.dividerColor,
               ),
               itemBuilder: (context, index) {
                 final chatRoom = filteredChatRooms[index];
@@ -251,7 +256,7 @@ class _ChatRoomTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => context.push('/chat/${chatRoom.id}'),
+      onTap: () => context.push('/chat/room/${chatRoom.id}'),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -319,7 +324,7 @@ class _ChatRoomTile extends StatelessWidget {
                             fontWeight: chatRoom.unreadCount > 0
                                 ? FontWeight.w600
                                 : FontWeight.w500,
-                            color: AppColors.textPrimary,
+                            color: context.textPrimaryColor,
                           ),
                         ),
                       ),
@@ -330,7 +335,7 @@ class _ChatRoomTile extends StatelessWidget {
                             AppDateUtils.formatChatListTime(chatRoom.lastMessageAt!),
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.textSecondary,
+                              color: context.textSecondaryColor,
                               fontWeight: chatRoom.unreadCount > 0
                                   ? FontWeight.w600
                                   : FontWeight.normal,
@@ -350,8 +355,8 @@ class _ChatRoomTile extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 14,
                             color: chatRoom.unreadCount > 0
-                                ? AppColors.textPrimary
-                                : AppColors.textSecondary,
+                                ? context.textPrimaryColor
+                                : context.textSecondaryColor,
                             fontWeight: chatRoom.unreadCount > 0
                                 ? FontWeight.w500
                                 : FontWeight.normal,

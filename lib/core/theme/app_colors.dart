@@ -1,5 +1,25 @@
 import 'package:flutter/material.dart';
 
+/// Context 기반 다크 모드 대응 색상 확장
+extension AppColorsExtension on BuildContext {
+  bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
+
+  Color get backgroundColor =>
+      isDarkMode ? AppColors.backgroundDark : AppColors.background;
+  Color get surfaceColor =>
+      isDarkMode ? AppColors.surfaceDark : AppColors.surface;
+  Color get textPrimaryColor =>
+      isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimary;
+  Color get textSecondaryColor =>
+      isDarkMode ? AppColors.textSecondaryDark : AppColors.textSecondary;
+  Color get dividerColor =>
+      isDarkMode ? AppColors.dividerDark : AppColors.divider;
+  Color get myMessageBubbleColor =>
+      isDarkMode ? AppColors.myMessageBubbleDark : AppColors.myMessageBubble;
+  Color get otherMessageBubbleColor =>
+      isDarkMode ? AppColors.otherMessageBubbleDark : AppColors.otherMessageBubble;
+}
+
 class AppColors {
   AppColors._();
 

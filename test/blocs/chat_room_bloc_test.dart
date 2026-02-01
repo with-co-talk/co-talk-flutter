@@ -1912,5 +1912,238 @@ void main() {
         },
       );
     });
+
+    group('🔴 RED: unreadCount 보존 검증 (서버에서 받은 값이 그대로 유지되어야 함)', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        '🔴 RED: WebSocket 메시지 수신 시 unreadCount=1이 그대로 보존됨 (1:1 채팅)',
+        build: () {
+          final messageController = StreamController<WebSocketChatMessage>();
+          when(() => mockWebSocketService.messages)
+              .thenAnswer((_) => messageController.stream);
+
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+
+          // 서버에서 unreadCount=1로 메시지 수신 (상대가 아직 읽지 않음)
+          Future.delayed(const Duration(milliseconds: 120), () {
+            messageController.add(WebSocketChatMessage(
+              messageId: 100,
+              senderId: 2, // 상대방이 보낸 메시지
+              chatRoomId: 1,
+              content: '상대방이 보낸 메시지',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 31),
+              unreadCount: 1, // 서버에서 보낸 unreadCount=1
+            ));
+          });
+
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 600),
+        expect: () => [
+          const ChatRoomState(
+            status: ChatRoomStatus.loading,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+          ),
+          const ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+            nextCursor: null,
+            hasMore: false,
+          ),
+          // 수신한 메시지의 unreadCount=1이 그대로 보존되어야 함
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.senderId, 'senderId', 2)
+              .having((s) => s.messages.first.content, 'content', '상대방이 보낸 메시지')
+              .having((s) => s.messages.first.unreadCount, 'unreadCount', 1),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        '🔴 RED: WebSocket 메시지 수신 시 unreadCount=0이면 0으로 보존됨',
+        build: () {
+          final messageController = StreamController<WebSocketChatMessage>();
+          when(() => mockWebSocketService.messages)
+              .thenAnswer((_) => messageController.stream);
+
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+
+          // 서버에서 unreadCount=0으로 메시지 수신 (모두 읽음)
+          Future.delayed(const Duration(milliseconds: 120), () {
+            messageController.add(WebSocketChatMessage(
+              messageId: 101,
+              senderId: 2,
+              chatRoomId: 1,
+              content: '이미 읽힌 메시지',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 31),
+              unreadCount: 0, // 서버에서 보낸 unreadCount=0
+            ));
+          });
+
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 600),
+        expect: () => [
+          const ChatRoomState(
+            status: ChatRoomStatus.loading,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+          ),
+          const ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+            nextCursor: null,
+            hasMore: false,
+          ),
+          // 수신한 메시지의 unreadCount=0이 그대로 보존되어야 함
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.unreadCount, 'unreadCount', 0),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        '🔴 RED: 데스크톱 시나리오 - 포커스 없이 채팅방 열린 상태에서 메시지 수신 시 unreadCount 보존',
+        build: () {
+          final messageController = StreamController<WebSocketChatMessage>();
+          when(() => mockWebSocketService.messages)
+              .thenAnswer((_) => messageController.stream);
+
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+
+          // 채팅방 열린 후 background 상태에서 메시지 수신
+          Future.delayed(const Duration(milliseconds: 200), () {
+            // 서버에서 unreadCount=1로 메시지 수신 (1:1 채팅, 나 외에 1명이 안 읽음)
+            messageController.add(WebSocketChatMessage(
+              messageId: 200,
+              senderId: 2, // 상대방이 보낸 메시지
+              chatRoomId: 1,
+              content: '앱에서 보낸 메시지',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 31, 12, 0),
+              unreadCount: 1, // 서버: totalMembers(2) - 1 = 1
+            ));
+          });
+
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          // 초기화 완료 대기
+          await Future.delayed(const Duration(milliseconds: 100));
+          // 포커스 없는 상태로 시작 (Backgrounded)
+          bloc.add(const ChatRoomBackgrounded());
+          // 메시지 수신 대기
+          await Future.delayed(const Duration(milliseconds: 200));
+        },
+        wait: const Duration(milliseconds: 600),
+        expect: () => [
+          const ChatRoomState(
+            status: ChatRoomStatus.loading,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+          ),
+          const ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+            nextCursor: null,
+            hasMore: false,
+          ),
+          // Background 상태에서 수신한 메시지의 unreadCount=1이 그대로 보존되어야 함
+          // 이 시나리오가 실패하면 서버에서 0을 보내고 있다는 의미
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.senderId, 'senderId (상대방)', 2)
+              .having((s) => s.messages.first.unreadCount, 'unreadCount (서버에서 1이어야 함)', 1),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        '🔴 RED: 내가 보낸 메시지도 서버에서 받은 unreadCount가 보존됨',
+        build: () {
+          final messageController = StreamController<WebSocketChatMessage>();
+          when(() => mockWebSocketService.messages)
+              .thenAnswer((_) => messageController.stream);
+
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+
+          // 내가 보낸 메시지가 서버에서 echo back (unreadCount=1)
+          Future.delayed(const Duration(milliseconds: 120), () {
+            messageController.add(WebSocketChatMessage(
+              messageId: 300,
+              senderId: 1, // 내가 보낸 메시지 (currentUserId=1)
+              chatRoomId: 1,
+              content: '내가 보낸 메시지',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 31),
+              unreadCount: 1, // 상대방이 아직 안 읽어서 1
+            ));
+          });
+
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 600),
+        expect: () => [
+          const ChatRoomState(
+            status: ChatRoomStatus.loading,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+          ),
+          const ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [],
+            nextCursor: null,
+            hasMore: false,
+          ),
+          // 내가 보낸 메시지도 unreadCount=1로 보존 (UI에서 "1" 표시됨)
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.senderId, 'senderId (나)', 1)
+              .having((s) => s.messages.first.unreadCount, 'unreadCount', 1),
+        ],
+      );
+    });
   });
 }

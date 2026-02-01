@@ -209,9 +209,10 @@ void main() {
 
   group('ChatRoomType', () {
     test('has all expected values', () {
-      expect(ChatRoomType.values.length, 2);
+      expect(ChatRoomType.values.length, 3);
       expect(ChatRoomType.values, contains(ChatRoomType.direct));
       expect(ChatRoomType.values, contains(ChatRoomType.group));
+      expect(ChatRoomType.values, contains(ChatRoomType.self));
     });
   });
 

@@ -89,3 +89,53 @@ class FriendListSubscriptionStarted extends FriendEvent {
 class FriendListSubscriptionStopped extends FriendEvent {
   const FriendListSubscriptionStopped();
 }
+
+/// 친구 숨김 이벤트
+class HideFriendRequested extends FriendEvent {
+  final int friendId;
+
+  const HideFriendRequested(this.friendId);
+
+  @override
+  List<Object?> get props => [friendId];
+}
+
+/// 친구 숨김 해제 이벤트
+class UnhideFriendRequested extends FriendEvent {
+  final int friendId;
+
+  const UnhideFriendRequested(this.friendId);
+
+  @override
+  List<Object?> get props => [friendId];
+}
+
+/// 숨긴 친구 목록 로드 이벤트
+class HiddenFriendsLoadRequested extends FriendEvent {
+  const HiddenFriendsLoadRequested();
+}
+
+/// 사용자 차단 이벤트
+class BlockUserRequested extends FriendEvent {
+  final int userId;
+
+  const BlockUserRequested(this.userId);
+
+  @override
+  List<Object?> get props => [userId];
+}
+
+/// 사용자 차단 해제 이벤트
+class UnblockUserRequested extends FriendEvent {
+  final int userId;
+
+  const UnblockUserRequested(this.userId);
+
+  @override
+  List<Object?> get props => [userId];
+}
+
+/// 차단된 사용자 목록 로드 이벤트
+class BlockedUsersLoadRequested extends FriendEvent {
+  const BlockedUsersLoadRequested();
+}

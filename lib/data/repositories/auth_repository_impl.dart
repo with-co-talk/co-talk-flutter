@@ -121,11 +121,13 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> updateProfile({
     required int userId,
     String? nickname,
+    String? statusMessage,
     String? avatarUrl,
   }) async {
     await _remoteDataSource.updateProfile(
       userId,
       nickname: nickname,
+      statusMessage: statusMessage,
       avatarUrl: avatarUrl,
     );
   }

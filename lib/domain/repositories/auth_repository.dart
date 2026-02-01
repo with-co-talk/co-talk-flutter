@@ -17,6 +17,6 @@ abstract class AuthRepository {
   Future<bool> isLoggedIn();
   Future<User?> getCurrentUser();
   Future<int?> getCurrentUserId();
-  Future<void> updateProfile({required int userId, String? nickname, String? avatarUrl});
+  Future<void> updateProfile({required int userId, String? nickname, String? statusMessage, String? avatarUrl});
   Future<String> uploadAvatar(File file);
 }

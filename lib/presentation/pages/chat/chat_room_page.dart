@@ -291,9 +291,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
       context: context,
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           child: Column(
@@ -304,7 +304,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: context.dividerColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -371,7 +371,6 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: AppColors.background,
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -521,20 +520,20 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                         Icon(
                           Icons.chat_bubble_outline,
                           size: 64,
-                          color: AppColors.textSecondary.withValues(alpha: 0.5),
+                          color: context.textSecondaryColor.withValues(alpha: 0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           '메시지가 없습니다',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: AppColors.textSecondary,
+                                color: context.textSecondaryColor,
                               ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           '대화를 시작해보세요',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppColors.textSecondary.withValues(alpha: 0.7),
+                                color: context.textSecondaryColor.withValues(alpha: 0.7),
                               ),
                         ),
                       ],
@@ -579,7 +578,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                           child: Text(
                             state.typingIndicatorText,
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: context.textSecondaryColor,
                                   fontStyle: FontStyle.italic,
                                 ),
                           ),
@@ -619,12 +618,14 @@ class _DateSeparator extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.divider,
+            color: context.dividerColor,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             AppDateUtils.formatFullDate(date),
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: context.textSecondaryColor,
+            ),
           ),
         ),
       ),
@@ -753,10 +754,10 @@ class _MessageBubble extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      builder: (bottomSheetContext) => Container(
+        decoration: BoxDecoration(
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           child: Column(
@@ -767,7 +768,7 @@ class _MessageBubble extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: context.dividerColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -869,13 +870,13 @@ class _MessageBubble extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.grey[200],
+              color: context.dividerColor,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
               message.content,
               style: TextStyle(
-                color: Colors.grey[600],
+                color: context.textSecondaryColor,
                 fontSize: 13,
               ),
               textAlign: TextAlign.center,
@@ -886,10 +887,12 @@ class _MessageBubble extends StatelessWidget {
     }
 
     // 시간 및 읽음 표시 위젯
+    // 카카오톡 PC 방식: 모든 메시지에서 안 읽은 사람 수 표시
+    // (포커스 없이 채팅방 열어두면 읽음 처리 안 됨)
     Widget timeWidget = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (isMe && message.unreadCount > 0)
+        if (message.unreadCount > 0)
           Padding(
             padding: const EdgeInsets.only(right: 4),
             child: Text(
@@ -904,7 +907,7 @@ class _MessageBubble extends StatelessWidget {
         Text(
           AppDateUtils.formatMessageTime(message.createdAt),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
+                color: context.textSecondaryColor,
                 fontSize: 11,
               ),
         ),
@@ -938,7 +941,7 @@ class _MessageBubble extends StatelessWidget {
                 return Container(
                   width: 200,
                   height: 150,
-                  color: Colors.grey[200],
+                  color: context.dividerColor,
                   child: Center(
                     child: CircularProgressIndicator(
                       value: loadingProgress.expectedTotalBytes != null
@@ -953,15 +956,15 @@ class _MessageBubble extends StatelessWidget {
               errorBuilder: (context, error, stackTrace) => Container(
                 width: 200,
                 height: 150,
-                color: Colors.grey[200],
+                color: context.dividerColor,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.broken_image, color: Colors.grey[400], size: 40),
+                    Icon(Icons.broken_image, color: context.textSecondaryColor, size: 40),
                     const SizedBox(height: 8),
                     Text(
                       '이미지를 불러올 수 없습니다',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
                     ),
                   ],
                 ),
@@ -981,7 +984,7 @@ class _MessageBubble extends StatelessWidget {
           ),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: isMe ? AppColors.myMessageBubble : AppColors.otherMessageBubble,
+            color: isMe ? context.myMessageBubbleColor : context.otherMessageBubbleColor,
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(18),
               topRight: const Radius.circular(18),
@@ -1029,7 +1032,7 @@ class _MessageBubble extends StatelessWidget {
                     Text(
                       message.fileName ?? '파일',
                       style: TextStyle(
-                        color: isMe ? Colors.white : AppColors.textPrimary,
+                        color: isMe ? Colors.white : context.textPrimaryColor,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1045,7 +1048,7 @@ class _MessageBubble extends StatelessWidget {
                             style: TextStyle(
                               color: isMe
                                   ? Colors.white.withValues(alpha: 0.7)
-                                  : AppColors.textSecondary,
+                                  : context.textSecondaryColor,
                               fontSize: 12,
                             ),
                           ),
@@ -1055,7 +1058,7 @@ class _MessageBubble extends StatelessWidget {
                           size: 14,
                           color: isMe
                               ? Colors.white.withValues(alpha: 0.7)
-                              : AppColors.textSecondary,
+                              : context.textSecondaryColor,
                         ),
                       ],
                     ),
@@ -1075,7 +1078,7 @@ class _MessageBubble extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isMe ? AppColors.myMessageBubble : AppColors.otherMessageBubble,
+          color: isMe ? context.myMessageBubbleColor : context.otherMessageBubbleColor,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
@@ -1101,7 +1104,7 @@ class _MessageBubble extends StatelessWidget {
         child: Text(
           message.displayContent,
           style: TextStyle(
-            color: isMe ? Colors.white : AppColors.textPrimary,
+            color: isMe ? Colors.white : context.textPrimaryColor,
             fontSize: 15,
             height: 1.4,
             letterSpacing: 0.1,
@@ -1156,7 +1159,7 @@ class _MessageBubble extends StatelessWidget {
                         child: Text(
                           message.senderNickname ?? '알 수 없음',
                           style: TextStyle(
-                            color: AppColors.textSecondary,
+                            color: context.textSecondaryColor,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1401,7 +1404,7 @@ class _MessageInputState extends State<_MessageInput> {
                     const SizedBox(width: 12),
                     Text(
                       '파일 업로드 중...',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: context.textSecondaryColor),
                     ),
                   ],
                 ),
@@ -1433,14 +1436,14 @@ class _MessageInputState extends State<_MessageInput> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.grey[100],
+                        color: context.dividerColor,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             Icons.exit_to_app,
-                            color: Colors.grey[600],
+                            color: context.textSecondaryColor,
                             size: 20,
                           ),
                           const SizedBox(width: 12),
@@ -1448,7 +1451,7 @@ class _MessageInputState extends State<_MessageInput> {
                             child: Text(
                               '${state.otherUserNickname ?? "상대방"}님이 채팅방을 나갔습니다',
                               style: TextStyle(
-                                color: Colors.grey[700],
+                                color: context.textPrimaryColor,
                                 fontSize: 14,
                               ),
                             ),
@@ -1526,7 +1529,7 @@ class _MessageInputState extends State<_MessageInput> {
                   IconButton(
                     icon: Icon(
                       Icons.add_circle_outline,
-                      color: AppColors.textSecondary,
+                      color: context.textSecondaryColor,
                     ),
                     onPressed: _showAttachmentOptions,
                     tooltip: '첨부',
@@ -1541,10 +1544,10 @@ class _MessageInputState extends State<_MessageInput> {
                         decoration: InputDecoration(
                           hintText: '메시지를 입력하세요',
                           hintStyle: TextStyle(
-                            color: AppColors.textSecondary.withValues(alpha: 0.6),
+                            color: context.textSecondaryColor.withValues(alpha: 0.6),
                           ),
                           filled: true,
-                          fillColor: AppColors.surface,
+                          fillColor: context.surfaceColor,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(28),
                             borderSide: BorderSide.none,
@@ -1552,7 +1555,7 @@ class _MessageInputState extends State<_MessageInput> {
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(28),
                             borderSide: BorderSide(
-                              color: AppColors.divider,
+                              color: context.dividerColor,
                               width: 1.5,
                             ),
                           ),
@@ -1589,7 +1592,7 @@ class _MessageInputState extends State<_MessageInput> {
                       shape: BoxShape.circle,
                       color: canSend
                           ? AppColors.primary
-                          : AppColors.textSecondary.withValues(alpha: 0.3),
+                          : context.textSecondaryColor.withValues(alpha: 0.3),
                     ),
                     child: IconButton(
                       icon: state.isSending

@@ -1,10 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/profile_history.dart';
 import '../../../domain/entities/user.dart';
+import '../../blocs/auth/auth_bloc.dart';
+import '../../blocs/auth/auth_event.dart';
 import '../../blocs/profile/profile_bloc.dart';
 import '../../blocs/profile/profile_event.dart';
 import '../../blocs/profile/profile_state.dart';
@@ -47,7 +51,20 @@ class _ProfileViewContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ProfileBloc, ProfileState>(
+    return BlocConsumer<ProfileBloc, ProfileState>(
+      listener: (context, profileState) {
+        // 프로필 변경 성공 시 AuthBloc의 user도 업데이트
+        if (profileState.status == ProfileStatus.success && isMyProfile) {
+          final viewingUser = profileState.viewingUser;
+          if (viewingUser != null) {
+            context.read<AuthBloc>().add(AuthUserLocalUpdated(
+              avatarUrl: viewingUser.avatarUrl,
+              backgroundUrl: viewingUser.backgroundUrl,
+              statusMessage: viewingUser.statusMessage,
+            ));
+          }
+        }
+      },
       builder: (context, profileState) {
         final user = profileState.viewingUser;
 
@@ -86,6 +103,11 @@ class _ProfileViewContent extends StatelessWidget {
         final backgroundHistory = profileState.getCurrentHistory(ProfileHistoryType.background);
         final avatarHistory = profileState.getCurrentHistory(ProfileHistoryType.avatar);
 
+        // ignore: avoid_print
+        print('[ProfileViewPage] avatarHistory?.url=${avatarHistory?.url}, user.avatarUrl=${user.avatarUrl}');
+        // ignore: avoid_print
+        print('[ProfileViewPage] histories count=${profileState.histories.length}, avatarHistories=${profileState.histories.where((h) => h.type == ProfileHistoryType.avatar).map((h) => "id=${h.id}, isCurrent=${h.isCurrent}, url=${h.url}").toList()}');
+
         return Scaffold(
           extendBodyBehindAppBar: true,
           appBar: AppBar(
@@ -108,12 +130,13 @@ class _ProfileViewContent extends StatelessWidget {
             children: [
               // 배경화면
               GestureDetector(
-                onTap: isMyProfile
-                    ? () => _openHistoryPage(
-                          context,
-                          ProfileHistoryType.background,
-                          user,
-                        )
+                onTap: () => _openHistoryPage(
+                  context,
+                  ProfileHistoryType.background,
+                  user,
+                ),
+                onLongPress: isMyProfile
+                    ? () => _showBackgroundOptions(context, user)
                     : null,
                 child: _BackgroundImage(
                   url: backgroundHistory?.url ?? user.backgroundUrl,
@@ -142,12 +165,13 @@ class _ProfileViewContent extends StatelessWidget {
                   children: [
                     // 프로필 사진
                     GestureDetector(
-                      onTap: isMyProfile
-                          ? () => _openHistoryPage(
-                                context,
-                                ProfileHistoryType.avatar,
-                                user,
-                              )
+                      onTap: () => _openHistoryPage(
+                        context,
+                        ProfileHistoryType.avatar,
+                        user,
+                      ),
+                      onLongPress: isMyProfile
+                          ? () => _showAvatarOptions(context, user)
                           : null,
                       child: _ProfileAvatar(
                         url: avatarHistory?.url ?? user.avatarUrl,
@@ -170,6 +194,9 @@ class _ProfileViewContent extends StatelessWidget {
                     // 상태메시지
                     GestureDetector(
                       onTap: isMyProfile
+                          ? () => _showStatusMessageDialog(context, user)
+                          : null,
+                      onLongPress: isMyProfile
                           ? () => _openHistoryPage(
                                 context,
                                 ProfileHistoryType.statusMessage,
@@ -216,6 +243,240 @@ class _ProfileViewContent extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _showStatusMessageDialog(BuildContext context, User user) {
+    final controller = TextEditingController(text: user.statusMessage ?? '');
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('상태메시지'),
+        content: TextField(
+          controller: controller,
+          maxLength: 60,
+          maxLines: 2,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '상태메시지를 입력하세요',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newMessage = controller.text.trim();
+              context.read<ProfileBloc>().add(
+                    ProfileHistoryCreateRequested(
+                      userId: userId,
+                      type: ProfileHistoryType.statusMessage,
+                      content: newMessage.isEmpty ? null : newMessage,
+                      setCurrent: true,
+                    ),
+                  );
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBackgroundOptions(BuildContext context, User user) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '배경화면',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.photo_library, color: AppColors.primary),
+                ),
+                title: const Text('배경화면 변경'),
+                subtitle: const Text('앨범에서 새 배경 선택'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _pickBackgroundImage(context);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.history, color: Colors.grey),
+                ),
+                title: const Text('배경화면 이력'),
+                subtitle: const Text('이전 배경화면 보기'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openHistoryPage(context, ProfileHistoryType.background, user);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAvatarOptions(BuildContext context, User user) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '프로필 사진',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.photo_library, color: AppColors.primary),
+                ),
+                title: const Text('프로필 사진 변경'),
+                subtitle: const Text('앨범에서 새 사진 선택'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _pickAvatarImage(context);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.history, color: Colors.grey),
+                ),
+                title: const Text('프로필 사진 이력'),
+                subtitle: const Text('이전 프로필 사진 보기'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openHistoryPage(context, ProfileHistoryType.avatar, user);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickBackgroundImage(BuildContext context) async {
+    final imagePicker = ImagePicker();
+    try {
+      final pickedFile = await imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      if (pickedFile != null && context.mounted) {
+        context.read<ProfileBloc>().add(
+              ProfileHistoryCreateRequested(
+                userId: userId,
+                type: ProfileHistoryType.background,
+                imageFile: File(pickedFile.path),
+                setCurrent: true,
+              ),
+            );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미지를 선택할 수 없습니다')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickAvatarImage(BuildContext context) async {
+    final imagePicker = ImagePicker();
+    try {
+      final pickedFile = await imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (pickedFile != null && context.mounted) {
+        context.read<ProfileBloc>().add(
+              ProfileHistoryCreateRequested(
+                userId: userId,
+                type: ProfileHistoryType.avatar,
+                imageFile: File(pickedFile.path),
+                setCurrent: true,
+              ),
+            );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미지를 선택할 수 없습니다')),
+        );
+      }
+    }
   }
 }
 
@@ -361,20 +622,15 @@ class _ProfileActions extends StatelessWidget {
         _ActionButton(
           icon: Icons.chat_bubble_outline,
           label: '1:1 채팅',
-          onTap: () {
-            // TODO: 1:1 채팅 시작
-          },
-        ),
-        const SizedBox(width: 40),
-        _ActionButton(
-          icon: Icons.videocam_outlined,
-          label: '통화',
-          onTap: () {
-            // TODO: 통화 기능
-          },
+          onTap: () => _startDirectChat(context, userId),
         ),
       ],
     );
+  }
+
+  void _startDirectChat(BuildContext context, int targetUserId) {
+    // ChatRepository를 통해 1:1 채팅방 생성/조회 후 이동
+    context.push('/chat/direct/$targetUserId');
   }
 }
 
@@ -391,9 +647,7 @@ class _MyProfileActions extends StatelessWidget {
         _ActionButton(
           icon: Icons.chat_bubble_outline,
           label: '나와의 채팅',
-          onTap: () {
-            // TODO: 나와의 채팅
-          },
+          onTap: () => _startSelfChat(context),
         ),
         const SizedBox(width: 40),
         _ActionButton(
@@ -405,6 +659,20 @@ class _MyProfileActions extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _startSelfChat(BuildContext context) {
+    // AuthBloc에서 현재 로그인한 사용자 ID를 가져옴 (viewingUser와 혼동 방지)
+    final authState = context.read<AuthBloc>().state;
+    final currentUserId = authState.user?.id;
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로그인 정보를 찾을 수 없습니다')),
+      );
+      return;
+    }
+    // 자기 자신과의 채팅방으로 이동 (메모용)
+    context.push('/chat/self/$currentUserId');
   }
 }
 

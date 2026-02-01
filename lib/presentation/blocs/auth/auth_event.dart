@@ -46,15 +46,19 @@ class AuthLogoutRequested extends AuthEvent {
 
 class AuthProfileUpdateRequested extends AuthEvent {
   final String? nickname;
+  final String? statusMessage;
   final String? avatarUrl;
+  final String? backgroundUrl;
 
   const AuthProfileUpdateRequested({
     this.nickname,
+    this.statusMessage,
     this.avatarUrl,
+    this.backgroundUrl,
   });
 
   @override
-  List<Object?> get props => [nickname, avatarUrl];
+  List<Object?> get props => [nickname, statusMessage, avatarUrl, backgroundUrl];
 }
 
 class AuthAvatarUploadRequested extends AuthEvent {
@@ -64,4 +68,20 @@ class AuthAvatarUploadRequested extends AuthEvent {
 
   @override
   List<Object?> get props => [imageFile];
+}
+
+/// 로컬에서 user 상태만 업데이트 (서버에 이미 저장된 경우)
+class AuthUserLocalUpdated extends AuthEvent {
+  final String? avatarUrl;
+  final String? backgroundUrl;
+  final String? statusMessage;
+
+  const AuthUserLocalUpdated({
+    this.avatarUrl,
+    this.backgroundUrl,
+    this.statusMessage,
+  });
+
+  @override
+  List<Object?> get props => [avatarUrl, backgroundUrl, statusMessage];
 }

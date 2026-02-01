@@ -22,28 +22,34 @@ import '../core/network/websocket_service.dart' as _i682;
 import '../core/router/app_router.dart' as _i877;
 import '../core/services/desktop_notification_bridge.dart' as _i396;
 import '../core/services/fcm_service.dart' as _i809;
+import '../core/services/notification_click_handler.dart' as _i774;
 import '../core/services/notification_service.dart' as _i570;
 import '../core/window/window_focus_tracker.dart' as _i156;
 import '../data/datasources/local/auth_local_datasource.dart' as _i860;
 import '../data/datasources/local/chat_local_datasource.dart' as _i601;
+import '../data/datasources/local/chat_settings_local_datasource.dart' as _i30;
 import '../data/datasources/local/database/app_database.dart' as _i441;
 import '../data/datasources/local/notification_local_datasource.dart' as _i64;
+import '../data/datasources/local/theme_local_datasource.dart' as _i632;
 import '../data/datasources/remote/auth_remote_datasource.dart' as _i633;
 import '../data/datasources/remote/chat_remote_datasource.dart' as _i397;
 import '../data/datasources/remote/friend_remote_datasource.dart' as _i867;
 import '../data/datasources/remote/notification_remote_datasource.dart'
     as _i708;
 import '../data/datasources/remote/profile_remote_datasource.dart' as _i710;
+import '../data/datasources/remote/settings_remote_datasource.dart' as _i991;
 import '../data/repositories/auth_repository_impl.dart' as _i74;
 import '../data/repositories/chat_repository_impl.dart' as _i919;
 import '../data/repositories/friend_repository_impl.dart' as _i364;
 import '../data/repositories/notification_repository_impl.dart' as _i888;
 import '../data/repositories/profile_repository_impl.dart' as _i953;
+import '../data/repositories/settings_repository_impl.dart' as _i453;
 import '../domain/repositories/auth_repository.dart' as _i800;
 import '../domain/repositories/chat_repository.dart' as _i792;
 import '../domain/repositories/friend_repository.dart' as _i1069;
 import '../domain/repositories/notification_repository.dart' as _i965;
 import '../domain/repositories/profile_repository.dart' as _i217;
+import '../domain/repositories/settings_repository.dart' as _i977;
 import '../presentation/blocs/auth/auth_bloc.dart' as _i525;
 import '../presentation/blocs/chat/chat_list_bloc.dart' as _i995;
 import '../presentation/blocs/chat/chat_room_bloc.dart' as _i995;
@@ -51,6 +57,11 @@ import '../presentation/blocs/chat/message_search/message_search_bloc.dart'
     as _i487;
 import '../presentation/blocs/friend/friend_bloc.dart' as _i367;
 import '../presentation/blocs/profile/profile_bloc.dart' as _i256;
+import '../presentation/blocs/settings/account_deletion_bloc.dart' as _i3;
+import '../presentation/blocs/settings/chat_settings_cubit.dart' as _i110;
+import '../presentation/blocs/settings/notification_settings_cubit.dart'
+    as _i728;
+import '../presentation/blocs/theme/theme_cubit.dart' as _i450;
 import 'injection.dart' as _i464;
 
 const String _mobile = 'mobile';
@@ -76,6 +87,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i156.WindowFocusTracker>(
       () => registerModule.windowFocusTracker,
+    );
+    gh.lazySingleton<_i632.ThemeLocalDataSource>(
+      () => _i632.ThemeLocalDataSourceImpl(),
+    );
+    gh.lazySingleton<_i30.ChatSettingsLocalDataSource>(
+      () => _i30.ChatSettingsLocalDataSourceImpl(),
     );
     gh.lazySingleton<_i860.AuthLocalDataSource>(
       () => _i860.AuthLocalDataSourceImpl(gh<_i558.FlutterSecureStorage>()),
@@ -110,8 +127,14 @@ extension GetItInjectableX on _i174.GetIt {
         plugin: gh<_i163.FlutterLocalNotificationsPlugin>(),
       ),
     );
+    gh.lazySingleton<_i450.ThemeCubit>(
+      () => _i450.ThemeCubit(gh<_i632.ThemeLocalDataSource>()),
+    );
     gh.lazySingleton<_i393.DioClient>(
       () => _i393.DioClient(gh<_i552.AuthInterceptor>()),
+    );
+    gh.lazySingleton<_i991.SettingsRemoteDataSource>(
+      () => _i991.SettingsRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
     gh.lazySingleton<_i809.FcmService>(
       () => _i809.FcmServiceImpl(
@@ -164,6 +187,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i809.FcmService>(),
       ),
     );
+    gh.lazySingleton<_i977.SettingsRepository>(
+      () => _i453.SettingsRepositoryImpl(
+        gh<_i991.SettingsRemoteDataSource>(),
+        gh<_i30.ChatSettingsLocalDataSource>(),
+      ),
+    );
     gh.factory<_i995.ChatRoomBloc>(
       () => _i995.ChatRoomBloc(
         gh<_i792.ChatRepository>(),
@@ -177,6 +206,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i487.MessageSearchBloc>(
       () => _i487.MessageSearchBloc(gh<_i792.ChatRepository>()),
+    );
+    gh.lazySingleton<_i110.ChatSettingsCubit>(
+      () => _i110.ChatSettingsCubit(gh<_i977.SettingsRepository>()),
+    );
+    gh.lazySingleton<_i728.NotificationSettingsCubit>(
+      () => _i728.NotificationSettingsCubit(gh<_i977.SettingsRepository>()),
     );
     gh.lazySingleton<_i217.ProfileRepository>(
       () => _i953.ProfileRepositoryImpl(gh<_i710.ProfileRemoteDataSource>()),
@@ -203,6 +238,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i396.DesktopNotificationBridge>(),
       ),
     );
+    gh.factory<_i3.AccountDeletionBloc>(
+      () => _i3.AccountDeletionBloc(
+        gh<_i977.SettingsRepository>(),
+        gh<_i800.AuthRepository>(),
+      ),
+    );
     gh.factory<_i256.ProfileBloc>(
       () => _i256.ProfileBloc(
         gh<_i217.ProfileRepository>(),
@@ -211,6 +252,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i877.AppRouter>(
       () => _i877.AppRouter(gh<_i525.AuthBloc>()),
+    );
+    gh.lazySingleton<_i774.NotificationClickHandler>(
+      () => _i774.NotificationClickHandler(
+        notificationService: gh<_i570.NotificationService>(),
+        appRouter: gh<_i877.AppRouter>(),
+      ),
     );
     return this;
   }

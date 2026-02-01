@@ -69,16 +69,24 @@ class ProfileRemoteDataSourceImpl extends BaseRemoteDataSource
         queryParams['type'] = type;
       }
 
+      // ignore: avoid_print
+      print('[ProfileRemoteDataSource] GET ${ApiConstants.profileHistory(userId)}, params=$queryParams');
+
       final response = await _dioClient.get(
         ApiConstants.profileHistory(userId),
         queryParameters: queryParams,
       );
+
+      // ignore: avoid_print
+      print('[ProfileRemoteDataSource] Response: ${response.data}');
 
       final List<dynamic> data = response.data['histories'] ?? response.data;
       return data
           .map((json) => ProfileHistoryModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } on DioException catch (e) {
+      // ignore: avoid_print
+      print('[ProfileRemoteDataSource] Error: $e');
       throw handleDioError(e);
     }
   }
@@ -93,19 +101,29 @@ class ProfileRemoteDataSourceImpl extends BaseRemoteDataSource
     bool setCurrent = true,
   }) async {
     try {
+      final requestData = {
+        'type': type,
+        if (url != null) 'url': url,
+        if (content != null) 'content': content,
+        'isPrivate': isPrivate,
+        'setCurrent': setCurrent,
+      };
+
+      // ignore: avoid_print
+      print('[ProfileRemoteDataSource] POST ${ApiConstants.profileHistory(userId)}, data=$requestData');
+
       final response = await _dioClient.post(
         ApiConstants.profileHistory(userId),
-        data: {
-          'type': type,
-          if (url != null) 'url': url,
-          if (content != null) 'content': content,
-          'isPrivate': isPrivate,
-          'setCurrent': setCurrent,
-        },
+        data: requestData,
       );
+
+      // ignore: avoid_print
+      print('[ProfileRemoteDataSource] Create response: ${response.data}');
 
       return ProfileHistoryModel.fromJson(response.data);
     } on DioException catch (e) {
+      // ignore: avoid_print
+      print('[ProfileRemoteDataSource] Create error: $e');
       throw handleDioError(e);
     }
   }
