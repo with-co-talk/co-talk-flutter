@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/profile_history.dart';
+import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/profile_repository.dart';
 import 'profile_event.dart';
@@ -52,6 +53,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     ProfileHistoryLoadRequested event,
     Emitter<ProfileState> emit,
   ) async {
+    // ignore: avoid_print
+    print('[ProfileBloc] _onLoadRequested: userId=${event.userId}, type=${event.type}');
+
     emit(state.copyWith(
       status: ProfileStatus.loading,
       filterType: event.type,
@@ -65,11 +69,16 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         type: event.type,
       );
 
+      // ignore: avoid_print
+      print('[ProfileBloc] Loaded ${histories.length} histories: ${histories.map((h) => 'id=${h.id}, type=${h.type}, url=${h.url}').toList()}');
+
       emit(state.copyWith(
         status: ProfileStatus.loaded,
         histories: histories,
       ));
     } catch (e) {
+      // ignore: avoid_print
+      print('[ProfileBloc] Error loading histories: $e');
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       emit(state.copyWith(
         status: ProfileStatus.failure,
@@ -82,6 +91,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     ProfileHistoryCreateRequested event,
     Emitter<ProfileState> emit,
   ) async {
+    // ignore: avoid_print
+    print('[ProfileBloc] _onCreateRequested: userId=${event.userId}, type=${event.type}');
+
     emit(state.copyWith(
       status: ProfileStatus.creating,
       clearErrorMessage: true,
@@ -94,6 +106,8 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       // 이미지 업로드가 필요한 경우
       if (event.imageFile != null) {
         url = await _authRepository.uploadAvatar(event.imageFile!);
+        // ignore: avoid_print
+        print('[ProfileBloc] Uploaded file, url=$url');
       }
 
       final created = await _profileRepository.createProfileHistory(
@@ -104,6 +118,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         isPrivate: event.isPrivate,
         setCurrent: event.setCurrent,
       );
+
+      // ignore: avoid_print
+      print('[ProfileBloc] Created history: id=${created.id}, type=${created.type}, url=${created.url}');
 
       // 목록에 새 이력 추가
       final updatedHistories = [created, ...state.histories];
@@ -118,9 +135,26 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
             }).toList()
           : updatedHistories;
 
+      // setCurrent가 true면 viewingUser도 업데이트
+      User? updatedUser = state.viewingUser;
+      if (event.setCurrent && state.viewingUser != null) {
+        switch (event.type) {
+          case ProfileHistoryType.avatar:
+            updatedUser = state.viewingUser!.copyWith(avatarUrl: created.url);
+            break;
+          case ProfileHistoryType.background:
+            updatedUser = state.viewingUser!.copyWith(backgroundUrl: created.url);
+            break;
+          case ProfileHistoryType.statusMessage:
+            updatedUser = state.viewingUser!.copyWith(statusMessage: created.content);
+            break;
+        }
+      }
+
       emit(state.copyWith(
         status: ProfileStatus.success,
         histories: finalHistories,
+        viewingUser: updatedUser,
         successMessage: '프로필이 업데이트되었습니다.',
       ));
     } catch (e) {

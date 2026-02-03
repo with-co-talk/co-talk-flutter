@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/constants/app_constants.dart';
@@ -27,16 +28,33 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     required String accessToken,
     required String refreshToken,
   }) async {
-    await Future.wait([
-      _secureStorage.write(
-        key: AppConstants.accessTokenKey,
-        value: accessToken,
-      ),
-      _secureStorage.write(
-        key: AppConstants.refreshTokenKey,
-        value: refreshToken,
-      ),
-    ]);
+    await _writeWithRetry(AppConstants.accessTokenKey, accessToken);
+    await _writeWithRetry(AppConstants.refreshTokenKey, refreshToken);
+  }
+
+  /// macOS/iOS Keychain 중복 키 에러(-25299) 처리
+  /// 에러 발생 시 삭제 후 재시도, 그래도 실패 시 전체 삭제 후 재시도
+  Future<void> _writeWithRetry(String key, String value) async {
+    try {
+      await _secureStorage.write(key: key, value: value);
+    } on PlatformException catch (e) {
+      // -25299: errSecDuplicateItem (이미 존재하는 항목)
+      if (e.code == 'Unexpected security result code' ||
+          e.message?.contains('-25299') == true) {
+        try {
+          await _secureStorage.delete(key: key);
+          await _secureStorage.write(key: key, value: value);
+        } on PlatformException {
+          // 그래도 실패 시 전체 키체인 초기화 후 재시도
+          // ignore: avoid_print
+          print('[AuthLocalDataSource] Keychain error - clearing all and retrying');
+          await _secureStorage.deleteAll();
+          await _secureStorage.write(key: key, value: value);
+        }
+      } else {
+        rethrow;
+      }
+    }
   }
 
   @override

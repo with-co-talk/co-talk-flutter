@@ -53,4 +53,36 @@ class FriendRepositoryImpl implements FriendRepository {
     final requestModels = await _remoteDataSource.getSentFriendRequests();
     return requestModels.map((m) => m.toEntity()).toList();
   }
+
+  @override
+  Future<void> hideFriend(int friendId) async {
+    await _remoteDataSource.hideFriend(friendId);
+  }
+
+  @override
+  Future<void> unhideFriend(int friendId) async {
+    await _remoteDataSource.unhideFriend(friendId);
+  }
+
+  @override
+  Future<List<Friend>> getHiddenFriends() async {
+    final friendModels = await _remoteDataSource.getHiddenFriends();
+    return friendModels.map((m) => m.toEntity()).toList();
+  }
+
+  @override
+  Future<void> blockUser(int userId) async {
+    await _remoteDataSource.blockUser(userId);
+  }
+
+  @override
+  Future<void> unblockUser(int userId) async {
+    await _remoteDataSource.unblockUser(userId);
+  }
+
+  @override
+  Future<List<User>> getBlockedUsers() async {
+    final userModels = await _remoteDataSource.getBlockedUsers();
+    return userModels.map((m) => m.toEntity()).toList();
+  }
 }

@@ -13,7 +13,7 @@ abstract class AuthRemoteDataSource {
   Future<AuthTokenResponse> refreshToken(String refreshToken);
   Future<void> logout(String refreshToken);
   Future<UserModel> getCurrentUser();
-  Future<void> updateProfile(int userId, {String? nickname, String? avatarUrl});
+  Future<void> updateProfile(int userId, {String? nickname, String? statusMessage, String? avatarUrl});
   Future<String> uploadFile(File file);
 }
 
@@ -84,12 +84,13 @@ class AuthRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> updateProfile(int userId, {String? nickname, String? avatarUrl}) async {
+  Future<void> updateProfile(int userId, {String? nickname, String? statusMessage, String? avatarUrl}) async {
     try {
       await _dioClient.put(
         ApiConstants.userProfile(userId),
         data: {
           if (nickname != null) 'nickname': nickname,
+          if (statusMessage != null) 'statusMessage': statusMessage,
           if (avatarUrl != null) 'avatarUrl': avatarUrl,
         },
       );

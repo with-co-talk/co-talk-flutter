@@ -9,19 +9,19 @@ import '../base_remote_datasource.dart';
 abstract class NotificationRemoteDataSource {
   /// FCM 토큰 서버 등록
   ///
+  /// [userId] 사용자 ID
   /// [token] FCM 토큰
-  /// [platform] 플랫폼 ('android' 또는 'ios')
-  /// [deviceId] 고유 디바이스 식별자
+  /// [deviceType] 디바이스 타입 ('ANDROID' 또는 'IOS')
   Future<void> registerFcmToken({
+    required int userId,
     required String token,
-    required String platform,
-    required String deviceId,
+    required String deviceType,
   });
 
   /// FCM 토큰 서버에서 삭제
   ///
-  /// [deviceId] 삭제할 디바이스의 식별자
-  Future<void> unregisterFcmToken({required String deviceId});
+  /// [token] 삭제할 FCM 토큰
+  Future<void> unregisterFcmToken({required String token});
 }
 
 @LazySingleton(as: NotificationRemoteDataSource)
@@ -33,17 +33,17 @@ class NotificationRemoteDataSourceImpl extends BaseRemoteDataSource
 
   @override
   Future<void> registerFcmToken({
+    required int userId,
     required String token,
-    required String platform,
-    required String deviceId,
+    required String deviceType,
   }) async {
     try {
       await _dioClient.post(
         ApiConstants.fcmToken,
         data: {
+          'userId': userId,
           'token': token,
-          'platform': platform,
-          'deviceId': deviceId,
+          'deviceType': deviceType,
         },
       );
     } on DioException catch (e) {
@@ -52,11 +52,11 @@ class NotificationRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<void> unregisterFcmToken({required String deviceId}) async {
+  Future<void> unregisterFcmToken({required String token}) async {
     try {
       await _dioClient.delete(
         ApiConstants.fcmToken,
-        data: {'deviceId': deviceId},
+        queryParameters: {'token': token},
       );
     } on DioException catch (e) {
       throw handleDioError(e);

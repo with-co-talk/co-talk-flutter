@@ -26,8 +26,6 @@ class _MainPageState extends State<MainPage> {
   static const _destinations = [
     AppRoutes.chatList,
     AppRoutes.friends,
-    AppRoutes.profile,
-    AppRoutes.settings,
   ];
 
   @override
@@ -151,16 +149,6 @@ class _MainPageState extends State<MainPage> {
                       selectedIcon: Icon(Icons.people),
                       label: Text('친구'),
                     ),
-                    const NavigationRailDestination(
-                      icon: Icon(Icons.person_outlined),
-                      selectedIcon: Icon(Icons.person),
-                      label: Text('프로필'),
-                    ),
-                    const NavigationRailDestination(
-                      icon: Icon(Icons.settings_outlined),
-                      selectedIcon: Icon(Icons.settings),
-                      label: Text('설정'),
-                    ),
                   ],
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
@@ -191,16 +179,6 @@ class _MainPageState extends State<MainPage> {
                 icon: Icon(Icons.people_outlined),
                 selectedIcon: Icon(Icons.people),
                 label: '친구',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outlined),
-                selectedIcon: Icon(Icons.person),
-                label: '프로필',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: '설정',
               ),
             ],
           ),

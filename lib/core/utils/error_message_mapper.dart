@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import '../errors/exceptions.dart';
 
 /// Exception을 사용자 친화적인 메시지로 변환하는 유틸리티
@@ -23,7 +24,15 @@ class ErrorMessageMapper {
     if (error is ValidationException) {
       return error.message;
     }
-    
+
+    if (error is ConflictException) {
+      return error.message;
+    }
+
+    if (error is PlatformException) {
+      return '기기 저장소 오류가 발생했습니다. 앱을 재시작해주세요.';
+    }
+
     // 알 수 없는 에러의 경우
     return '알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
   }

@@ -2,14 +2,35 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- App Sandbox -->
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+
+	<!-- JIT 허용 (디버깅용) -->
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
+
+	<!-- 네트워크 서버 (개발 서버) -->
 	<key>com.apple.security.network.server</key>
 	<true/>
+
+	<!-- 네트워크 클라이언트 (API, WebSocket 연결) -->
 	<key>com.apple.security.network.client</key>
 	<true/>
+
+	<!-- 사용자가 선택한 파일 읽기 (파일 첨부) -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+
+	<!-- 사용자가 선택한 파일 쓰기 (파일 다운로드) -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+
+	<!-- 다운로드 폴더 접근 -->
+	<key>com.apple.security.files.downloads.read-write</key>
+	<true/>
+
+	<!-- Keychain 접근 (flutter_secure_storage) -->
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)com.cotalk.coTalkFlutter</string>

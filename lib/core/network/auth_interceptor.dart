@@ -67,6 +67,19 @@ class AuthInterceptor extends QueuedInterceptor {
         err.requestOptions.path.contains('/auth/signup') ||
         err.requestOptions.path.contains('/auth/refresh');
 
+    // USER_NOT_FOUND 에러 체크 (404 + USER_NOT_FOUND 코드)
+    // 토큰은 유효하지만 사용자가 DB에 없는 경우 (삭제됨, DB 초기화 등)
+    if (err.response?.statusCode == 404 && !isAuthEndpoint) {
+      final responseData = err.response?.data;
+      final errorCode = responseData is Map ? responseData['code'] : null;
+
+      if (errorCode == 'USER_NOT_FOUND') {
+        await _forceLogout();
+        handler.next(err);
+        return;
+      }
+    }
+
     if (err.response?.statusCode == 401 && !isAuthEndpoint) {
       // Token expired, try to refresh
       final refreshToken = await _authLocalDataSource.getRefreshToken();
@@ -90,23 +103,22 @@ class AuthInterceptor extends QueuedInterceptor {
           }
         } catch (e) {
           // Refresh failed, clear tokens and logout
-          await _authLocalDataSource.clearTokens();
-          
-          // WebSocket 연결 해제
-          _webSocketService?.disconnect();
-          
-          // AuthBloc에 로그아웃 이벤트 전송
-          _authBloc?.add(const AuthLogoutRequested());
+          await _forceLogout();
         }
       } else {
         // Refresh token이 없는 경우도 로그아웃 처리
-        await _authLocalDataSource.clearTokens();
-        _webSocketService?.disconnect();
-        _authBloc?.add(const AuthLogoutRequested());
+        await _forceLogout();
       }
     }
 
     handler.next(err);
+  }
+
+  /// 강제 로그아웃 처리
+  Future<void> _forceLogout() async {
+    await _authLocalDataSource.clearTokens();
+    _webSocketService?.disconnect();
+    _authBloc?.add(const AuthLogoutRequested());
   }
 
   Future<Map<String, String>?> _refreshToken(String refreshToken) async {

@@ -10,55 +10,81 @@ import 'app.dart';
 import 'core/constants/app_constants.dart';
 import 'core/services/desktop_notification_bridge.dart';
 import 'core/services/fcm_service.dart';
+import 'core/services/notification_click_handler.dart';
 import 'core/services/notification_service.dart';
 import 'di/injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize date formatting for Korean locale
-  await initializeDateFormatting('ko_KR', null);
+  // Release 모드에서도 에러를 캐치하기 위한 글로벌 에러 핸들러
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('FlutterError: ${details.exception}');
+  };
 
-  // Initialize Firebase (Android only for now)
-  // TODO: iOS 푸시 알림 활성화 시 Platform.isIOS 조건 추가 필요
-  // iOS 설정 필요사항:
-  // 1. Apple Developer Program 유료 가입
-  // 2. Xcode에서 Push Notifications capability 추가
-  // 3. Xcode에서 Background Modes > Remote notifications 추가
-  // 4. APNs 인증 키 발급 후 Firebase Console에 업로드
-  if (!kIsWeb && Platform.isAndroid) {
-    await Firebase.initializeApp();
-    // Set up background message handler
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  try {
+    // Initialize date formatting for Korean locale
+    await initializeDateFormatting('ko_KR', null);
+
+    // Initialize Firebase (Android and iOS)
+    // iOS 설정 필요사항:
+    // 1. Apple Developer Program 유료 가입
+    // 2. Xcode에서 Push Notifications capability 추가
+    // 3. Xcode에서 Background Modes > Remote notifications 추가
+    // 4. APNs 인증 키 발급 후 Firebase Console에 업로드
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      await Firebase.initializeApp();
+      // Set up background message handler
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    }
+
+    // Initialize dependency injection
+    await configureDependencies();
+
+    // Initialize notification services
+    await _initializeNotifications();
+
+    // Desktop window configuration
+    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      await windowManager.ensureInitialized();
+
+      const windowOptions = WindowOptions(
+        size: Size(AppConstants.defaultWindowWidth, AppConstants.defaultWindowHeight),
+        minimumSize: Size(AppConstants.minWindowWidth, AppConstants.minWindowHeight),
+        center: true,
+        backgroundColor: Colors.transparent,
+        skipTaskbar: false,
+        titleBarStyle: TitleBarStyle.normal,
+        title: AppConstants.appName,
+      );
+
+      await windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.show();
+        await windowManager.focus();
+      });
+    }
+
+    runApp(const CoTalkApp());
+  } catch (e, stackTrace) {
+    debugPrint('App initialization error: $e');
+    debugPrint('Stack trace: $stackTrace');
+    // 에러 발생 시에도 앱을 표시하여 사용자가 문제를 인지할 수 있도록 함
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'App initialization failed:\n$e',
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    ));
   }
-
-  // Initialize dependency injection
-  await configureDependencies();
-
-  // Initialize notification services
-  await _initializeNotifications();
-
-  // Desktop window configuration
-  if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
-    await windowManager.ensureInitialized();
-
-    const windowOptions = WindowOptions(
-      size: Size(AppConstants.defaultWindowWidth, AppConstants.defaultWindowHeight),
-      minimumSize: Size(AppConstants.minWindowWidth, AppConstants.minWindowHeight),
-      center: true,
-      backgroundColor: Colors.transparent,
-      skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.normal,
-      title: AppConstants.appName,
-    );
-
-    await windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await windowManager.show();
-      await windowManager.focus();
-    });
-  }
-
-  runApp(const CoTalkApp());
 }
 
 /// 알림 서비스 초기화
@@ -71,9 +97,13 @@ Future<void> _initializeNotifications() async {
   final notificationService = getIt<NotificationService>();
   await notificationService.initialize();
 
-  // FCM 서비스 초기화 (Android만 - iOS는 Apple Developer 유료 가입 후 활성화)
-  // TODO: iOS 푸시 알림 활성화 시 Platform.isIOS 조건 추가
-  if (!kIsWeb && Platform.isAndroid) {
+  // 알림 클릭 핸들러 초기화 (모든 플랫폼)
+  // 알림 클릭 시 해당 채팅방으로 네비게이션
+  final notificationClickHandler = getIt<NotificationClickHandler>();
+  notificationClickHandler.startListening();
+
+  // FCM 서비스 초기화 (Android 및 iOS)
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     final fcmService = getIt<FcmService>();
     await fcmService.initialize();
   }

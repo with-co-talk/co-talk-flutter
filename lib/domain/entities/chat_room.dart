@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum ChatRoomType { direct, group }
+enum ChatRoomType { direct, group, self }
 
 class ChatRoom extends Equatable {
   final int id;

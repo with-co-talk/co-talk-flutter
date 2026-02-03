@@ -11,18 +11,24 @@ abstract class NotificationRepository {
   /// 2. 로컬 저장소에 토큰 저장
   /// 3. 서버에 토큰 등록
   ///
-  /// [platform] 'android' 또는 'ios'
-  Future<void> registerToken({required String platform});
+  /// [userId] 사용자 ID
+  /// [deviceType] 'ANDROID' 또는 'IOS'
+  Future<void> registerToken({
+    required int userId,
+    required String deviceType,
+  });
 
   /// FCM 토큰 갱신
   ///
   /// 토큰이 갱신되면 서버에 새 토큰을 등록합니다.
   ///
+  /// [userId] 사용자 ID
   /// [newToken] 새로 발급된 FCM 토큰
-  /// [platform] 'android' 또는 'ios'
+  /// [deviceType] 'ANDROID' 또는 'IOS'
   Future<void> refreshToken({
+    required int userId,
     required String newToken,
-    required String platform,
+    required String deviceType,
   });
 
   /// FCM 토큰 삭제
@@ -37,8 +43,12 @@ abstract class NotificationRepository {
   ///
   /// FCM 토큰이 갱신될 때 자동으로 서버에 재등록합니다.
   ///
-  /// [platform] 'android' 또는 'ios'
-  void setupTokenRefreshListener({required String platform});
+  /// [userId] 사용자 ID
+  /// [deviceType] 'ANDROID' 또는 'IOS'
+  void setupTokenRefreshListener({
+    required int userId,
+    required String deviceType,
+  });
 
   /// 토큰 갱신 리스너 해제
   void disposeTokenRefreshListener();

@@ -21,6 +21,12 @@ class ProfilePage extends StatelessWidget {
               context.push(AppRoutes.editProfile);
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              context.push(AppRoutes.settings);
+            },
+          ),
         ],
       ),
       body: BlocBuilder<AuthBloc, AuthState>(
@@ -93,7 +99,7 @@ class ProfilePage extends StatelessWidget {
                 Text(
                   user.email,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
+                        color: context.textSecondaryColor,
                       ),
                 ),
                 if (user.statusMessage != null && user.statusMessage!.isNotEmpty) ...[
@@ -103,7 +109,7 @@ class ProfilePage extends StatelessWidget {
                     child: Text(
                       user.statusMessage!,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
+                            color: context.textSecondaryColor,
                             fontStyle: FontStyle.italic,
                           ),
                       textAlign: TextAlign.center,
@@ -217,11 +223,11 @@ class _ProfileInfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: AppColors.textSecondary),
+          Icon(icon, size: 20, color: context.textSecondaryColor),
           const SizedBox(width: 12),
           Text(
             label,
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: context.textSecondaryColor),
           ),
           const Spacer(),
           Text(

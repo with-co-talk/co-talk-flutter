@@ -378,6 +378,88 @@ void main() {
 
         expect(message.forwardedFromMessageId, 200);
       });
+
+      group('🔴 RED: unreadCount 파싱 검증', () {
+        test('unreadCount=1이 정확히 파싱됨 (1:1 채팅 기본 시나리오)', () {
+          final json = {
+            'messageId': 100,
+            'senderId': 2,
+            'roomId': 1,
+            'content': 'Hello',
+            'type': 'TEXT',
+            'createdAt': '2026-01-31T10:00:00.000',
+            'unreadCount': 1, // 서버: totalMembers(2) - 1 = 1
+          };
+
+          final message = WebSocketChatMessage.fromJson(json, 1);
+
+          expect(message.unreadCount, 1, reason: 'unreadCount=1이 그대로 파싱되어야 함');
+        });
+
+        test('unreadCount=0이 정확히 파싱됨 (모두 읽은 경우)', () {
+          final json = {
+            'messageId': 101,
+            'senderId': 2,
+            'roomId': 1,
+            'content': 'Already read',
+            'type': 'TEXT',
+            'createdAt': '2026-01-31T10:00:00.000',
+            'unreadCount': 0,
+          };
+
+          final message = WebSocketChatMessage.fromJson(json, 1);
+
+          expect(message.unreadCount, 0, reason: 'unreadCount=0이 그대로 파싱되어야 함');
+        });
+
+        test('unreadCount가 null이면 기본값 0으로 설정됨', () {
+          final json = {
+            'messageId': 102,
+            'senderId': 2,
+            'roomId': 1,
+            'content': 'Null unread',
+            'type': 'TEXT',
+            'createdAt': '2026-01-31T10:00:00.000',
+            'unreadCount': null,
+          };
+
+          final message = WebSocketChatMessage.fromJson(json, 1);
+
+          expect(message.unreadCount, 0, reason: 'unreadCount가 null이면 0이어야 함');
+        });
+
+        test('unreadCount 필드가 없으면 기본값 0으로 설정됨', () {
+          final json = {
+            'messageId': 103,
+            'senderId': 2,
+            'roomId': 1,
+            'content': 'Missing unread field',
+            'type': 'TEXT',
+            'createdAt': '2026-01-31T10:00:00.000',
+            // unreadCount 필드 없음
+          };
+
+          final message = WebSocketChatMessage.fromJson(json, 1);
+
+          expect(message.unreadCount, 0, reason: 'unreadCount 필드가 없으면 0이어야 함');
+        });
+
+        test('그룹 채팅 unreadCount=3이 정확히 파싱됨', () {
+          final json = {
+            'messageId': 104,
+            'senderId': 2,
+            'roomId': 5,
+            'content': 'Group message',
+            'type': 'TEXT',
+            'createdAt': '2026-01-31T10:00:00.000',
+            'unreadCount': 3, // 4명 그룹: totalMembers(4) - 1 = 3
+          };
+
+          final message = WebSocketChatMessage.fromJson(json, 5);
+
+          expect(message.unreadCount, 3, reason: '그룹 채팅 unreadCount=3이 그대로 파싱되어야 함');
+        });
+      });
     });
 
     group('_parseDateTime', () {

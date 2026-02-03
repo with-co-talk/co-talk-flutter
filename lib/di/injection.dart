@@ -25,6 +25,15 @@ const desktopEnv = 'desktop';
 Future<void> configureDependencies() async {
   // 플랫폼에 따라 환경 결정
   final environment = _determineEnvironment();
+
+  // 모바일 환경에서는 FirebaseMessaging을 먼저 수동으로 등록
+  // (Firebase.initializeApp()이 완료된 후에 호출되므로 안전함)
+  if (environment == mobileEnv) {
+    getIt.registerLazySingleton<FirebaseMessaging>(
+      () => FirebaseMessaging.instance,
+    );
+  }
+
   getIt.init(environment: environment);
 }
 
@@ -32,9 +41,8 @@ String _determineEnvironment() {
   if (kIsWeb) {
     return desktopEnv; // 웹은 FCM 미지원으로 desktop 환경 사용
   }
-  // Android만 FCM 지원 (iOS는 APNs 설정 필요)
-  // TODO: iOS APNs 설정 완료 후 Platform.isIOS 추가
-  if (Platform.isAndroid) {
+  // Android 및 iOS는 FCM 지원 (mobile 환경)
+  if (Platform.isAndroid || Platform.isIOS) {
     return mobileEnv;
   }
   return desktopEnv; // iOS, macOS, Windows, Linux
@@ -46,7 +54,11 @@ abstract class RegisterModule {
   FlutterSecureStorage get secureStorage => const FlutterSecureStorage(
         aOptions: AndroidOptions(encryptedSharedPreferences: true),
         iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
-        mOptions: MacOsOptions(),
+        // macOS: 명시적 accountName 설정으로 중복 키 에러 방지
+        mOptions: MacOsOptions(
+          accountName: 'co_talk_flutter',
+          accessibility: KeychainAccessibility.unlocked,
+        ),
       );
 
   @lazySingleton
@@ -56,10 +68,8 @@ abstract class RegisterModule {
   FlutterLocalNotificationsPlugin get localNotificationsPlugin =>
       FlutterLocalNotificationsPlugin();
 
-  // FirebaseMessaging은 모바일 환경에서만 등록 (FcmServiceImpl이 직접 사용)
-  @lazySingleton
-  @Environment(mobileEnv)
-  FirebaseMessaging get firebaseMessaging => FirebaseMessaging.instance;
+  // FirebaseMessaging은 configureDependencies()에서 수동으로 등록됨
+  // (Firebase.initializeApp() 이후에 안전하게 등록하기 위함)
 
   @lazySingleton
   WindowFocusTracker get windowFocusTracker => WindowFocusTracker.platform();

@@ -5,7 +5,10 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
+import '../../blocs/auth/auth_state.dart';
+import '../../blocs/theme/theme_cubit.dart';
 
+/// 설정 페이지
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -13,22 +16,78 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(AppRoutes.chatList);
+            }
+          },
+        ),
         title: const Text('설정'),
       ),
       body: ListView(
         children: [
+          // 프로필 섹션
+          _SettingsSection(
+            title: '프로필',
+            children: [
+              BlocBuilder<AuthBloc, AuthState>(
+                builder: (context, state) {
+                  return _SettingsTile(
+                    icon: Icons.person_outline,
+                    title: '내 프로필',
+                    subtitle: state.user?.nickname ?? '',
+                    onTap: () {
+                      final userId = state.user?.id;
+                      if (userId != null) {
+                        context.push(AppRoutes.profileViewPath(userId));
+                      }
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+          // 알림 섹션
           _SettingsSection(
             title: '알림',
             children: [
               _SettingsTile(
                 icon: Icons.notifications_outlined,
                 title: '알림 설정',
-                onTap: () {
-                  // TODO: Navigate to notification settings
-                },
+                subtitle: '메시지, 친구 요청, 그룹 초대 알림',
+                onTap: () => context.push(AppRoutes.notificationSettings),
               ),
             ],
           ),
+          // 채팅 섹션
+          _SettingsSection(
+            title: '채팅',
+            children: [
+              _SettingsTile(
+                icon: Icons.chat_outlined,
+                title: '채팅 설정',
+                subtitle: '글꼴 크기, 미디어 자동 다운로드',
+                onTap: () => context.push(AppRoutes.chatSettings),
+              ),
+            ],
+          ),
+          // 친구 섹션
+          _SettingsSection(
+            title: '친구',
+            children: [
+              _SettingsTile(
+                icon: Icons.people_outline,
+                title: '친구 관리',
+                subtitle: '친구 요청, 숨김, 차단 관리',
+                onTap: () => context.push(AppRoutes.friendSettings),
+              ),
+            ],
+          ),
+          // 일반 섹션
           _SettingsSection(
             title: '일반',
             children: [
@@ -36,45 +95,46 @@ class SettingsPage extends StatelessWidget {
                 icon: Icons.language,
                 title: '언어',
                 subtitle: '한국어',
-                onTap: () {
-                  // TODO: Language selection
-                },
               ),
-              _SettingsTile(
-                icon: Icons.dark_mode_outlined,
-                title: '다크 모드',
-                trailing: Switch(
-                  value: Theme.of(context).brightness == Brightness.dark,
-                  onChanged: (value) {
-                    // TODO: Implement theme switching
-                  },
-                ),
+              BlocBuilder<ThemeCubit, ThemeMode>(
+                builder: (context, themeMode) {
+                  final isDark = context.read<ThemeCubit>().isDarkMode(context);
+                  return _SettingsTile(
+                    icon: Icons.dark_mode_outlined,
+                    title: '다크 모드',
+                    trailing: Switch(
+                      value: isDark,
+                      onChanged: (value) {
+                        context.read<ThemeCubit>().toggleDarkMode(value);
+                      },
+                    ),
+                  );
+                },
               ),
             ],
           ),
+          // 계정 섹션
           _SettingsSection(
             title: '계정',
             children: [
               _SettingsTile(
                 icon: Icons.lock_outline,
                 title: '비밀번호 변경',
-                onTap: () {
-                  // TODO: Navigate to change password
-                },
+                onTap: () => context.push(AppRoutes.changePassword),
               ),
               _SettingsTile(
-                icon: Icons.block,
-                title: '차단 관리',
-                onTap: () {
-                  // TODO: Navigate to block management
-                },
+                icon: Icons.person_remove_outlined,
+                title: '회원 탈퇴',
+                titleColor: AppColors.error,
+                onTap: () => context.push(AppRoutes.accountDeletion),
               ),
             ],
           ),
+          // 정보 섹션
           _SettingsSection(
             title: '정보',
             children: [
-              _SettingsTile(
+              const _SettingsTile(
                 icon: Icons.info_outline,
                 title: '앱 버전',
                 subtitle: '1.0.0',
@@ -82,20 +142,26 @@ class SettingsPage extends StatelessWidget {
               _SettingsTile(
                 icon: Icons.description_outlined,
                 title: '이용약관',
-                onTap: () {
-                  // TODO: Navigate to terms
-                },
+                onTap: () => context.push(AppRoutes.terms),
               ),
               _SettingsTile(
                 icon: Icons.privacy_tip_outlined,
                 title: '개인정보 처리방침',
-                onTap: () {
-                  // TODO: Navigate to privacy policy
-                },
+                onTap: () => context.push(AppRoutes.privacyPolicy),
+              ),
+              _SettingsTile(
+                icon: Icons.code,
+                title: '오픈소스 라이선스',
+                onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: 'Co-Talk',
+                  applicationVersion: '1.0.0',
+                ),
               ),
             ],
           ),
           const SizedBox(height: 24),
+          // 로그아웃 버튼
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: OutlinedButton(
@@ -175,6 +241,7 @@ class _SettingsTile extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final Color? titleColor;
 
   const _SettingsTile({
     required this.icon,
@@ -182,13 +249,19 @@ class _SettingsTile extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.titleColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       leading: Icon(icon),
-      title: Text(title),
+      title: Text(
+        title,
+        style: titleColor != null
+            ? TextStyle(color: titleColor)
+            : null,
+      ),
       subtitle: subtitle != null ? Text(subtitle!) : null,
       trailing: trailing ?? (onTap != null ? const Icon(Icons.chevron_right) : null),
       onTap: onTap,

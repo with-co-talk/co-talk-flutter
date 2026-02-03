@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:injectable/injectable.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../core/services/fcm_service.dart';
 import '../../domain/repositories/notification_repository.dart';
@@ -15,6 +14,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
   final FcmService _fcmService;
 
   StreamSubscription<String>? _tokenRefreshSubscription;
+  int? _currentUserId;
+  String? _currentDeviceType;
 
   NotificationRepositoryImpl(
     this._localDataSource,
@@ -23,7 +24,10 @@ class NotificationRepositoryImpl implements NotificationRepository {
   );
 
   @override
-  Future<void> registerToken({required String platform}) async {
+  Future<void> registerToken({
+    required int userId,
+    required String deviceType,
+  }) async {
     // FCM에서 토큰 발급
     final token = await _fcmService.getToken();
     if (token == null) {
@@ -32,22 +36,15 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return;
     }
 
-    // 디바이스 ID 확인 또는 생성
-    var deviceId = await _localDataSource.getDeviceId();
-    if (deviceId == null) {
-      deviceId = const Uuid().v4();
-      await _localDataSource.saveDeviceId(deviceId);
-    }
-
     // 로컬에 토큰 저장
     await _localDataSource.saveFcmToken(token);
 
     // 서버에 토큰 등록
     try {
       await _remoteDataSource.registerFcmToken(
+        userId: userId,
         token: token,
-        platform: platform,
-        deviceId: deviceId,
+        deviceType: deviceType,
       );
       // ignore: avoid_print
       print('[NotificationRepository] FCM token registered successfully');
@@ -60,25 +57,19 @@ class NotificationRepositoryImpl implements NotificationRepository {
 
   @override
   Future<void> refreshToken({
+    required int userId,
     required String newToken,
-    required String platform,
+    required String deviceType,
   }) async {
-    // 디바이스 ID 확인
-    var deviceId = await _localDataSource.getDeviceId();
-    if (deviceId == null) {
-      deviceId = const Uuid().v4();
-      await _localDataSource.saveDeviceId(deviceId);
-    }
-
     // 로컬에 새 토큰 저장
     await _localDataSource.saveFcmToken(newToken);
 
     // 서버에 새 토큰 등록
     try {
       await _remoteDataSource.registerFcmToken(
+        userId: userId,
         token: newToken,
-        platform: platform,
-        deviceId: deviceId,
+        deviceType: deviceType,
       );
       // ignore: avoid_print
       print('[NotificationRepository] FCM token refreshed and registered');
@@ -90,12 +81,12 @@ class NotificationRepositoryImpl implements NotificationRepository {
 
   @override
   Future<void> unregisterToken() async {
-    final deviceId = await _localDataSource.getDeviceId();
+    final token = await _localDataSource.getFcmToken();
 
     // 서버에서 토큰 삭제 시도
-    if (deviceId != null) {
+    if (token != null) {
       try {
-        await _remoteDataSource.unregisterFcmToken(deviceId: deviceId);
+        await _remoteDataSource.unregisterFcmToken(token: token);
         // ignore: avoid_print
         print('[NotificationRepository] FCM token unregistered from server');
       } catch (e) {
@@ -113,10 +104,21 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
-  void setupTokenRefreshListener({required String platform}) {
+  void setupTokenRefreshListener({
+    required int userId,
+    required String deviceType,
+  }) {
+    _currentUserId = userId;
+    _currentDeviceType = deviceType;
     _tokenRefreshSubscription?.cancel();
     _tokenRefreshSubscription = _fcmService.onTokenRefresh.listen((newToken) {
-      refreshToken(newToken: newToken, platform: platform);
+      if (_currentUserId != null && _currentDeviceType != null) {
+        refreshToken(
+          userId: _currentUserId!,
+          newToken: newToken,
+          deviceType: _currentDeviceType!,
+        );
+      }
     });
   }
 
@@ -124,5 +126,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
   void disposeTokenRefreshListener() {
     _tokenRefreshSubscription?.cancel();
     _tokenRefreshSubscription = null;
+    _currentUserId = null;
+    _currentDeviceType = null;
   }
 }

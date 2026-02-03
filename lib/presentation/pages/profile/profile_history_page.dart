@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
@@ -36,6 +37,16 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
     super.initState();
     _currentIndex = widget.initialIndex ?? 0;
     _pageController = PageController(initialPage: _currentIndex);
+
+    // 해당 타입의 이력을 다시 로드 (서버에서 자동 생성 트리거)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProfileBloc>().add(
+            ProfileHistoryLoadRequested(
+              userId: widget.userId,
+              type: widget.type,
+            ),
+          );
+    });
   }
 
   @override
@@ -62,7 +73,23 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
         }
       },
       builder: (context, state) {
+        // ignore: avoid_print
+        print('[ProfileHistoryPage] Build: status=${state.status}, historiesCount=${state.histories.length}');
+
+        // 로딩 중일 때 로딩 인디케이터 표시
+        if (state.status == ProfileStatus.loading) {
+          return const Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+          );
+        }
+
         final histories = state.getHistoriesByType(widget.type);
+
+        // ignore: avoid_print
+        print('[ProfileHistoryPage] Filtered histories for ${widget.type}: ${histories.length}');
 
         if (histories.isEmpty) {
           return Scaffold(
@@ -142,19 +169,33 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
               PageView.builder(
                 controller: _pageController,
                 itemCount: histories.length,
+                // 데스크톱에서도 마우스 드래그로 스와이프 가능하도록 설정
+                scrollBehavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                  },
+                ),
                 onPageChanged: (index) {
                   setState(() => _currentIndex = index);
                 },
                 itemBuilder: (context, index) {
                   final history = histories[index];
+                  final child = _HistoryItemView(
+                    history: history,
+                    type: widget.type,
+                  );
+
+                  // isMyProfile일 때만 GestureDetector 사용
+                  if (!widget.isMyProfile) {
+                    return child;
+                  }
+
                   return GestureDetector(
-                    onLongPress: widget.isMyProfile
-                        ? () => _showOptionsSheet(context, history)
-                        : null,
-                    child: _HistoryItemView(
-                      history: history,
-                      type: widget.type,
-                    ),
+                    behavior: HitTestBehavior.translucent,
+                    onLongPress: () => _showOptionsSheet(context, history),
+                    child: child,
                   );
                 },
               ),
@@ -269,14 +310,52 @@ class _HistoryItemView extends StatelessWidget {
   }
 }
 
-class _ImageView extends StatelessWidget {
+class _ImageView extends StatefulWidget {
   final String? url;
 
   const _ImageView({this.url});
 
   @override
+  State<_ImageView> createState() => _ImageViewState();
+}
+
+class _ImageViewState extends State<_ImageView> {
+  final TransformationController _transformationController =
+      TransformationController();
+  bool _isZoomed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformationController.addListener(_onTransformChanged);
+  }
+
+  @override
+  void dispose() {
+    _transformationController.removeListener(_onTransformChanged);
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  void _onTransformChanged() {
+    final scale = _transformationController.value.getMaxScaleOnAxis();
+    final zoomed = scale > 1.01;
+    if (zoomed != _isZoomed) {
+      setState(() => _isZoomed = zoomed);
+    }
+  }
+
+  void _handleDoubleTap() {
+    if (_isZoomed) {
+      _transformationController.value = Matrix4.identity();
+    } else {
+      _transformationController.value = Matrix4.identity()..scale(2.0);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (url == null || url!.isEmpty) {
+    if (widget.url == null || widget.url!.isEmpty) {
       return Container(
         color: AppColors.primaryDark,
         child: const Center(
@@ -289,30 +368,36 @@ class _ImageView extends StatelessWidget {
       );
     }
 
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 3.0,
-      child: Center(
-        child: Image.network(
-          url!,
-          fit: BoxFit.contain,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-                color: Colors.white,
+    return GestureDetector(
+      onDoubleTap: _handleDoubleTap,
+      child: InteractiveViewer(
+        transformationController: _transformationController,
+        minScale: 1.0,
+        maxScale: 4.0,
+        // 확대 중일 때만 pan 활성화 (기본 상태에서는 PageView 스와이프 허용)
+        panEnabled: _isZoomed,
+        child: Center(
+          child: Image.network(
+            widget.url!,
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                      : null,
+                  color: Colors.white,
+                ),
+              );
+            },
+            errorBuilder: (_, __, ___) => const Center(
+              child: Icon(
+                Icons.broken_image,
+                color: Colors.white54,
+                size: 64,
               ),
-            );
-          },
-          errorBuilder: (_, __, ___) => const Center(
-            child: Icon(
-              Icons.broken_image,
-              color: Colors.white54,
-              size: 64,
             ),
           ),
         ),

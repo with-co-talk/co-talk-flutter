@@ -5,27 +5,31 @@ class Friend extends Equatable {
   final int id;
   final User user;
   final DateTime createdAt;
+  final bool isHidden;
 
   const Friend({
     required this.id,
     required this.user,
     required this.createdAt,
+    this.isHidden = false,
   });
 
   Friend copyWith({
     int? id,
     User? user,
     DateTime? createdAt,
+    bool? isHidden,
   }) {
     return Friend(
       id: id ?? this.id,
       user: user ?? this.user,
       createdAt: createdAt ?? this.createdAt,
+      isHidden: isHidden ?? this.isHidden,
     );
   }
 
   @override
-  List<Object?> get props => [id, user, createdAt];
+  List<Object?> get props => [id, user, createdAt, isHidden];
 }
 
 enum FriendRequestStatus { pending, accepted, rejected }
