@@ -99,8 +99,9 @@ class FcmServiceImpl implements FcmService {
       sound: true,
     );
 
-    // ignore: avoid_print
-    print('[FCM] Permission status: ${settings.authorizationStatus}');
+    if (kDebugMode) {
+      debugPrint('[FCM] Permission status: ${settings.authorizationStatus}');
+    }
     return settings;
   }
 
@@ -111,12 +112,12 @@ class FcmServiceImpl implements FcmService {
   Future<String?> getToken() async {
     try {
       final token = await _messaging.getToken();
-      // ignore: avoid_print
-      print('[FCM] Token: $token');
+      // Do not log token - sensitive data
       return token;
     } catch (e) {
-      // ignore: avoid_print
-      print('[FCM] Failed to get token: $e');
+      if (kDebugMode) {
+        debugPrint('[FCM] Failed to get token: $e');
+      }
       return null;
     }
   }
@@ -127,8 +128,9 @@ class FcmServiceImpl implements FcmService {
   @override
   Future<void> deleteToken() async {
     await _messaging.deleteToken();
-    // ignore: avoid_print
-    print('[FCM] Token deleted');
+    if (kDebugMode) {
+      debugPrint('[FCM] Token deleted');
+    }
   }
 
   /// 토큰 갱신 스트림
@@ -150,8 +152,9 @@ class FcmServiceImpl implements FcmService {
   ///
   /// 앱이 포그라운드에 있을 때 수신된 메시지를 로컬 알림으로 표시합니다.
   void handleForegroundMessage(RemoteMessage message) {
-    // ignore: avoid_print
-    print('[FCM] Foreground message received: ${message.messageId}');
+    if (kDebugMode) {
+      debugPrint('[FCM] Foreground message received: ${message.messageId}');
+    }
 
     final notification = message.notification;
     if (notification == null) {
@@ -186,8 +189,9 @@ class FcmServiceImpl implements FcmService {
 /// 중요: 이 함수는 top-level 함수여야 하며, 클래스 인스턴스에 의존하면 안 됩니다.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // ignore: avoid_print
-  print('[FCM] Background message received: ${message.messageId}');
+  if (kDebugMode) {
+    debugPrint('[FCM] Background message received: ${message.messageId}');
+  }
   // 백그라운드 메시지는 시스템이 자동으로 알림을 표시합니다.
   // 추가적인 데이터 처리가 필요한 경우 여기에 로직을 추가합니다.
 }

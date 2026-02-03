@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
 import '../../core/services/fcm_service.dart';
@@ -31,8 +32,9 @@ class NotificationRepositoryImpl implements NotificationRepository {
     // FCM에서 토큰 발급
     final token = await _fcmService.getToken();
     if (token == null) {
-      // ignore: avoid_print
-      print('[NotificationRepository] FCM token is null, skipping registration');
+      if (kDebugMode) {
+        debugPrint('[NotificationRepository] FCM token is null, skipping registration');
+      }
       return;
     }
 
@@ -46,11 +48,13 @@ class NotificationRepositoryImpl implements NotificationRepository {
         token: token,
         deviceType: deviceType,
       );
-      // ignore: avoid_print
-      print('[NotificationRepository] FCM token registered successfully');
+      if (kDebugMode) {
+        debugPrint('[NotificationRepository] FCM token registered successfully');
+      }
     } catch (e) {
-      // ignore: avoid_print
-      print('[NotificationRepository] Failed to register FCM token: $e');
+      if (kDebugMode) {
+        debugPrint('[NotificationRepository] Failed to register FCM token: $e');
+      }
       // 서버 등록 실패해도 로컬에는 저장됨
     }
   }
@@ -71,11 +75,13 @@ class NotificationRepositoryImpl implements NotificationRepository {
         token: newToken,
         deviceType: deviceType,
       );
-      // ignore: avoid_print
-      print('[NotificationRepository] FCM token refreshed and registered');
+      if (kDebugMode) {
+        debugPrint('[NotificationRepository] FCM token refreshed and registered');
+      }
     } catch (e) {
-      // ignore: avoid_print
-      print('[NotificationRepository] Failed to refresh FCM token: $e');
+      if (kDebugMode) {
+        debugPrint('[NotificationRepository] Failed to refresh FCM token: $e');
+      }
     }
   }
 
@@ -87,11 +93,13 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (token != null) {
       try {
         await _remoteDataSource.unregisterFcmToken(token: token);
-        // ignore: avoid_print
-        print('[NotificationRepository] FCM token unregistered from server');
+        if (kDebugMode) {
+          debugPrint('[NotificationRepository] FCM token unregistered from server');
+        }
       } catch (e) {
-        // ignore: avoid_print
-        print('[NotificationRepository] Failed to unregister FCM token: $e');
+        if (kDebugMode) {
+          debugPrint('[NotificationRepository] Failed to unregister FCM token: $e');
+        }
         // 서버 삭제 실패해도 로컬은 정리
       }
     }

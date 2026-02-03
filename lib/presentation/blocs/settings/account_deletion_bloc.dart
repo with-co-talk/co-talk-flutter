@@ -70,9 +70,23 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
       await _settingsRepository.deleteAccount(userId, state.password!);
 
       emit(const AccountDeletionState.deleted());
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // 디버그 모드에서 상세 에러 로깅
+      assert(() {
+        // ignore: avoid_print
+        print('[AccountDeletionBloc] Error: $e');
+        // ignore: avoid_print
+        print('[AccountDeletionBloc] StackTrace: $stackTrace');
+        return true;
+      }());
+
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
-      emit(AccountDeletionState.error(message));
+      // 에러 메시지가 너무 일반적인 경우 더 구체적인 메시지 제공
+      if (message.contains('알 수 없는 오류')) {
+        emit(AccountDeletionState.error('회원 탈퇴 처리 중 오류가 발생했습니다. 비밀번호를 확인해주세요.'));
+      } else {
+        emit(AccountDeletionState.error(message));
+      }
     }
   }
 

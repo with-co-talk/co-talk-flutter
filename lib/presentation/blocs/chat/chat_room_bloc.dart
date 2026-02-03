@@ -23,6 +23,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   StreamSubscription<WebSocketChatMessage>? _messageSubscription;
   StreamSubscription<WebSocketReadEvent>? _readEventSubscription;
   StreamSubscription<WebSocketTypingEvent>? _typingSubscription;
+  StreamSubscription<WebSocketMessageDeletedEvent>? _messageDeletedSubscription;
   Timer? _typingDebounceTimer;
   Timer? _presencePingTimer;
 
@@ -40,6 +41,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<MessageSent>(_onMessageSent);
     on<MessageReceived>(_onMessageReceived);
     on<MessageDeleted>(_onMessageDeleted);
+    on<MessageDeletedByOther>(_onMessageDeletedByOther);
     on<MessagesReadUpdated>(_onMessagesReadUpdated);
     on<TypingStatusChanged>(_onTypingStatusChanged);
     on<UserStartedTyping>(_onUserStartedTyping);
@@ -243,6 +245,16 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }, onError: (error) {
       _log('Error in typing event stream: $error');
     });
+
+    _messageDeletedSubscription = _webSocketService.messageDeletedEvents.listen((deletedEvent) {
+      _log('WebSocket message deleted: messageId=${deletedEvent.messageId}, roomId=${deletedEvent.chatRoomId}');
+
+      if (state.roomId != null && deletedEvent.chatRoomId == state.roomId) {
+        add(MessageDeletedByOther(deletedEvent.messageId));
+      }
+    }, onError: (error) {
+      _log('Error in message deleted stream: $error');
+    });
   }
 
   Message _convertToMessage(WebSocketChatMessage wsMessage) {
@@ -294,6 +306,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _readEventSubscription = null;
     _typingSubscription?.cancel();
     _typingSubscription = null;
+    _messageDeletedSubscription?.cancel();
+    _messageDeletedSubscription = null;
     _typingDebounceTimer?.cancel();
     _typingDebounceTimer = null;
     _presencePingTimer?.cancel();
@@ -351,6 +365,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _messageSubscription?.cancel();
     _readEventSubscription?.cancel();
     _typingSubscription?.cancel();
+    _messageDeletedSubscription?.cancel();
     _typingDebounceTimer?.cancel();
     _presencePingTimer?.cancel();
     if (state.roomId != null && _isRoomSubscribed) {
@@ -521,6 +536,23 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
     }
+  }
+
+  /// 다른 사용자가 메시지를 삭제했을 때 처리 (WebSocket 수신)
+  void _onMessageDeletedByOther(
+    MessageDeletedByOther event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    _log('_onMessageDeletedByOther: messageId=${event.messageId}');
+
+    final updatedMessages = state.messages.map((m) {
+      if (m.id == event.messageId) {
+        return m.copyWith(isDeleted: true);
+      }
+      return m;
+    }).toList();
+
+    emit(state.copyWith(messages: updatedMessages));
   }
 
   void _onMessagesReadUpdated(

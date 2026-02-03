@@ -62,6 +62,16 @@ class MessageDeleted extends ChatRoomEvent {
   List<Object?> get props => [messageId];
 }
 
+/// 다른 사용자에 의해 메시지가 삭제됨 (WebSocket 수신)
+class MessageDeletedByOther extends ChatRoomEvent {
+  final int messageId;
+
+  const MessageDeletedByOther(this.messageId);
+
+  @override
+  List<Object?> get props => [messageId];
+}
+
 /// 읽음 상태 업데이트 이벤트
 class MessagesReadUpdated extends ChatRoomEvent {
   final int userId;

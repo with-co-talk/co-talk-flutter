@@ -11,6 +11,7 @@ import '../../blocs/auth/auth_state.dart';
 import '../../blocs/profile/profile_bloc.dart';
 import '../../blocs/profile/profile_event.dart';
 import '../../blocs/profile/profile_state.dart';
+import 'profile_history_page.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -89,6 +90,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       return;
     }
 
+    final user = context.read<AuthBloc>().state.user;
+    final hasAvatar = user?.avatarUrl != null;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -112,7 +116,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               const SizedBox(height: 20),
               const Text(
-                '프로필 사진 변경',
+                '프로필 사진',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -151,8 +155,109 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   _pickFromGallery();
                 },
               ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.history, color: AppColors.primary),
+                ),
+                title: const Text('기존 프로필에서 선택'),
+                subtitle: const Text('이전에 사용한 사진 선택'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _navigateToProfileHistory();
+                },
+              ),
+              if (hasAvatar) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Colors.red),
+                  ),
+                  title: const Text('기본 이미지로 변경', style: TextStyle(color: Colors.red)),
+                  subtitle: const Text('현재 프로필 사진 삭제'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    _showDeleteAvatarConfirmDialog();
+                  },
+                ),
+              ],
               const SizedBox(height: 16),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteAvatarConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('프로필 사진 삭제'),
+        content: const Text('프로필 사진을 삭제하고 기본 이미지로 변경하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _deleteCurrentAvatar();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteCurrentAvatar() {
+    final userId = context.read<AuthBloc>().state.user?.id;
+    if (userId == null) return;
+
+    // AuthBloc에 아바타 URL을 null로 업데이트 (clearAvatar: true 사용)
+    context.read<AuthBloc>().add(const AuthUserLocalUpdated(clearAvatar: true));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text('프로필 사진이 삭제되었습니다'),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _navigateToProfileHistory() {
+    final userId = context.read<AuthBloc>().state.user?.id;
+    if (userId == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: _profileBloc,
+          child: ProfileHistoryPage(
+            userId: userId,
+            type: ProfileHistoryType.avatar,
+            isMyProfile: true,
           ),
         ),
       ),

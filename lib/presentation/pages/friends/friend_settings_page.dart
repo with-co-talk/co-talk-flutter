@@ -36,12 +36,6 @@ class FriendSettingsPage extends StatelessWidget {
             title: '친구 요청',
             children: [
               _FriendSettingsTile(
-                icon: Icons.person_add,
-                title: '친구 추가',
-                subtitle: '닉네임으로 친구를 검색하세요',
-                onTap: () => context.push(AppRoutes.friends),
-              ),
-              _FriendSettingsTile(
                 icon: Icons.inbox,
                 title: '받은 친구 요청',
                 subtitle: '수락 대기 중인 요청을 확인하세요',

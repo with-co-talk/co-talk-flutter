@@ -679,6 +679,106 @@ class _MessageBubble extends StatelessWidget {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
+  /// URL 정규식 패턴
+  static final _urlRegex = RegExp(
+    r'https?://[^\s<>\[\]{}|\\^`"]+',
+    caseSensitive: false,
+  );
+
+  /// 텍스트에서 URL을 파싱하여 클릭 가능한 TextSpan 목록 생성
+  List<InlineSpan> _buildTextSpans(BuildContext context, String text, Color textColor) {
+    final spans = <InlineSpan>[];
+    final matches = _urlRegex.allMatches(text);
+
+    if (matches.isEmpty) {
+      // URL이 없으면 일반 텍스트로 반환
+      spans.add(TextSpan(
+        text: text,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 15,
+          height: 1.4,
+          letterSpacing: 0.1,
+        ),
+      ));
+      return spans;
+    }
+
+    int lastEnd = 0;
+    for (final match in matches) {
+      // URL 앞의 일반 텍스트
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastEnd, match.start),
+          style: TextStyle(
+            color: textColor,
+            fontSize: 15,
+            height: 1.4,
+            letterSpacing: 0.1,
+          ),
+        ));
+      }
+
+      // URL (클릭 가능한 링크)
+      final url = match.group(0)!;
+      spans.add(WidgetSpan(
+        child: GestureDetector(
+          onTap: () => _openUrl(context, url),
+          child: Text(
+            url,
+            style: TextStyle(
+              color: isMe ? Colors.white.withValues(alpha: 0.9) : AppColors.primary,
+              fontSize: 15,
+              height: 1.4,
+              letterSpacing: 0.1,
+              decoration: TextDecoration.underline,
+              decorationColor: isMe ? Colors.white.withValues(alpha: 0.7) : AppColors.primary,
+            ),
+          ),
+        ),
+      ));
+
+      lastEnd = match.end;
+    }
+
+    // URL 뒤의 남은 텍스트
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastEnd),
+        style: TextStyle(
+          color: textColor,
+          fontSize: 15,
+          height: 1.4,
+          letterSpacing: 0.1,
+        ),
+      ));
+    }
+
+    return spans;
+  }
+
+  /// URL 열기
+  Future<void> _openUrl(BuildContext context, String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('URL을 열 수 없습니다: $url')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('URL을 열 수 없습니다: $e')),
+        );
+      }
+    }
+  }
+
   /// 이미지 전체 화면 보기
   void _showFullScreenImage(BuildContext context, String imageUrl) {
     Navigator.of(context).push(
@@ -1072,6 +1172,7 @@ class _MessageBubble extends StatelessWidget {
     }
     // 텍스트 메시지 (기본)
     else {
+      final textColor = isMe ? Colors.white : context.textPrimaryColor;
       bubbleWidget = Container(
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.65,
@@ -1101,13 +1202,9 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ],
         ),
-        child: Text(
-          message.displayContent,
-          style: TextStyle(
-            color: isMe ? Colors.white : context.textPrimaryColor,
-            fontSize: 15,
-            height: 1.4,
-            letterSpacing: 0.1,
+        child: RichText(
+          text: TextSpan(
+            children: _buildTextSpans(context, message.displayContent, textColor),
           ),
         ),
       );

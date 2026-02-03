@@ -87,6 +87,7 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
               'id': friendUserId ?? 0,
               'user': userJson,
               'createdAt': lastActiveAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+              'isHidden': json['isHidden'] ?? json['hidden'] ?? false,
             };
 
             return FriendModel.fromJson(friendJson);

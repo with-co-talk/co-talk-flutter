@@ -223,6 +223,44 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
                   ],
                 ),
               ),
+
+              // 더보기 버튼 (내 프로필일 때만)
+              if (widget.isMyProfile && histories.isNotEmpty)
+                Positioned(
+                  bottom: 24,
+                  right: 16,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: () => _showOptionsSheet(context, histories[_currentIndex]),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.more_horiz, color: Colors.white, size: 20),
+                              SizedBox(width: 6),
+                              Text(
+                                '더보기',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );

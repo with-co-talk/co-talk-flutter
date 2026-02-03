@@ -57,6 +57,9 @@ void main() {
     when(() => mockWebSocketService.typingEvents).thenAnswer(
       (_) => const Stream<WebSocketTypingEvent>.empty(),
     );
+    when(() => mockWebSocketService.messageDeletedEvents).thenAnswer(
+      (_) => const Stream<WebSocketMessageDeletedEvent>.empty(),
+    );
     when(() => mockWebSocketService.sendMessage(
           roomId: any(named: 'roomId'),
           senderId: any(named: 'senderId'),

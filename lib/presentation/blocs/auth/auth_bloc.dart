@@ -103,12 +103,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(AuthState.authenticated(placeholderUser));
       }
     } catch (e, stackTrace) {
-      // ignore: avoid_print
-      print('[AuthBloc] Login error: $e');
-      // ignore: avoid_print
-      print('[AuthBloc] Error type: ${e.runtimeType}');
-      // ignore: avoid_print
-      print('[AuthBloc] Stack trace: $stackTrace');
+      if (kDebugMode) {
+        debugPrint('[AuthBloc] Login error: $e');
+        debugPrint('[AuthBloc] Error type: ${e.runtimeType}');
+        debugPrint('[AuthBloc] Stack trace: $stackTrace');
+      }
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       emit(AuthState.failure(message));
     }
@@ -156,12 +155,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(AuthState.authenticated(placeholderUser));
       }
     } catch (e, stackTrace) {
-      // ignore: avoid_print
-      print('[AuthBloc] SignUp error: $e');
-      // ignore: avoid_print
-      print('[AuthBloc] Error type: ${e.runtimeType}');
-      // ignore: avoid_print
-      print('[AuthBloc] Stack trace: $stackTrace');
+      if (kDebugMode) {
+        debugPrint('[AuthBloc] SignUp error: $e');
+        debugPrint('[AuthBloc] Error type: ${e.runtimeType}');
+        debugPrint('[AuthBloc] Stack trace: $stackTrace');
+      }
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       emit(AuthState.failure(message));
     }
@@ -286,7 +284,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (currentUser == null) return;
 
     final updatedUser = currentUser.copyWith(
-      avatarUrl: event.avatarUrl ?? currentUser.avatarUrl,
+      avatarUrl: event.clearAvatar ? null : (event.avatarUrl ?? currentUser.avatarUrl),
       backgroundUrl: event.backgroundUrl ?? currentUser.backgroundUrl,
       statusMessage: event.statusMessage ?? currentUser.statusMessage,
     );
@@ -304,8 +302,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final user = await _authRepository.getCurrentUser();
       if (user == null) {
-        // ignore: avoid_print
-        print('[AuthBloc] Cannot register FCM token: user is null');
+        if (kDebugMode) {
+          debugPrint('[AuthBloc] Cannot register FCM token: user is null');
+        }
         return;
       }
 
@@ -320,8 +319,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
     } catch (e) {
       // FCM 토큰 등록 실패는 치명적이지 않음 - 로그만 남김
-      // ignore: avoid_print
-      print('[AuthBloc] Failed to register FCM token: $e');
+      if (kDebugMode) {
+        debugPrint('[AuthBloc] Failed to register FCM token: $e');
+      }
     }
   }
 
@@ -337,8 +337,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _notificationRepository.unregisterToken();
     } catch (e) {
       // FCM 토큰 삭제 실패는 치명적이지 않음 - 로그만 남김
-      // ignore: avoid_print
-      print('[AuthBloc] Failed to unregister FCM token: $e');
+      if (kDebugMode) {
+        debugPrint('[AuthBloc] Failed to unregister FCM token: $e');
+      }
     }
   }
 }

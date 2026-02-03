@@ -220,23 +220,39 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     });
 
     try {
-      // TODO: 실제 API 호출 구현
-      // await repository.changePassword(
-      //   currentPassword: _currentPasswordController.text,
-      //   newPassword: _newPasswordController.text,
-      // );
+      // TODO: 백엔드 API 구현 필요
+      // Backend API implementation required:
+      // 1. Add endpoint in backend: PUT /api/v1/auth/password
+      //    Request body: { "currentPassword": string, "newPassword": string }
+      //    Response: 200 OK or 400/401 error
+      //
+      // 2. Add to ApiConstants: static const String changePassword = '/auth/password';
+      //
+      // 3. Add to AuthRemoteDataSource:
+      //    Future<void> changePassword(String currentPassword, String newPassword);
+      //
+      // 4. Add to AuthRepository:
+      //    Future<void> changePassword({required String currentPassword, required String newPassword});
+      //
+      // 5. Implement in AuthRepositoryImpl:
+      //    await _remoteDataSource.changePassword(currentPassword, newPassword);
+      //
+      // 6. Inject AuthRepository into this page and call:
+      //    await _authRepository.changePassword(
+      //      currentPassword: _currentPasswordController.text,
+      //      newPassword: _newPasswordController.text,
+      //    );
 
-      // 시뮬레이션 딜레이
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('비밀번호가 변경되었습니다'),
-            backgroundColor: AppColors.success,
+            content: Text('비밀번호 변경 기능은 현재 준비 중입니다.\n서버 API 구현 후 사용 가능합니다.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
           ),
         );
-        context.pop();
       }
     } catch (e) {
       if (mounted) {

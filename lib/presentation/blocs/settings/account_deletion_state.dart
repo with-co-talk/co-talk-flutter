@@ -27,13 +27,13 @@ class AccountDeletionState extends Equatable {
 
   const AccountDeletionState.initial() : this();
 
-  AccountDeletionState.passwordEntered(String password)
+  const AccountDeletionState.passwordEntered(String password)
       : this(
           status: AccountDeletionStatus.passwordEntered,
           password: password,
         );
 
-  AccountDeletionState.waitingConfirmation({
+  const AccountDeletionState.waitingConfirmation({
     required String password,
     String? confirmationText,
   }) : this(
@@ -49,7 +49,7 @@ class AccountDeletionState extends Equatable {
   const AccountDeletionState.deleted()
       : this(status: AccountDeletionStatus.deleted);
 
-  AccountDeletionState.error(String message)
+  const AccountDeletionState.error(String message)
       : this(status: AccountDeletionStatus.error, errorMessage: message);
 
   AccountDeletionState copyWith({

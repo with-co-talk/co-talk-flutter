@@ -245,6 +245,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     bool isStartTime,
     NotificationSettingsState state,
   ) async {
+    final cubit = context.read<NotificationSettingsCubit>();
     final initialTime = _parseTime(
       isStartTime
           ? state.settings.doNotDisturbStart ?? '22:00'
@@ -260,13 +261,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       final timeString = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
 
       if (isStartTime) {
-        context.read<NotificationSettingsCubit>().setDoNotDisturb(
-              startTime: timeString,
-            );
+        cubit.setDoNotDisturb(startTime: timeString);
       } else {
-        context.read<NotificationSettingsCubit>().setDoNotDisturb(
-              endTime: timeString,
-            );
+        cubit.setDoNotDisturb(endTime: timeString);
       }
     }
   }

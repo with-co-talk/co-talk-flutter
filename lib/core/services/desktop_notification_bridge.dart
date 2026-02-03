@@ -67,8 +67,9 @@ class DesktopNotificationBridge {
 
     _subscription = _webSocketService.chatRoomUpdates.listen(_handleChatRoomUpdate);
     _isListening = true;
-    // ignore: avoid_print
-    print('[DesktopNotificationBridge] Started listening for desktop notifications');
+    if (kDebugMode) {
+      debugPrint('[DesktopNotificationBridge] Started listening for desktop notifications');
+    }
   }
 
   /// 알림 리스닝 중지
@@ -76,8 +77,9 @@ class DesktopNotificationBridge {
     _subscription?.cancel();
     _subscription = null;
     _isListening = false;
-    // ignore: avoid_print
-    print('[DesktopNotificationBridge] Stopped listening for desktop notifications');
+    if (kDebugMode) {
+      debugPrint('[DesktopNotificationBridge] Stopped listening for desktop notifications');
+    }
   }
 
   Future<void> _handleChatRoomUpdate(WebSocketChatRoomUpdateEvent event) async {
