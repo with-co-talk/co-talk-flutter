@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -35,6 +36,13 @@ void main() async {
     // 4. APNs 인증 키 발급 후 Firebase Console에 업로드
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       await Firebase.initializeApp();
+
+      // Firebase App Check 활성화 (앱 위변조 방지)
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: AndroidProvider.playIntegrity,
+        appleProvider: AppleProvider.deviceCheck,
+      );
+
       // Set up background message handler
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     }
