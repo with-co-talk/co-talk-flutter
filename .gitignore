@@ -75,3 +75,12 @@ fastlane/*.provisionprofile
 # Android keystore
 android/key.properties
 android/keystore/
+
+# Coverage
+coverage/
+
+# 인증서·프로비저닝 (루트)
+*.cer
+*.certSigningRequest
+*.p12
+*.provisionprofile
