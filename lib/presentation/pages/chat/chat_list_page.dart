@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/chat_room.dart';
+import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_list_state.dart';
@@ -60,13 +61,25 @@ class _ChatListPageState extends State<ChatListPage> {
     });
   }
 
+  /// 나와의 채팅 표시명: 내 닉네임 또는 '나'
+  String _selfChatDisplayName(BuildContext context) {
+    final user = context.read<AuthBloc>().state.user;
+    final nickname = user?.nickname?.trim();
+    return (nickname != null && nickname.isNotEmpty) ? nickname : '나';
+  }
+
+  /// 채팅방 목록 표시명 (나와의 채팅은 내 이름/나)
+  String _roomDisplayName(BuildContext context, ChatRoom room) {
+    if (room.type == ChatRoomType.self) return _selfChatDisplayName(context);
+    return room.displayName;
+  }
+
   /// 검색어로 채팅방 필터링
-  List<ChatRoom> _filterChatRooms(List<ChatRoom> chatRooms) {
+  List<ChatRoom> _filterChatRooms(BuildContext context, List<ChatRoom> chatRooms) {
     if (_searchQuery.isEmpty) return chatRooms;
 
     return chatRooms.where((room) {
-      // 채팅방 이름 또는 상대방 닉네임으로 검색
-      final displayName = room.displayName.toLowerCase();
+      final displayName = _roomDisplayName(context, room).toLowerCase();
       return displayName.contains(_searchQuery);
     }).toList();
   }
@@ -196,7 +209,7 @@ class _ChatListPageState extends State<ChatListPage> {
           }
 
           // 검색 필터 적용
-          final filteredChatRooms = _filterChatRooms(state.chatRooms);
+          final filteredChatRooms = _filterChatRooms(context, state.chatRooms);
 
           // 검색 결과 없음
           if (_isSearching && filteredChatRooms.isEmpty) {
@@ -237,7 +250,8 @@ class _ChatListPageState extends State<ChatListPage> {
               ),
               itemBuilder: (context, index) {
                 final chatRoom = filteredChatRooms[index];
-                return _ChatRoomTile(chatRoom: chatRoom);
+                final displayName = _roomDisplayName(context, chatRoom);
+                return _ChatRoomTile(chatRoom: chatRoom, displayName: displayName);
               },
             ),
           );
@@ -250,8 +264,9 @@ class _ChatListPageState extends State<ChatListPage> {
 
 class _ChatRoomTile extends StatelessWidget {
   final ChatRoom chatRoom;
+  final String displayName;
 
-  const _ChatRoomTile({required this.chatRoom});
+  const _ChatRoomTile({required this.chatRoom, required this.displayName});
 
   @override
   Widget build(BuildContext context) {
@@ -275,8 +290,8 @@ class _ChatRoomTile extends StatelessWidget {
                       ? const Icon(Icons.group, color: Colors.white, size: 28)
                       : (chatRoom.otherUserAvatarUrl == null
                           ? Text(
-                              chatRoom.displayName.isNotEmpty
-                                  ? chatRoom.displayName[0].toUpperCase()
+                              displayName.isNotEmpty
+                                  ? displayName[0].toUpperCase()
                                   : '?',
                               style: const TextStyle(
                                 color: Colors.white,
@@ -316,7 +331,7 @@ class _ChatRoomTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          chatRoom.displayName,
+                          displayName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

@@ -398,11 +398,11 @@ class WebSocketMessageDeletedEvent {
     return WebSocketMessageDeletedEvent(
       schemaVersion: json['schemaVersion'] as int?,
       eventId: json['eventId'] as String?,
-      chatRoomId: json['chatRoomId'] as int,
-      messageId: json['messageId'] as int,
-      deletedBy: json['deletedBy'] as int,
+      chatRoomId: (json['chatRoomId'] as num).toInt(),
+      messageId: (json['messageId'] as num).toInt(),
+      deletedBy: (json['deletedBy'] as num).toInt(),
       deletedAt: json['deletedAtMillis'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(json['deletedAtMillis'] as int)
+          ? DateTime.fromMillisecondsSinceEpoch((json['deletedAtMillis'] as num).toInt())
           : DateTime.now(),
     );
   }

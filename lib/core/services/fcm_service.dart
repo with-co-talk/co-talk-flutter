@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
+import '../../domain/repositories/settings_repository.dart';
 import 'notification_service.dart';
 
 /// FCM 푸시 알림 서비스 인터페이스
@@ -17,6 +18,8 @@ abstract class FcmService {
   Future<String?> getToken();
   Future<void> deleteToken();
   Stream<String> get onTokenRefresh;
+  /// FCM 알림 클릭 이벤트 스트림 (payload)
+  Stream<String?> get onNotificationClick;
   void dispose();
 }
 
@@ -36,6 +39,9 @@ class NoOpFcmService implements FcmService {
 
   @override
   Stream<String> get onTokenRefresh => const Stream.empty();
+
+  @override
+  Stream<String?> get onNotificationClick => const Stream.empty();
 
   @override
   void dispose() {}
@@ -60,20 +66,26 @@ class NoOpFcmService implements FcmService {
 class FcmServiceImpl implements FcmService {
   final FirebaseMessaging _messaging;
   final NotificationService _notificationService;
+  final SettingsRepository _settingsRepository;
 
   StreamSubscription<RemoteMessage>? _foregroundMessageSubscription;
+  StreamSubscription<RemoteMessage>? _messageOpenedAppSubscription;
+  final StreamController<String?> _notificationClickController = StreamController<String?>.broadcast();
 
   FcmServiceImpl({
     required FirebaseMessaging messaging,
     required NotificationService notificationService,
+    required SettingsRepository settingsRepository,
   })  : _messaging = messaging,
-        _notificationService = notificationService;
+        _notificationService = notificationService,
+        _settingsRepository = settingsRepository;
 
   /// FCM 서비스 초기화
   ///
   /// 1. 알림 권한 요청
   /// 2. 초기 FCM 토큰 발급
   /// 3. 포그라운드 메시지 핸들러 설정
+  /// 4. 알림 탭 핸들러 설정 (백그라운드/종료 상태)
   @override
   Future<void> initialize() async {
     // 모바일 플랫폼에서만 동작
@@ -89,6 +101,9 @@ class FcmServiceImpl implements FcmService {
 
     // 포그라운드 메시지 핸들러 설정
     _setupForegroundMessageHandler();
+
+    // 알림 탭 핸들러 설정 (백그라운드/종료 상태에서 알림 클릭 시)
+    _setupNotificationTapHandlers();
   }
 
   /// 알림 권한 요청
@@ -140,6 +155,10 @@ class FcmServiceImpl implements FcmService {
   @override
   Stream<String> get onTokenRefresh => _messaging.onTokenRefresh;
 
+  /// FCM 알림 클릭 이벤트 스트림
+  @override
+  Stream<String?> get onNotificationClick => _notificationClickController.stream;
+
   /// 포그라운드 메시지 핸들러 설정
   void _setupForegroundMessageHandler() {
     _foregroundMessageSubscription?.cancel();
@@ -151,7 +170,12 @@ class FcmServiceImpl implements FcmService {
   /// 포그라운드 메시지 처리
   ///
   /// 앱이 포그라운드에 있을 때 수신된 메시지를 로컬 알림으로 표시합니다.
+  /// 설정에서 '푸시 메시지 내용 표시'가 꺼져 있으면 본문은 '새 메시지'로 표시합니다.
   void handleForegroundMessage(RemoteMessage message) {
+    _handleForegroundMessageAsync(message);
+  }
+
+  Future<void> _handleForegroundMessageAsync(RemoteMessage message) async {
     if (kDebugMode) {
       debugPrint('[FCM] Foreground message received: ${message.messageId}');
     }
@@ -161,23 +185,76 @@ class FcmServiceImpl implements FcmService {
       return;
     }
 
-    // 메시지 데이터를 payload로 변환
+    bool showContent = true;
+    bool soundEnabled = true;
+    bool vibrationEnabled = true;
+    try {
+      final settings = await _settingsRepository.getNotificationSettingsCached();
+      showContent = settings.showMessageContentInNotification;
+      soundEnabled = settings.soundEnabled;
+      vibrationEnabled = settings.vibrationEnabled;
+    } catch (_) {}
+
+    final body = showContent ? (notification.body ?? '') : '새 메시지';
+
+    // 알림 탭 시 해당 채팅방으로 이동할 수 있도록 payload 형식: 'chatRoom:roomId'
     String? payload;
-    if (message.data.isNotEmpty) {
+    final chatRoomId = message.data['chatRoomId'];
+    if (chatRoomId != null) {
+      payload = 'chatRoom:$chatRoomId';
+    } else if (message.data.isNotEmpty) {
       payload = jsonEncode(message.data);
     }
 
-    _notificationService.showNotification(
-      title: notification.title ?? '',
-      body: notification.body ?? '',
+    await _notificationService.showNotification(
+      title: notification.title ?? '새 메시지',
+      body: body,
       payload: payload,
+      soundEnabled: soundEnabled,
+      vibrationEnabled: vibrationEnabled,
     );
+  }
+
+  /// 알림 탭 핸들러 설정
+  ///
+  /// 백그라운드/종료 상태에서 FCM 알림을 탭했을 때 처리합니다.
+  void _setupNotificationTapHandlers() {
+    // 앱이 종료 상태에서 알림으로 실행된 경우
+    _messaging.getInitialMessage().then(_handleNotificationTap);
+
+    // 앱이 백그라운드에서 알림을 탭한 경우
+    _messageOpenedAppSubscription?.cancel();
+    _messageOpenedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+  }
+
+  /// 알림 탭 처리
+  ///
+  /// FCM 메시지 데이터에서 chatRoomId를 추출하여 네비게이션 payload로 변환합니다.
+  void _handleNotificationTap(RemoteMessage? message) {
+    if (message == null) return;
+
+    if (kDebugMode) {
+      debugPrint('[FCM] Notification tapped: ${message.messageId}');
+      debugPrint('[FCM] Data: ${message.data}');
+    }
+
+    // 채팅방 ID 추출 (서버에서 보내는 data 형식에 맞춤)
+    final chatRoomIdStr = message.data['chatRoomId'];
+    if (chatRoomIdStr != null) {
+      final chatRoomId = int.tryParse(chatRoomIdStr);
+      if (chatRoomId != null) {
+        // NotificationClickHandler와 동일한 payload 형식 사용
+        _notificationClickController.add('chatRoom:$chatRoomId');
+      }
+    }
   }
 
   /// 리소스 해제
   @override
   void dispose() {
     _foregroundMessageSubscription?.cancel();
+    _messageOpenedAppSubscription?.cancel();
+    _notificationClickController.close();
   }
 }
 

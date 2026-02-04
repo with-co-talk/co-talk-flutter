@@ -53,9 +53,14 @@ class ChatRoom extends Equatable {
   }
 
   /// 채팅방 표시 이름
+  /// 나와의 채팅: "나와의 채팅"
   /// 1:1 채팅방: 상대방 닉네임
   /// 그룹 채팅방: 채팅방 이름
   String get displayName {
+    // 나와의 채팅방인 경우
+    if (type == ChatRoomType.self) {
+      return '나와의 채팅';
+    }
     if (name != null && name!.isNotEmpty) {
       return name!;
     }

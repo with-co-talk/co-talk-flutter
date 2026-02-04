@@ -714,11 +714,23 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     _log('_onFileAttachmentRequested: filePath=${event.filePath}');
 
+    final file = File(event.filePath);
+    if (!await file.exists()) {
+      emit(state.copyWith(errorMessage: '파일을 찾을 수 없습니다'));
+      return;
+    }
+
+    final fileSize = await file.length();
+    if (fileSize > AppConstants.maxFileSize) {
+      emit(state.copyWith(
+        errorMessage: '파일 크기는 ${AppConstants.maxFileSize ~/ (1024 * 1024)}MB 이하여야 합니다',
+      ));
+      return;
+    }
+
     emit(state.copyWith(isUploadingFile: true, uploadProgress: 0.0));
 
     try {
-      final file = File(event.filePath);
-
       final uploadResult = await _chatRepository.uploadFile(file);
       _log('File uploaded: ${uploadResult.fileUrl}');
 

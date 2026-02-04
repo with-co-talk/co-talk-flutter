@@ -23,9 +23,10 @@ class _MainPageState extends State<MainPage> {
   int? _subscribedUserId;
   bool _isInitialized = false;
 
+  /// 친구 탭 먼저, 채팅 탭 나중 (인덱스 0: 친구, 1: 채팅)
   static const _destinations = [
-    AppRoutes.chatList,
     AppRoutes.friends,
+    AppRoutes.chatList,
   ];
 
   @override
@@ -133,6 +134,11 @@ class _MainPageState extends State<MainPage> {
                     ),
                   ),
                   destinations: [
+                    const NavigationRailDestination(
+                      icon: Icon(Icons.people_outlined),
+                      selectedIcon: Icon(Icons.people),
+                      label: Text('친구'),
+                    ),
                     NavigationRailDestination(
                       icon: _buildBadgeIcon(
                         icon: const Icon(Icons.chat_outlined),
@@ -143,11 +149,6 @@ class _MainPageState extends State<MainPage> {
                         count: totalUnread,
                       ),
                       label: const Text('채팅'),
-                    ),
-                    const NavigationRailDestination(
-                      icon: Icon(Icons.people_outlined),
-                      selectedIcon: Icon(Icons.people),
-                      label: Text('친구'),
                     ),
                   ],
                 ),
@@ -164,6 +165,11 @@ class _MainPageState extends State<MainPage> {
             selectedIndex: _selectedIndex,
             onDestinationSelected: _onDestinationSelected,
             destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.people_outlined),
+                selectedIcon: Icon(Icons.people),
+                label: '친구',
+              ),
               NavigationDestination(
                 icon: _buildBadgeIcon(
                   icon: const Icon(Icons.chat_outlined),
@@ -174,11 +180,6 @@ class _MainPageState extends State<MainPage> {
                   count: totalUnread,
                 ),
                 label: '채팅',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.people_outlined),
-                selectedIcon: Icon(Icons.people),
-                label: '친구',
               ),
             ],
           ),

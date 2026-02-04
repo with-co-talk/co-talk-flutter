@@ -1,12 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:io';
 import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:super_clipboard/super_clipboard.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/url_utils.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/window/window_focus_tracker.dart';
 import '../../../domain/entities/message.dart';
@@ -18,6 +26,10 @@ import '../../blocs/chat/chat_room_state.dart';
 import '../../blocs/chat/message_search/message_search_bloc.dart';
 import '../../blocs/chat/message_search/message_search_event.dart';
 import '../../widgets/message_search_widget.dart';
+import '../../widgets/link_preview_card.dart';
+import '../../widgets/link_preview_loader.dart';
+import '../../../domain/entities/link_preview.dart';
+import '../../../core/utils/save_image_to_gallery.dart';
 
 class ChatRoomPage extends StatefulWidget {
   final int roomId;
@@ -496,6 +508,24 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 }
               },
             ),
+            // 파일 전송 실패 등 일반 에러 메시지 (재초대 제외)
+            BlocListener<ChatRoomBloc, ChatRoomState>(
+              listenWhen: (previous, current) {
+                return current.errorMessage != null &&
+                    previous.errorMessage != current.errorMessage &&
+                    !current.isReinviting;
+              },
+              listener: (context, state) {
+                if (state.errorMessage != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.errorMessage!),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
           ],
           child: _isSearchMode
               ? MessageSearchWidget(
@@ -679,16 +709,10 @@ class _MessageBubble extends StatelessWidget {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  /// URL 정규식 패턴
-  static final _urlRegex = RegExp(
-    r'https?://[^\s<>\[\]{}|\\^`"]+',
-    caseSensitive: false,
-  );
-
   /// 텍스트에서 URL을 파싱하여 클릭 가능한 TextSpan 목록 생성
   List<InlineSpan> _buildTextSpans(BuildContext context, String text, Color textColor) {
     final spans = <InlineSpan>[];
-    final matches = _urlRegex.allMatches(text);
+    final matches = urlPattern.allMatches(text);
 
     if (matches.isEmpty) {
       // URL이 없으면 일반 텍스트로 반환
@@ -719,11 +743,11 @@ class _MessageBubble extends StatelessWidget {
         ));
       }
 
-      // URL (클릭 가능한 링크)
+      // URL (클릭 가능한 링크). 표시는 매칭 문자열 그대로, 열기/API는 정규화된 URL 사용
       final url = match.group(0)!;
       spans.add(WidgetSpan(
         child: GestureDetector(
-          onTap: () => _openUrl(context, url),
+          onTap: () => _openUrl(context, normalizeUrl(url)),
           child: Text(
             url,
             style: TextStyle(
@@ -757,10 +781,20 @@ class _MessageBubble extends StatelessWidget {
     return spans;
   }
 
-  /// URL 열기
+  /// URL 열기 (정규화된 URL을 외부 브라우저로 열기. 호출 측에서 [normalizeUrl]로 넘기는 것을 권장)
   Future<void> _openUrl(BuildContext context, String url) async {
     try {
-      final uri = Uri.parse(url);
+      final toOpen = url.contains('://') ? url : normalizeUrl(url);
+      final trimmed = toOpen.replaceAll(RegExp(r'[.,;:!?)\]\}>]+$'), '');
+      final uri = Uri.tryParse(trimmed);
+      if (uri == null || !uri.hasScheme) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('URL을 열 수 없습니다: $url')),
+          );
+        }
+        return;
+      }
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
@@ -779,6 +813,55 @@ class _MessageBubble extends StatelessWidget {
     }
   }
 
+  /// 이미지 메시지 길게 누르기 메뉴 (전체 화면 보기, 갤러리에 저장)
+  void _showImageOptions(BuildContext context, String imageUrl) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.fullscreen_rounded),
+                title: const Text('전체 화면 보기'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showFullScreenImage(context, imageUrl);
+                },
+              ),
+              if (!kIsWeb)
+                ListTile(
+                  leading: const Icon(Icons.download_rounded),
+                  title: const Text('갤러리에 저장'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _saveImageToGallery(context, imageUrl);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 이미지 전체 화면 보기
   void _showFullScreenImage(BuildContext context, String imageUrl) {
     Navigator.of(context).push(
@@ -789,6 +872,14 @@ class _MessageBubble extends StatelessWidget {
             backgroundColor: Colors.black,
             iconTheme: const IconThemeData(color: Colors.white),
             elevation: 0,
+            actions: [
+              if (!kIsWeb)
+                IconButton(
+                  icon: const Icon(Icons.download_rounded),
+                  tooltip: '갤러리에 저장',
+                  onPressed: () => _saveImageToGallery(context, imageUrl),
+                ),
+            ],
           ),
           body: Center(
             child: InteractiveViewer(
@@ -819,6 +910,25 @@ class _MessageBubble extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 이미지를 갤러리(사진 앱)에 저장합니다. 웹에서는 호출하지 않습니다.
+  Future<void> _saveImageToGallery(BuildContext context, String imageUrl) async {
+    try {
+      await saveImageFromUrlToGallery(imageUrl);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('사진이 갤러리에 저장되었습니다')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        final message = e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장 실패: $message')),
+        );
+      }
+    }
   }
 
   /// 파일 다운로드 (브라우저에서 열기)
@@ -1019,8 +1129,10 @@ class _MessageBubble extends StatelessWidget {
 
     // 이미지 메시지
     if (message.type == MessageType.image && message.fileUrl != null) {
+      final imageUrl = message.fileUrl!;
       bubbleWidget = GestureDetector(
-        onTap: () => _showFullScreenImage(context, message.fileUrl!),
+        onTap: () => _showFullScreenImage(context, imageUrl),
+        onLongPress: () => _showImageOptions(context, imageUrl),
         child: ClipRRect(
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
@@ -1034,7 +1146,7 @@ class _MessageBubble extends StatelessWidget {
               maxHeight: 250,
             ),
             child: Image.network(
-              message.fileUrl!,
+              imageUrl,
               fit: BoxFit.cover,
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
@@ -1173,6 +1285,12 @@ class _MessageBubble extends StatelessWidget {
     // 텍스트 메시지 (기본)
     else {
       final textColor = isMe ? Colors.white : context.textPrimaryColor;
+
+      // URL 감지 (첫 번째 URL만 미리보기 표시). 도메인만 있으면 https:// 붙여서 API/열기용으로 사용
+      final urlMatches = urlPattern.allMatches(message.displayContent);
+      final firstUrlRaw = urlMatches.isNotEmpty ? urlMatches.first.group(0) : null;
+      final firstUrl = firstUrlRaw != null ? normalizeUrl(firstUrlRaw) : null;
+
       bubbleWidget = Container(
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.65,
@@ -1202,10 +1320,34 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ],
         ),
-        child: RichText(
-          text: TextSpan(
-            children: _buildTextSpans(context, message.displayContent, textColor),
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: TextSpan(
+                children: _buildTextSpans(context, message.displayContent, textColor),
+              ),
+            ),
+            // 링크 미리보기: 서버에서 수집한 데이터가 있으면 카드로 표시, 없으면 URL만 있을 때 로더로 조회
+            if (message.hasLinkPreview)
+              LinkPreviewCard(
+                preview: LinkPreview(
+                  url: message.linkPreviewUrl!,
+                  title: message.linkPreviewTitle,
+                  description: message.linkPreviewDescription,
+                  imageUrl: message.linkPreviewImageUrl,
+                ),
+                isMe: isMe,
+                maxWidth: MediaQuery.of(context).size.width * 0.6,
+              )
+            else if (firstUrl != null)
+              LinkPreviewLoader(
+                url: firstUrl,
+                isMe: isMe,
+                maxWidth: MediaQuery.of(context).size.width * 0.6,
+              ),
+          ],
         ),
       );
     }
@@ -1309,6 +1451,7 @@ class _MessageInput extends StatefulWidget {
 
 class _MessageInputState extends State<_MessageInput> {
   final ImagePicker _imagePicker = ImagePicker();
+  bool _isPasteHandling = false;
 
   @override
   void initState() {
@@ -1335,6 +1478,121 @@ class _MessageInputState extends State<_MessageInput> {
     if (_hasText) {
       widget.onSend();
     }
+  }
+
+  /// 클립보드에서 이미지를 붙여넣기 처리
+  Future<bool> _handlePaste() async {
+    if (_isPasteHandling) return false;
+    _isPasteHandling = true;
+
+    try {
+      final clipboard = SystemClipboard.instance;
+      if (clipboard == null) {
+        _isPasteHandling = false;
+        return false;
+      }
+
+      final reader = await clipboard.read();
+
+      // PNG 이미지 확인
+      if (reader.canProvide(Formats.png)) {
+        final completer = Completer<Uint8List?>();
+        reader.getFile(Formats.png, (file) async {
+          try {
+            final stream = file.getStream();
+            final chunks = <int>[];
+            await for (final chunk in stream) {
+              chunks.addAll(chunk);
+            }
+            completer.complete(Uint8List.fromList(chunks));
+          } catch (e) {
+            completer.complete(null);
+          }
+        }, onError: (e) {
+          completer.complete(null);
+        });
+
+        final data = await completer.future;
+        if (data != null && data.isNotEmpty && mounted) {
+          await _saveAndUploadImage(data, 'png');
+          _isPasteHandling = false;
+          return true;
+        }
+      }
+
+      // JPEG 이미지 확인
+      if (reader.canProvide(Formats.jpeg)) {
+        final completer = Completer<Uint8List?>();
+        reader.getFile(Formats.jpeg, (file) async {
+          try {
+            final stream = file.getStream();
+            final chunks = <int>[];
+            await for (final chunk in stream) {
+              chunks.addAll(chunk);
+            }
+            completer.complete(Uint8List.fromList(chunks));
+          } catch (e) {
+            completer.complete(null);
+          }
+        }, onError: (e) {
+          completer.complete(null);
+        });
+
+        final data = await completer.future;
+        if (data != null && data.isNotEmpty && mounted) {
+          await _saveAndUploadImage(data, 'jpg');
+          _isPasteHandling = false;
+          return true;
+        }
+      }
+
+      _isPasteHandling = false;
+      return false;
+    } catch (e) {
+      debugPrint('[ChatRoomPage] Paste handling error: $e');
+      _isPasteHandling = false;
+      return false;
+    }
+  }
+
+  /// 이미지 데이터를 임시 파일로 저장하고 업로드
+  Future<void> _saveAndUploadImage(Uint8List data, String extension) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'paste_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(data);
+
+      if (mounted) {
+        context.read<ChatRoomBloc>().add(FileAttachmentRequested(file.path));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 붙여넣기 실패: $e')),
+        );
+      }
+    }
+  }
+
+  /// 키 이벤트 처리 (Ctrl+V / Cmd+V 감지)
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
+      final isControlOrMeta = HardwareKeyboard.instance.isControlPressed ||
+                              HardwareKeyboard.instance.isMetaPressed;
+
+      if (isControlOrMeta && event.logicalKey == LogicalKeyboardKey.keyV) {
+        // 비동기로 붙여넣기 처리: 이미지가 있으면 전송하고 기본 텍스트 붙여넣기 방지
+        _handlePaste().then((handled) {
+          if (handled) {
+            debugPrint('[ChatRoomPage] Image pasted and sent successfully');
+          }
+        });
+        // 이미지 붙여넣기 처리 중이면 handled 반환해 텍스트 붙여넣기 방지 (결과는 비동기이므로 일단 ignored)
+        // 참고: 이미지가 없으면 false 반환되어 기본 텍스트 붙여넣기가 수행됨
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   /// 첨부 옵션 바텀시트를 표시합니다.
@@ -1405,16 +1663,83 @@ class _MessageInputState extends State<_MessageInput> {
     );
   }
 
-  /// 갤러리에서 이미지를 선택합니다.
+  /// image_cropper는 Android/iOS만 정식 지원. Web/데스크톱은 크롭 없이 바로 전송
+  bool get _isImageCropperSupported {
+    if (kIsWeb) return false;
+    return Platform.isAndroid || Platform.isIOS;
+  }
+
+  /// 이미지 선택 후 편집(자르기) 후 전송
+  /// - 모바일(Android/iOS): 자르기 화면 표시 후 전송. 취소 시 전송 안 함. 예외 시 원본 전송.
+  /// - 데스크톱: image_cropper 미지원이므로 크롭 없이 바로 전송
+  Future<void> _pickImageAndSend(String sourcePath) async {
+    if (!mounted) return;
+
+    if (sourcePath.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미지 경로를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+        );
+      }
+      return;
+    }
+
+    if (!_isImageCropperSupported) {
+      context.read<ChatRoomBloc>().add(FileAttachmentRequested(sourcePath));
+      return;
+    }
+
+    // 크롭 지원 플랫폼에서만: 파일 존재 여부 미리 확인 (크롭 실패·예외 감소)
+    final sourceFile = File(sourcePath);
+    if (!sourceFile.existsSync()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('선택한 이미지 파일을 찾을 수 없습니다.')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: sourcePath,
+        compressQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (cropped != null && cropped.path.isNotEmpty && mounted) {
+        context.read<ChatRoomBloc>().add(FileAttachmentRequested(cropped.path));
+      }
+      // cropped == null 또는 path 비어있음 → 사용자 취소 또는 오류 → 전송 안 함
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이미지 편집을 사용할 수 없습니다: $e')),
+        );
+        context.read<ChatRoomBloc>().add(FileAttachmentRequested(sourcePath));
+      }
+    }
+  }
+
+  /// 갤러리에서 이미지를 선택합니다. (선택 후 자르기 화면 표시)
   Future<void> _pickImageFromGallery() async {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 80,
       );
-      if (image != null && mounted) {
-        context.read<ChatRoomBloc>().add(FileAttachmentRequested(image.path));
+      if (image == null || !mounted) return;
+
+      final path = image.path;
+      if (path.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+          );
+        }
+        return;
       }
+      await _pickImageAndSend(path);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1424,16 +1749,25 @@ class _MessageInputState extends State<_MessageInput> {
     }
   }
 
-  /// 카메라로 사진을 촬영합니다.
+  /// 카메라로 사진을 촬영합니다. (촬영 후 자르기 화면 표시)
   Future<void> _pickImageFromCamera() async {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.camera,
         imageQuality: 80,
       );
-      if (image != null && mounted) {
-        context.read<ChatRoomBloc>().add(FileAttachmentRequested(image.path));
+      if (image == null || !mounted) return;
+
+      final path = image.path;
+      if (path.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('촬영한 이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+          );
+        }
+        return;
       }
+      await _pickImageAndSend(path);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1635,51 +1969,54 @@ class _MessageInputState extends State<_MessageInput> {
                   Expanded(
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 120),
-                      child: TextField(
-                        controller: widget.controller,
-                        focusNode: widget.focusNode,
-                        decoration: InputDecoration(
-                          hintText: '메시지를 입력하세요',
-                          hintStyle: TextStyle(
-                            color: context.textSecondaryColor.withValues(alpha: 0.6),
-                          ),
-                          filled: true,
-                          fillColor: context.surfaceColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(28),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(28),
-                            borderSide: BorderSide(
-                              color: context.dividerColor,
-                              width: 1.5,
+                      child: Focus(
+                        onKeyEvent: _handleKeyEvent,
+                        child: TextField(
+                          controller: widget.controller,
+                          focusNode: widget.focusNode,
+                          decoration: InputDecoration(
+                            hintText: '메시지를 입력하세요',
+                            hintStyle: TextStyle(
+                              color: context.textSecondaryColor.withValues(alpha: 0.6),
+                            ),
+                            filled: true,
+                            fillColor: context.surfaceColor,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(28),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(28),
+                              borderSide: BorderSide(
+                                color: context.dividerColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(28),
+                              borderSide: BorderSide(
+                                color: AppColors.primary,
+                                width: 2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
                             ),
                           ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(28),
-                        borderSide: BorderSide(
-                          color: AppColors.primary,
-                          width: 2,
+                          maxLines: null,
+                          minLines: 1,
+                          textInputAction: TextInputAction.send,
+                          textCapitalization: TextCapitalization.sentences,
+                          onChanged: (_) {
+                            widget.onChanged?.call();
+                            // onChanged에서도 상태 업데이트 (리스너가 자동으로 호출되지만 명시적으로)
+                          },
+                          onSubmitted: (_) => _handleSend(),
                         ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
-                      ),
                     ),
-                    maxLines: null,
-                    minLines: 1,
-                    textInputAction: TextInputAction.send,
-                    textCapitalization: TextCapitalization.sentences,
-                    onChanged: (_) {
-                      widget.onChanged?.call();
-                      // onChanged에서도 상태 업데이트 (리스너가 자동으로 호출되지만 명시적으로)
-                    },
-                    onSubmitted: (_) => _handleSend(),
                   ),
-                ),
-              ),
               const SizedBox(width: 8),
               BlocBuilder<ChatRoomBloc, ChatRoomState>(
                 builder: (context, state) {

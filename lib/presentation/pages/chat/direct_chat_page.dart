@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../di/injection.dart';
 import '../../../domain/repositories/chat_repository.dart';
+import '../../blocs/auth/auth_bloc.dart';
 
 /// 1:1 채팅 시작 페이지
 /// 채팅방을 생성/조회한 후 해당 채팅방으로 이동한다.
@@ -23,6 +25,11 @@ class DirectChatPage extends StatefulWidget {
 class _DirectChatPageState extends State<DirectChatPage> {
   bool _isLoading = true;
   String? _errorMessage;
+
+  String _selfChatTitle(BuildContext context) {
+    final nickname = context.read<AuthBloc>().state.user?.nickname?.trim();
+    return (nickname != null && nickname.isNotEmpty) ? nickname : '나';
+  }
 
   @override
   void initState() {
@@ -53,7 +60,9 @@ class _DirectChatPageState extends State<DirectChatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isSelfChat ? '나와의 채팅' : '1:1 채팅'),
+        title: Text(
+          widget.isSelfChat ? _selfChatTitle(context) : '1:1 채팅',
+        ),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => context.pop(),
@@ -67,7 +76,7 @@ class _DirectChatPageState extends State<DirectChatPage> {
                   const CircularProgressIndicator(),
                   const SizedBox(height: 16),
                   Text(
-                    widget.isSelfChat ? '나와의 채팅방을 준비 중...' : '채팅방을 준비 중...',
+                    widget.isSelfChat ? '채팅방을 준비 중...' : '채팅방을 준비 중...',
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ],

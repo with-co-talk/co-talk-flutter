@@ -104,7 +104,7 @@ class AppRouter {
       }
 
       if (isLoggedIn && isAuthRoute) {
-        return AppRoutes.chatList;
+        return AppRoutes.friends;
       }
 
       return null;

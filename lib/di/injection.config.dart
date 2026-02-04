@@ -136,6 +136,7 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i809.FcmServiceImpl(
         messaging: gh<_i892.FirebaseMessaging>(),
         notificationService: gh<_i570.NotificationService>(),
+        settingsRepository: gh<_i977.SettingsRepository>(),
       ),
       registerFor: {_mobile},
     );
@@ -162,6 +163,7 @@ extension GetItInjectableX on _i174.GetIt {
         notificationService: gh<_i570.NotificationService>(),
         webSocketService: gh<_i682.WebSocketService>(),
         windowFocusTracker: gh<_i156.WindowFocusTracker>(),
+        settingsRepository: gh<_i977.SettingsRepository>(),
       ),
     );
     gh.lazySingleton<_i792.ChatRepository>(

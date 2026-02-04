@@ -114,6 +114,13 @@ Future<void> _initializeNotifications() async {
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     final fcmService = getIt<FcmService>();
     await fcmService.initialize();
+
+    // FCM 알림 클릭 시 채팅방으로 네비게이션
+    fcmService.onNotificationClick.listen((payload) {
+      if (payload != null) {
+        notificationClickHandler.handleFcmNotificationClick(payload);
+      }
+    });
   }
 
   // 데스크톱 알림 브릿지 초기화 (WebSocket → 로컬 알림)

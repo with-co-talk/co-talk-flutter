@@ -49,6 +49,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     }
   }
 
+  /// 채팅방 목록 조회: 현재는 커서 기반 페이징 없이 한 번에 전체 로드
   Future<void> _onLoadRequested(
     ChatListLoadRequested event,
     Emitter<ChatListState> emit,

@@ -1,8 +1,12 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/image_upload_path_resolver.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/profile_history.dart';
 import '../../blocs/auth/auth_bloc.dart';
@@ -14,7 +18,10 @@ import '../../blocs/profile/profile_state.dart';
 import 'profile_history_page.dart';
 
 class EditProfilePage extends StatefulWidget {
-  const EditProfilePage({super.key});
+  /// 히스토리 페이지 등에서 진입 시 같은 ProfileBloc을 공유하려면 전달
+  final ProfileBloc? profileBloc;
+
+  const EditProfilePage({super.key, this.profileBloc});
 
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
@@ -27,6 +34,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final _imagePicker = ImagePicker();
   bool _isLoading = false;
   File? _selectedImage;
+  File? _selectedBackgroundImage;
   bool _hasChanges = false;
 
   // 원본 값 저장 (변경 감지용)
@@ -49,8 +57,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _nicknameController.addListener(_checkForChanges);
     _statusMessageController.addListener(_checkForChanges);
 
-    // ProfileBloc 초기화 (아바타 업로드 + 이력 생성용)
-    _profileBloc = getIt<ProfileBloc>();
+    // ProfileBloc: 전달받은 bloc이 있으면 사용, 없으면 새로 생성
+    _profileBloc = widget.profileBloc ?? getIt<ProfileBloc>();
   }
 
   void _checkForChanges() {
@@ -66,7 +74,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _statusMessageController.removeListener(_checkForChanges);
     _nicknameController.dispose();
     _statusMessageController.dispose();
-    _profileBloc.close();
+    if (widget.profileBloc == null) _profileBloc.close();
     super.dispose();
   }
 
@@ -84,9 +92,61 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool get _isDesktop =>
       Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
+  /// image_cropper는 Android/iOS만 정식 지원. Web/데스크톱은 크롭 없이 바로 업로드
+  bool get _isImageCropperSupported {
+    if (kIsWeb) return false;
+    return Platform.isAndroid || Platform.isIOS;
+  }
+
   Future<void> _pickImage() async {
     if (_isDesktop) {
-      await _pickFromFile();
+      // 데스크탑에서는 파일 선택 다이얼로그가 포커스 등으로 안 뜨는 경우를 대비해
+      // 바텀시트로 "파일에서 선택" 한 가지 옵션을 보여준 뒤 호출한다.
+      if (!mounted) return;
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (bottomSheetContext) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.folder_open, color: AppColors.primary),
+                  ),
+                  title: const Text('파일에서 선택'),
+                  subtitle: const Text('이미지 파일을 선택합니다'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    _pickFromFile();
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      );
       return;
     }
 
@@ -266,20 +326,41 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Future<void> _pickFromFile() async {
     try {
-      final pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 80,
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
       );
-      if (pickedFile != null) {
-        _uploadImage(File(pickedFile.path));
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      File? imageFile;
+
+      if (file.path != null && file.path!.isNotEmpty) {
+        imageFile = File(file.path!);
+      } else if (file.bytes != null && file.bytes!.isNotEmpty) {
+        final tempDir = await Directory.systemTemp.createTemp('cotalk_avatar');
+        final tempFile = File('${tempDir.path}/picked_${DateTime.now().millisecondsSinceEpoch}.png');
+        await tempFile.writeAsBytes(file.bytes!);
+        imageFile = tempFile;
+      }
+
+      if (imageFile != null && mounted) {
+        _uploadImage(imageFile);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('선택한 파일을 사용할 수 없습니다'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('파일을 선택할 수 없습니다'),
+            content: Text('파일을 선택할 수 없습니다: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -296,9 +377,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
         maxHeight: 512,
         imageQuality: 80,
       );
-      if (pickedFile != null) {
-        _uploadImage(File(pickedFile.path));
+      if (pickedFile == null || !mounted) return;
+      final path = pickedFile.path;
+      if (path.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('촬영한 이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+            ),
+          );
+        }
+        return;
       }
+      await _pickImageForAvatar(path);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -320,9 +413,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
         maxHeight: 512,
         imageQuality: 80,
       );
-      if (pickedFile != null) {
-        _uploadImage(File(pickedFile.path));
+      if (pickedFile == null || !mounted) return;
+      final path = pickedFile.path;
+      if (path.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+            ),
+          );
+        }
+        return;
       }
+      await _pickImageForAvatar(path);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -332,6 +437,56 @@ class _EditProfilePageState extends State<EditProfilePage> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
+      }
+    }
+  }
+
+  /// 아바타 이미지 선택 후 크롭(지원 시) 후 업로드
+  Future<void> _pickImageForAvatar(String sourcePath) async {
+    if (!mounted) return;
+
+    if (!_isImageCropperSupported) {
+      _uploadImage(File(sourcePath));
+      return;
+    }
+
+    final sourceFile = File(sourcePath);
+    if (!sourceFile.existsSync()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('선택한 이미지 파일을 찾을 수 없습니다.'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: sourcePath,
+        compressQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      final pathToUse = ImageUploadPathResolver.resolveUploadPath(
+        pickedPath: sourcePath,
+        croppedPath: cropped?.path,
+        cropSupported: _isImageCropperSupported,
+      );
+      if (pathToUse != null && mounted) _uploadImage(File(pathToUse));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('이미지 편집을 사용할 수 없습니다: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        _uploadImage(File(sourcePath));
       }
     }
   }
@@ -349,6 +504,258 @@ class _EditProfilePageState extends State<EditProfilePage> {
       imageFile: imageFile,
       setCurrent: true,
     ));
+  }
+
+  void _uploadBackgroundImage(File imageFile) {
+    final userId = context.read<AuthBloc>().state.user?.id;
+    if (userId == null) return;
+
+    setState(() => _selectedBackgroundImage = imageFile);
+
+    _profileBloc.add(ProfileHistoryCreateRequested(
+      userId: userId,
+      type: ProfileHistoryType.background,
+      imageFile: imageFile,
+      setCurrent: true,
+    ));
+  }
+
+  Future<void> _pickBackgroundImage() async {
+    if (_isDesktop) {
+      if (!mounted) return;
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (bottomSheetContext) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.folder_open, color: AppColors.primary),
+                  ),
+                  title: const Text('파일에서 선택'),
+                  subtitle: const Text('배경 이미지 파일을 선택합니다'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    _pickBackgroundFromFile();
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text('배경화면', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.photo_library, color: AppColors.primary),
+                ),
+                title: const Text('앨범에서 선택'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _pickBackgroundFromGallery();
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.history, color: Colors.grey),
+                ),
+                title: const Text('배경 이력에서 선택'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _navigateToBackgroundHistory();
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickBackgroundFromFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      File? imageFile;
+      if (file.path != null && file.path!.isNotEmpty) {
+        imageFile = File(file.path!);
+      } else if (file.bytes != null && file.bytes!.isNotEmpty) {
+        final tempDir = await Directory.systemTemp.createTemp('cotalk_bg');
+        final tempFile = File('${tempDir.path}/bg_${DateTime.now().millisecondsSinceEpoch}.png');
+        await tempFile.writeAsBytes(file.bytes!);
+        imageFile = tempFile;
+      }
+      if (imageFile != null && mounted) _uploadBackgroundImage(imageFile);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('파일을 선택할 수 없습니다: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickBackgroundFromGallery() async {
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      if (pickedFile == null || !mounted) return;
+      final path = pickedFile.path;
+      if (path.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+      await _pickBackgroundImageForUpload(path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('앨범에 접근할 수 없습니다'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
+  /// 배경 이미지 선택 후 크롭(지원 시) 후 업로드
+  Future<void> _pickBackgroundImageForUpload(String sourcePath) async {
+    if (!mounted) return;
+
+    if (!_isImageCropperSupported) {
+      _uploadBackgroundImage(File(sourcePath));
+      return;
+    }
+
+    final sourceFile = File(sourcePath);
+    if (!sourceFile.existsSync()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('선택한 이미지 파일을 찾을 수 없습니다.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: sourcePath,
+        compressQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+      final pathToUse = ImageUploadPathResolver.resolveUploadPath(
+        pickedPath: sourcePath,
+        croppedPath: cropped?.path,
+        cropSupported: _isImageCropperSupported,
+      );
+      if (pathToUse != null && mounted) _uploadBackgroundImage(File(pathToUse));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('이미지 편집을 사용할 수 없습니다: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _uploadBackgroundImage(File(sourcePath));
+      }
+    }
+  }
+
+  void _navigateToBackgroundHistory() {
+    final userId = context.read<AuthBloc>().state.user?.id;
+    if (userId == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider.value(
+          value: _profileBloc,
+          child: ProfileHistoryPage(
+            userId: userId,
+            type: ProfileHistoryType.background,
+            isMyProfile: true,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -412,26 +819,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
             if (state.status == ProfileStatus.creating) {
               setState(() => _isLoading = true);
             } else if (state.status == ProfileStatus.success) {
+              final wasBackground = _selectedBackgroundImage != null;
               setState(() {
                 _isLoading = false;
                 _selectedImage = null;
+                _selectedBackgroundImage = null;
               });
-              // 새로 생성된 avatar history에서 URL 가져오기
+              // 새로 생성된 avatar/background history에서 URL 가져와 AuthBloc 반영
               final newAvatarHistory = state.histories
                   .where((h) => h.type == ProfileHistoryType.avatar && h.isCurrent)
                   .firstOrNull;
-              if (newAvatarHistory?.url != null) {
+              final newBackgroundHistory = state.histories
+                  .where((h) => h.type == ProfileHistoryType.background && h.isCurrent)
+                  .firstOrNull;
+              if (newAvatarHistory?.url != null || newBackgroundHistory?.url != null) {
                 context.read<AuthBloc>().add(AuthUserLocalUpdated(
-                  avatarUrl: newAvatarHistory!.url,
+                  avatarUrl: newAvatarHistory?.url,
+                  backgroundUrl: newBackgroundHistory?.url,
                 ));
               }
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: const Row(
+                  content: Row(
                     children: [
-                      Icon(Icons.check_circle, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text('프로필 사진이 변경되었습니다'),
+                      const Icon(Icons.check_circle, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(wasBackground ? '배경이 변경되었습니다' : '프로필 사진이 변경되었습니다'),
                     ],
                   ),
                   behavior: SnackBarBehavior.floating,
@@ -443,6 +856,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               setState(() {
                 _isLoading = false;
                 _selectedImage = null;
+                _selectedBackgroundImage = null;
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -450,7 +864,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     children: [
                       const Icon(Icons.error, color: Colors.white),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(state.errorMessage ?? '사진 변경에 실패했습니다')),
+                      Expanded(child: Text(state.errorMessage ?? '이미지 변경에 실패했습니다')),
                     ],
                   ),
                   behavior: SnackBarBehavior.floating,
@@ -594,6 +1008,74 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
                           const SizedBox(height: 16),
 
+                          // 배경화면 섹션
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _buildEditCard(
+                              icon: Icons.wallpaper,
+                              label: '배경화면',
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: AspectRatio(
+                                      aspectRatio: 16 / 9,
+                                      child: _selectedBackgroundImage != null
+                                          ? Image.file(
+                                              _selectedBackgroundImage!,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : user.backgroundUrl != null && user.backgroundUrl!.isNotEmpty
+                                              ? Image.network(
+                                                  user.backgroundUrl!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) => Container(
+                                                    color: AppColors.primaryLight,
+                                                    child: const Center(child: Icon(Icons.broken_image)),
+                                                  ),
+                                                )
+                                              : Container(
+                                                  decoration: BoxDecoration(
+                                                    gradient: LinearGradient(
+                                                      begin: Alignment.topLeft,
+                                                      end: Alignment.bottomRight,
+                                                      colors: [
+                                                        AppColors.primaryLight,
+                                                        AppColors.primary,
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  child: const Center(
+                                                    child: Icon(Icons.wallpaper, size: 48, color: Colors.white54),
+                                                  ),
+                                                ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      TextButton.icon(
+                                        onPressed: _isLoading ? null : _pickBackgroundImage,
+                                        icon: const Icon(Icons.edit, size: 16),
+                                        label: const Text('배경 변경'),
+                                        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                                      ),
+                                      TextButton.icon(
+                                        onPressed: _isLoading ? null : _navigateToBackgroundHistory,
+                                        icon: const Icon(Icons.history, size: 16),
+                                        label: const Text('배경 이력'),
+                                        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
                           // 정보 입력 섹션
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -610,20 +1092,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                       hintText: '닉네임을 입력하세요',
                                       hintStyle: TextStyle(
                                         color: Colors.grey[400],
-                                        fontSize: 15,
+                                        fontSize: 16,
                                       ),
                                       border: InputBorder.none,
-                                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                                      isDense: true,
-                                      errorStyle: const TextStyle(
-                                        fontSize: 11,
-                                        height: 0.8,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 14,
                                       ),
+                                      isDense: false,
+                                      errorStyle: const TextStyle(
+                                        fontSize: 12,
+                                        height: 1.0,
+                                      ),
+                                      errorMaxLines: 2,
                                     ),
                                     style: const TextStyle(
-                                      fontSize: 15,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.w500,
-                                      height: 1.4,
+                                      height: 1.5,
                                     ),
                                     validator: (value) {
                                       if (value == null || value.trim().isEmpty) {
@@ -652,16 +1138,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                       hintText: '상태메시지를 입력하세요 (선택)',
                                       hintStyle: TextStyle(
                                         color: Colors.grey[400],
-                                        fontSize: 15,
+                                        fontSize: 16,
                                       ),
                                       border: InputBorder.none,
-                                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 14,
+                                      ),
+                                      isDense: false,
                                       counterText: '',
                                     ),
                                     style: const TextStyle(
-                                      fontSize: 15,
-                                      height: 1.4,
+                                      fontSize: 16,
+                                      height: 1.5,
                                     ),
                                     maxLength: 60,
                                     maxLines: 2,
@@ -784,15 +1273,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
     Widget? trailing,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -802,18 +1291,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, size: 16, color: AppColors.primary),
+                child: Icon(icon, size: 18, color: AppColors.primary),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: AppColors.primary,
                 ),
@@ -822,15 +1311,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
               if (trailing != null) trailing,
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: Colors.grey[200]!,
-                width: 1,
+                width: 1.5,
               ),
             ),
             child: child,

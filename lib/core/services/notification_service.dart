@@ -35,14 +35,18 @@ class NotificationService {
   /// 알림 서비스 초기화
   ///
   /// 플랫폼별 초기화 설정을 수행합니다:
-  /// - Android: 알림 채널 생성
-  /// - iOS/macOS: 알림 권한 요청
+  /// - Android: 알림 채널 생성, 알림 아이콘 @mipmap/ic_launcher 사용
+  /// - iOS/macOS: 알림 권한 요청 (알림 아이콘은 앱 번들 아이콘 사용, 별도 지정 불가)
   /// - Windows/Linux: 기본 설정
+  ///
+  /// iOS/macOS/Windows에서 알림에 앱 아이콘이 보이려면, 앱 아이콘이 Co-Talk 아이콘으로
+  /// 설정되어 있어야 합니다. `assets/icons/app_icon.png`를 Co-Talk 아이콘으로 둔 뒤
+  /// `dart run flutter_launcher_icons`를 실행해 모든 플랫폼 아이콘을 재생성하세요.
   Future<void> initialize() async {
-    // Android 설정
+    // Android: 알림 아이콘으로 앱 런처 아이콘 사용 (flutter_launcher_icons로 생성된 ic_launcher)
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // iOS 설정
+    // iOS/macOS: 알림은 앱 번들 아이콘을 사용. 앱 아이콘을 바꾸려면 flutter_launcher_icons 실행
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -130,32 +134,39 @@ class NotificationService {
   /// [title] 알림 제목
   /// [body] 알림 내용
   /// [payload] 알림 클릭 시 전달할 데이터
+  /// [soundEnabled] 알림 소리 (설정에서 토글한 값 즉시 반영)
+  /// [vibrationEnabled] 알림 진동 (설정에서 토글한 값 즉시 반영)
   Future<void> showNotification({
     required String title,
     required String body,
     String? payload,
+    bool soundEnabled = true,
+    bool vibrationEnabled = true,
   }) async {
     final notificationId = _generateNotificationId();
 
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
       channelDescription: _channelDescription,
+      icon: '@mipmap/ic_launcher',
       importance: Importance.high,
       priority: Priority.high,
       showWhen: true,
       autoCancel: true,
+      playSound: soundEnabled,
+      enableVibration: vibrationEnabled,
     );
 
-    const darwinDetails = DarwinNotificationDetails(
+    final darwinDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
-      presentSound: true,
+      presentSound: soundEnabled,
     );
 
     const linuxDetails = LinuxNotificationDetails();
 
-    const notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: darwinDetails,
       macOS: darwinDetails,

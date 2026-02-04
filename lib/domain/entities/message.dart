@@ -23,6 +23,11 @@ class Message extends Equatable {
   final DateTime? updatedAt;
   final List<MessageReaction> reactions;
   final int unreadCount;
+  /// 링크 미리보기 (텍스트 메시지에 URL 포함 시 서버가 비동기 수집)
+  final String? linkPreviewUrl;
+  final String? linkPreviewTitle;
+  final String? linkPreviewDescription;
+  final String? linkPreviewImageUrl;
 
   const Message({
     required this.id,
@@ -45,7 +50,15 @@ class Message extends Equatable {
     this.updatedAt,
     this.reactions = const [],
     this.unreadCount = 0,
+    this.linkPreviewUrl,
+    this.linkPreviewTitle,
+    this.linkPreviewDescription,
+    this.linkPreviewImageUrl,
   });
+
+  bool get hasLinkPreview =>
+      linkPreviewUrl != null &&
+      (linkPreviewTitle != null || linkPreviewDescription != null || linkPreviewImageUrl != null);
 
   bool get isFile => type == MessageType.file || type == MessageType.image;
 
@@ -79,6 +92,10 @@ class Message extends Equatable {
     DateTime? updatedAt,
     List<MessageReaction>? reactions,
     int? unreadCount,
+    String? linkPreviewUrl,
+    String? linkPreviewTitle,
+    String? linkPreviewDescription,
+    String? linkPreviewImageUrl,
   }) {
     return Message(
       id: id ?? this.id,
@@ -101,6 +118,10 @@ class Message extends Equatable {
       updatedAt: updatedAt ?? this.updatedAt,
       reactions: reactions ?? this.reactions,
       unreadCount: unreadCount ?? this.unreadCount,
+      linkPreviewUrl: linkPreviewUrl ?? this.linkPreviewUrl,
+      linkPreviewTitle: linkPreviewTitle ?? this.linkPreviewTitle,
+      linkPreviewDescription: linkPreviewDescription ?? this.linkPreviewDescription,
+      linkPreviewImageUrl: linkPreviewImageUrl ?? this.linkPreviewImageUrl,
     );
   }
 
@@ -126,6 +147,10 @@ class Message extends Equatable {
         updatedAt,
         reactions,
         unreadCount,
+        linkPreviewUrl,
+        linkPreviewTitle,
+        linkPreviewDescription,
+        linkPreviewImageUrl,
       ];
 }
 

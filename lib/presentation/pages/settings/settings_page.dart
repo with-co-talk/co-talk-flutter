@@ -43,7 +43,7 @@ class _SettingsPageState extends State<SettingsPage> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go(AppRoutes.chatList);
+              context.go(AppRoutes.friends);
             }
           },
         ),
