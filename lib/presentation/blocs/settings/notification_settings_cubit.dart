@@ -73,8 +73,6 @@ class NotificationSettingsCubit extends Cubit<NotificationSettingsState> {
   /// 설정 업데이트 공통 메서드
   /// API 실패 시에도 사용자 선택(낙관적 반영)을 유지하고 에러 상태로 안내
   Future<void> _updateSetting(NotificationSettings newSettings) async {
-    final previousSettings = state.settings;
-
     // 낙관적 반영으로 토글이 즉시 반응하도록
     emit(state.copyWith(settings: newSettings));
 

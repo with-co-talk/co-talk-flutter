@@ -64,8 +64,8 @@ class _ChatListPageState extends State<ChatListPage> {
   /// 나와의 채팅 표시명: 내 닉네임 또는 '나'
   String _selfChatDisplayName(BuildContext context) {
     final user = context.read<AuthBloc>().state.user;
-    final nickname = user?.nickname?.trim();
-    return (nickname != null && nickname.isNotEmpty) ? nickname : '나';
+    final nickname = (user?.nickname ?? '').trim();
+    return nickname.isNotEmpty ? nickname : '나';
   }
 
   /// 채팅방 목록 표시명 (나와의 채팅은 내 이름/나)

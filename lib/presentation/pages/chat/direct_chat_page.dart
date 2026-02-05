@@ -27,8 +27,8 @@ class _DirectChatPageState extends State<DirectChatPage> {
   String? _errorMessage;
 
   String _selfChatTitle(BuildContext context) {
-    final nickname = context.read<AuthBloc>().state.user?.nickname?.trim();
-    return (nickname != null && nickname.isNotEmpty) ? nickname : '나';
+    final nickname = (context.read<AuthBloc>().state.user?.nickname ?? '').trim();
+    return nickname.isNotEmpty ? nickname : '나';
   }
 
   @override

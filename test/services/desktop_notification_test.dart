@@ -6,6 +6,8 @@ import 'package:co_talk_flutter/core/services/notification_service.dart';
 import 'package:co_talk_flutter/core/services/desktop_notification_bridge.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:co_talk_flutter/core/window/window_focus_tracker.dart';
+import 'package:co_talk_flutter/domain/repositories/settings_repository.dart';
+import 'package:co_talk_flutter/domain/entities/notification_settings.dart' as entity;
 
 class MockNotificationService extends Mock implements NotificationService {}
 
@@ -13,10 +15,13 @@ class MockWebSocketService extends Mock implements WebSocketService {}
 
 class MockWindowFocusTracker extends Mock implements WindowFocusTracker {}
 
+class MockSettingsRepository extends Mock implements SettingsRepository {}
+
 void main() {
   late MockNotificationService mockNotificationService;
   late MockWebSocketService mockWebSocketService;
   late MockWindowFocusTracker mockWindowFocusTracker;
+  late MockSettingsRepository mockSettingsRepository;
   late StreamController<WebSocketChatRoomUpdateEvent> chatRoomUpdateController;
   late StreamController<bool> focusController;
 
@@ -24,6 +29,7 @@ void main() {
     mockNotificationService = MockNotificationService();
     mockWebSocketService = MockWebSocketService();
     mockWindowFocusTracker = MockWindowFocusTracker();
+    mockSettingsRepository = MockSettingsRepository();
     chatRoomUpdateController = StreamController<WebSocketChatRoomUpdateEvent>.broadcast();
     focusController = StreamController<bool>.broadcast();
 
@@ -38,6 +44,13 @@ void main() {
           body: any(named: 'body'),
           payload: any(named: 'payload'),
         )).thenAnswer((_) async {});
+    when(() => mockSettingsRepository.getNotificationSettingsCached())
+        .thenAnswer((_) async => const entity.NotificationSettings(
+              messageNotification: true,
+              friendRequestNotification: true,
+              soundEnabled: true,
+              vibrationEnabled: true,
+            ));
   });
 
   tearDown(() {
@@ -50,6 +63,7 @@ void main() {
       notificationService: mockNotificationService,
       webSocketService: mockWebSocketService,
       windowFocusTracker: mockWindowFocusTracker,
+      settingsRepository: mockSettingsRepository,
     );
     if (currentUserId != null) {
       bridge.setCurrentUserId(currentUserId);

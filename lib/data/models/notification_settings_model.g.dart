@@ -12,7 +12,8 @@ NotificationSettingsModel _$NotificationSettingsModelFromJson(
   messageNotification: json['messageNotification'] as bool? ?? true,
   friendRequestNotification: json['friendRequestNotification'] as bool? ?? true,
   groupInviteNotification: json['groupInviteNotification'] as bool? ?? true,
-  showMessageContentInNotification: json['showMessageContentInNotification'] as bool? ?? true,
+  showMessageContentInNotification:
+      json['showMessageContentInNotification'] as bool? ?? true,
   soundEnabled: json['soundEnabled'] as bool? ?? true,
   vibrationEnabled: json['vibrationEnabled'] as bool? ?? true,
   doNotDisturbEnabled: json['doNotDisturbEnabled'] as bool? ?? false,
