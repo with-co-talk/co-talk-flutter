@@ -142,6 +142,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         if (state.currentUserId != null) {
           _presenceManager.sendPresenceActive(event.roomId, state.currentUserId!);
           await _messageHandler.markAsRead(event.roomId);
+          emit(state.copyWith(isReadMarked: true));
         }
       } else if (state.currentUserId != null && !_presenceManager.isViewingRoom) {
         // Not viewing room, send inactive presence
@@ -277,6 +278,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
     await _messageHandler.markAsRead(state.roomId!);
+    emit(state.copyWith(isReadMarked: true));
   }
 
   @override
@@ -392,6 +394,17 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     if (event.userId == state.currentUserId) return;
     if (event.lastReadMessageId == null) return;
 
+    // Use state.messages directly to handle seed state in tests
+    final updatedMessages = state.messages.map((message) {
+      if (message.senderId == state.currentUserId &&
+          message.id <= event.lastReadMessageId! &&
+          message.unreadCount > 0) {
+        return message.copyWith(unreadCount: message.unreadCount - 1);
+      }
+      return message;
+    }).toList();
+
+    // Also update cache manager for consistency
     _cacheManager.updateMessages((message) {
       if (message.senderId == state.currentUserId &&
           message.id <= event.lastReadMessageId! &&
@@ -401,7 +414,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       return message;
     });
 
-    emit(state.copyWith(messages: _cacheManager.messages));
+    emit(state.copyWith(messages: updatedMessages));
   }
 
   void _onTypingStatusChanged(
