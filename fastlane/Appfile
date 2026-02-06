@@ -1,0 +1,6 @@
+# Co-Talk Flutter 앱 설정
+
+app_identifier("com.cotalk.coTalkFlutter")
+apple_id(ENV["APPLE_ID"] || "leesg107@naver.com")
+itc_team_id(ENV["ITC_TEAM_ID"] || "128505909")
+team_id(ENV["TEAM_ID"] || "QW7DJ7FBDT")

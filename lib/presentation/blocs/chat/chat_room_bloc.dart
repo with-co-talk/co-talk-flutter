@@ -1,17 +1,15 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/network/websocket_service.dart';
 import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
-import '../../../domain/entities/message.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import 'chat_room_event.dart';
 import 'chat_room_state.dart';
+import 'managers/managers.dart';
 
 @injectable
 class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
@@ -20,12 +18,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   final AuthLocalDataSource _authLocalDataSource;
   final DesktopNotificationBridge _desktopNotificationBridge;
 
-  StreamSubscription<WebSocketChatMessage>? _messageSubscription;
-  StreamSubscription<WebSocketReadEvent>? _readEventSubscription;
-  StreamSubscription<WebSocketTypingEvent>? _typingSubscription;
-  StreamSubscription<WebSocketMessageDeletedEvent>? _messageDeletedSubscription;
-  Timer? _typingDebounceTimer;
-  Timer? _presencePingTimer;
+  // Managers
+  late final WebSocketSubscriptionManager _subscriptionManager;
+  late final PresenceManager _presenceManager;
+  late final MessageCacheManager _cacheManager;
+  late final MessageHandler _messageHandler;
+
+  // State tracking
+  bool _roomInitialized = false;
+  bool _pendingForegrounded = false;
 
   ChatRoomBloc(
     this._chatRepository,
@@ -33,6 +34,17 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     this._authLocalDataSource,
     this._desktopNotificationBridge,
   ) : super(const ChatRoomState()) {
+    // Initialize managers
+    _subscriptionManager = WebSocketSubscriptionManager(_webSocketService);
+    _presenceManager = PresenceManager(_webSocketService);
+    _cacheManager = MessageCacheManager(_chatRepository);
+    _messageHandler = MessageHandler(
+      _chatRepository,
+      _webSocketService,
+      _authLocalDataSource,
+    );
+
+    // Register event handlers
     on<ChatRoomOpened>(_onOpened);
     on<ChatRoomClosed>(_onClosed);
     on<ChatRoomBackgrounded>(_onBackgrounded);
@@ -67,11 +79,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     _roomInitialized = false;
     _pendingForegrounded = false;
-    _isViewingRoom = false;
 
     final currentUserId = await _authLocalDataSource.getUserId();
 
-    // 데스크톱 알림 억제를 위해 현재 채팅방 ID 설정
+    // Set active room for desktop notification suppression
     _desktopNotificationBridge.setActiveRoomId(event.roomId);
 
     emit(state.copyWith(
@@ -82,27 +93,18 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       isOfflineData: false,
     ));
 
-    // 1. 로컬 캐시 먼저 로드 (빠른 초기 표시)
-    try {
-      final cachedMessages = await _chatRepository.getLocalMessages(
-        event.roomId,
-        limit: AppConstants.messagePageSize,
-      );
-
-      if (cachedMessages.isNotEmpty) {
-        _log('Loaded ${cachedMessages.length} cached messages');
-        emit(state.copyWith(
-          status: ChatRoomStatus.success,
-          messages: cachedMessages,
-          hasMore: cachedMessages.length >= AppConstants.messagePageSize,
-          isOfflineData: true,
-        ));
-      }
-    } catch (e) {
-      _log('Failed to load cached messages: $e');
+    // 1. Load cached messages first (fast initial display)
+    final cachedMessages = await _cacheManager.loadCachedMessages(event.roomId);
+    if (cachedMessages.isNotEmpty) {
+      emit(state.copyWith(
+        status: ChatRoomStatus.success,
+        messages: cachedMessages,
+        hasMore: _cacheManager.hasMore,
+        isOfflineData: true,
+      ));
     }
 
-    // 2. 서버에서 최신 데이터 동기화
+    // 2. Sync with server
     try {
       bool isOtherUserLeft = false;
       int? otherUserId;
@@ -116,32 +118,16 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         _log('getChatRoom failed: $e');
       }
 
-      final (messages, nextCursor, hasMore) = await _chatRepository.getMessages(
-        event.roomId,
-        size: AppConstants.messagePageSize,
-      );
-      _log('Fetched ${messages.length} messages from server');
+      await _cacheManager.loadMessagesFromServer(event.roomId);
+      _log('Fetched ${_cacheManager.messages.length} messages from server');
 
-      final lastMessageId = messages.isNotEmpty ? messages.first.id : null;
-
-      _subscribeToWebSocket(event.roomId, lastMessageId: lastMessageId);
-      if (_isViewingRoom) {
-        _startPresencePing();
-      } else if (state.currentUserId != null) {
-        // 포커스가 없으면 서버에 "보고 있지 않다"고 알림
-        // 서버가 WebSocket 구독만으로 "보고 있다"고 인식하지 않도록
-        _log('Sending presenceInactive (not viewing room)');
-        _webSocketService.sendPresenceInactive(
-          roomId: event.roomId,
-          userId: state.currentUserId!,
-        );
-      }
+      _subscribeToWebSocket(event.roomId);
 
       emit(state.copyWith(
         status: ChatRoomStatus.success,
-        messages: messages,
-        nextCursor: nextCursor,
-        hasMore: hasMore,
+        messages: _cacheManager.messages,
+        nextCursor: _cacheManager.nextCursor,
+        hasMore: _cacheManager.hasMore,
         isOtherUserLeft: isOtherUserLeft,
         otherUserId: otherUserId,
         otherUserNickname: otherUserNickname,
@@ -153,21 +139,24 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       if (_pendingForegrounded) {
         _log('Processing pending foreground event');
         _pendingForegrounded = false;
-        _isViewingRoom = true;
-        _startPresencePing();
-        await _markAsReadWithRetry(event.roomId, emit);
+        if (state.currentUserId != null) {
+          _presenceManager.sendPresenceActive(event.roomId, state.currentUserId!);
+          await _messageHandler.markAsRead(event.roomId);
+          emit(state.copyWith(isReadMarked: true));
+        }
+      } else if (state.currentUserId != null && !_presenceManager.isViewingRoom) {
+        // Not viewing room, send inactive presence
+        _log('Sending presenceInactive (not viewing room)');
+        _presenceManager.sendPresenceInactive(event.roomId, state.currentUserId!);
       }
     } catch (e, stackTrace) {
       _log('Error in _onOpened: $e\n$stackTrace');
 
-      // 오프라인 모드: 캐시된 메시지가 있으면 유지
+      // Offline mode: keep cached messages if available
       if (state.messages.isNotEmpty) {
         _log('Keeping cached messages due to network error');
         _roomInitialized = true;
-        // 캐시된 데이터로 성공 상태 유지
-        emit(state.copyWith(
-          isOfflineData: true,
-        ));
+        emit(state.copyWith(isOfflineData: true));
       } else {
         emit(state.copyWith(
           status: ChatRoomStatus.failure,
@@ -177,116 +166,65 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
-  int? _lastKnownMessageId;
-  bool _isRoomSubscribed = false;
-  bool _isViewingRoom = false;
-  bool _roomInitialized = false;
-  bool _pendingForegrounded = false;
+  void _subscribeToWebSocket(int roomId) {
+    _log('_subscribeToWebSocket: roomId=$roomId');
 
-  void _subscribeToWebSocket(int roomId, {int? lastMessageId}) {
-    _log('_subscribeToWebSocket: roomId=$roomId, lastMessageId=$lastMessageId');
+    _subscriptionManager.subscribeToRoom(
+      roomId,
+      lastMessageId: _cacheManager.lastMessageId,
+      onMessage: (wsMessage) {
+        _log('WebSocket message: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}');
 
-    _lastKnownMessageId = lastMessageId;
-    _messageSubscription?.cancel();
+        if (state.roomId != null && wsMessage.chatRoomId == state.roomId) {
+          add(MessageReceived(_subscriptionManager.convertToMessage(wsMessage)));
 
-    _webSocketService.subscribeToChatRoom(roomId);
-    _isRoomSubscribed = true;
+          if (wsMessage.eventType == 'USER_LEFT') {
+            _log('USER_LEFT event: relatedUserId=${wsMessage.relatedUserId}');
+            add(OtherUserLeftStatusChanged(
+              isOtherUserLeft: true,
+              relatedUserId: wsMessage.relatedUserId,
+              relatedUserNickname: wsMessage.relatedUserNickname,
+            ));
+          } else if (wsMessage.eventType == 'USER_JOINED') {
+            _log('USER_JOINED event: relatedUserId=${wsMessage.relatedUserId}');
+            add(OtherUserLeftStatusChanged(
+              isOtherUserLeft: false,
+              relatedUserId: wsMessage.relatedUserId,
+              relatedUserNickname: wsMessage.relatedUserNickname,
+            ));
+          }
+        }
+      },
+      onReadEvent: (readEvent) {
+        _log('ReadEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
 
-    _messageSubscription = _webSocketService.messages.listen((wsMessage) {
-      _log('WebSocket message: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}, unreadCount=${wsMessage.unreadCount}');
-
-      if (state.roomId != null && wsMessage.chatRoomId == state.roomId) {
-        add(MessageReceived(_convertToMessage(wsMessage)));
-
-        if (wsMessage.eventType == 'USER_LEFT') {
-          _log('USER_LEFT event: relatedUserId=${wsMessage.relatedUserId}');
-          add(OtherUserLeftStatusChanged(
-            isOtherUserLeft: true,
-            relatedUserId: wsMessage.relatedUserId,
-            relatedUserNickname: wsMessage.relatedUserNickname,
-          ));
-        } else if (wsMessage.eventType == 'USER_JOINED') {
-          _log('USER_JOINED event: relatedUserId=${wsMessage.relatedUserId}');
-          add(OtherUserLeftStatusChanged(
-            isOtherUserLeft: false,
-            relatedUserId: wsMessage.relatedUserId,
-            relatedUserNickname: wsMessage.relatedUserNickname,
+        if (state.roomId != null && readEvent.chatRoomId == state.roomId) {
+          add(MessagesReadUpdated(
+            userId: readEvent.userId,
+            lastReadMessageId: readEvent.lastReadMessageId,
+            lastReadAt: readEvent.lastReadAt,
           ));
         }
-      }
-    }, onError: (error) {
-      _log('Error in message stream: $error');
-    });
+      },
+      onTypingEvent: (typingEvent) {
+        if (state.roomId != null && typingEvent.chatRoomId == state.roomId) {
+          if (typingEvent.userId == state.currentUserId) return;
 
-    _readEventSubscription = _webSocketService.readEvents.listen((readEvent) {
-      _log('ReadEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
+          add(TypingStatusChanged(
+            userId: typingEvent.userId,
+            userNickname: typingEvent.userNickname,
+            isTyping: typingEvent.isTyping,
+          ));
+        }
+      },
+      onMessageDeleted: (deletedEvent) {
+        _log('WebSocket message deleted: messageId=${deletedEvent.messageId}');
 
-      if (state.roomId != null && readEvent.chatRoomId == state.roomId) {
-        add(MessagesReadUpdated(
-          userId: readEvent.userId,
-          lastReadMessageId: readEvent.lastReadMessageId,
-          lastReadAt: readEvent.lastReadAt,
-        ));
-      }
-    }, onError: (error) {
-      _log('Error in readEvent stream: $error');
-    });
-
-    _typingSubscription = _webSocketService.typingEvents.listen((typingEvent) {
-      if (state.roomId != null && typingEvent.chatRoomId == state.roomId) {
-        if (typingEvent.userId == state.currentUserId) return;
-
-        add(TypingStatusChanged(
-          userId: typingEvent.userId,
-          userNickname: typingEvent.userNickname,
-          isTyping: typingEvent.isTyping,
-        ));
-      }
-    }, onError: (error) {
-      _log('Error in typing event stream: $error');
-    });
-
-    _messageDeletedSubscription = _webSocketService.messageDeletedEvents.listen((deletedEvent) {
-      _log('WebSocket message deleted: messageId=${deletedEvent.messageId}, roomId=${deletedEvent.chatRoomId}');
-
-      if (state.roomId != null && deletedEvent.chatRoomId == state.roomId) {
-        add(MessageDeletedByOther(deletedEvent.messageId));
-      }
-    }, onError: (error) {
-      _log('Error in message deleted stream: $error');
-    });
-  }
-
-  Message _convertToMessage(WebSocketChatMessage wsMessage) {
-    return Message(
-      id: wsMessage.messageId,
-      chatRoomId: wsMessage.chatRoomId,
-      senderId: wsMessage.senderId ?? 0,
-      senderNickname: wsMessage.senderNickname,
-      senderAvatarUrl: wsMessage.senderAvatarUrl,
-      content: wsMessage.content,
-      type: _parseMessageType(wsMessage.type),
-      createdAt: wsMessage.createdAt,
-      fileUrl: wsMessage.fileUrl,
-      fileName: wsMessage.fileName,
-      fileSize: wsMessage.fileSize,
-      fileContentType: wsMessage.fileContentType,
-      thumbnailUrl: wsMessage.thumbnailUrl,
-      unreadCount: wsMessage.unreadCount,
+        if (state.roomId != null && deletedEvent.chatRoomId == state.roomId) {
+          add(MessageDeletedByOther(deletedEvent.messageId));
+        }
+      },
     );
-  }
-
-  MessageType _parseMessageType(String type) {
-    switch (type.toUpperCase()) {
-      case 'IMAGE':
-        return MessageType.image;
-      case 'FILE':
-        return MessageType.file;
-      case 'SYSTEM':
-        return MessageType.system;
-      default:
-        return MessageType.text;
-    }
   }
 
   void _onClosed(
@@ -294,26 +232,13 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId != null) {
-      _webSocketService.unsubscribeFromChatRoom(state.roomId!);
+      _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
-    _isRoomSubscribed = false;
-    _isViewingRoom = false;
+    _presenceManager.dispose();
     _roomInitialized = false;
     _pendingForegrounded = false;
-    _messageSubscription?.cancel();
-    _messageSubscription = null;
-    _readEventSubscription?.cancel();
-    _readEventSubscription = null;
-    _typingSubscription?.cancel();
-    _typingSubscription = null;
-    _messageDeletedSubscription?.cancel();
-    _messageDeletedSubscription = null;
-    _typingDebounceTimer?.cancel();
-    _typingDebounceTimer = null;
-    _presencePingTimer?.cancel();
-    _presencePingTimer = null;
 
-    // 데스크톱 알림 억제 해제
+    // Release desktop notification suppression
     _desktopNotificationBridge.setActiveRoomId(null);
 
     emit(const ChatRoomState());
@@ -323,22 +248,19 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomBackgrounded event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onBackgrounded: roomId=${state.roomId}, initialized=$_roomInitialized, pendingForegrounded=$_pendingForegrounded');
+    _log('_onBackgrounded: roomId=${state.roomId}, initialized=$_roomInitialized');
 
-    // 초기화 전에 background 이벤트가 오면 pending foregrounded를 취소
-    // 이렇게 하면 창이 포커스 빠진 상태에서 초기화가 완료되어도 읽음 처리를 하지 않음
+    // Cancel pending foregrounded event if backgrounded before initialization
     if (_pendingForegrounded) {
       _log('Cancelling pending foregrounded event');
       _pendingForegrounded = false;
     }
 
-    if (state.roomId == null || state.currentUserId == null || !_isRoomSubscribed) return;
-    _isViewingRoom = false;
-    _stopPresencePing();
-    _webSocketService.sendPresenceInactive(
-      roomId: state.roomId!,
-      userId: state.currentUserId!,
-    );
+    if (state.roomId == null || state.currentUserId == null || !_subscriptionManager.isRoomSubscribed) {
+      return;
+    }
+
+    _presenceManager.sendPresenceInactive(state.roomId!, state.currentUserId!);
   }
 
   Future<void> _onForegrounded(
@@ -354,66 +276,35 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     if (state.roomId == null || state.currentUserId == null) return;
 
-    _isViewingRoom = true;
-    _startPresencePing();
-
-    await _markAsReadWithRetry(state.roomId!, emit);
+    _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
+    await _messageHandler.markAsRead(state.roomId!);
+    emit(state.copyWith(isReadMarked: true));
   }
 
   @override
   Future<void> close() {
-    _messageSubscription?.cancel();
-    _readEventSubscription?.cancel();
-    _typingSubscription?.cancel();
-    _messageDeletedSubscription?.cancel();
-    _typingDebounceTimer?.cancel();
-    _presencePingTimer?.cancel();
-    if (state.roomId != null && _isRoomSubscribed) {
-      _webSocketService.unsubscribeFromChatRoom(state.roomId!);
+    _subscriptionManager.dispose();
+    _presenceManager.dispose();
+    if (state.roomId != null && _subscriptionManager.isRoomSubscribed) {
+      _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
     return super.close();
-  }
-
-  void _startPresencePing() {
-    _stopPresencePing();
-    final roomId = state.roomId;
-    final userId = state.currentUserId;
-    if (roomId == null || userId == null) return;
-
-    _webSocketService.sendPresencePing(roomId: roomId, userId: userId);
-    _presencePingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (state.roomId == null || state.currentUserId == null) return;
-      _webSocketService.sendPresencePing(
-        roomId: state.roomId!,
-        userId: state.currentUserId!,
-      );
-    });
-  }
-
-  void _stopPresencePing() {
-    _presencePingTimer?.cancel();
-    _presencePingTimer = null;
   }
 
   Future<void> _onLoadMore(
     MessagesLoadMoreRequested event,
     Emitter<ChatRoomState> emit,
   ) async {
-    if (!state.hasMore || state.nextCursor == null || state.roomId == null) {
+    if (!_cacheManager.hasMore || _cacheManager.nextCursor == null || state.roomId == null) {
       return;
     }
 
     try {
-      final (messages, nextCursor, hasMore) = await _chatRepository.getMessages(
-        state.roomId!,
-        size: AppConstants.messagePageSize,
-        beforeMessageId: state.nextCursor,
-      );
-
+      final messages = await _cacheManager.loadMoreMessages(state.roomId!);
       emit(state.copyWith(
-        messages: [...state.messages, ...messages],
-        nextCursor: nextCursor,
-        hasMore: hasMore,
+        messages: messages,
+        nextCursor: _cacheManager.nextCursor,
+        hasMore: _cacheManager.hasMore,
       ));
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
@@ -429,22 +320,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     emit(state.copyWith(isSending: true));
 
     try {
-      final userId = await _authLocalDataSource.getUserId();
-      if (userId == null) {
-        emit(state.copyWith(
-          isSending: false,
-          errorMessage: '사용자 정보를 찾을 수 없습니다.',
-        ));
-        return;
-      }
-
-      _log('Sending message: roomId=${state.roomId}, content=${event.content}');
-      _webSocketService.sendMessage(
+      await _messageHandler.sendMessage(
         roomId: state.roomId!,
-        senderId: userId,
         content: event.content,
       );
-
       emit(state.copyWith(isSending: false));
     } catch (e) {
       emit(state.copyWith(
@@ -462,59 +341,23 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     if (state.roomId != event.message.chatRoomId) return;
 
-    // 로컬 캐시에 메시지 저장
-    try {
-      await _chatRepository.saveMessageLocally(event.message);
-    } catch (e) {
-      _log('Failed to save message locally: $e');
-    }
-
-    final existingMessage = state.messages.firstWhere(
-      (m) => m.id == event.message.id,
-      orElse: () => Message(id: -1, chatRoomId: 0, senderId: 0, content: '', type: MessageType.text, createdAt: DateTime.now()),
-    );
-
-    if (existingMessage.id != -1) {
-      final updatedMessages = state.messages.map((m) {
-        if (m.id == event.message.id) {
-          return event.message;
-        }
-        return m;
-      }).toList();
-      emit(state.copyWith(messages: updatedMessages));
+    // Filter duplicate messages based on last known ID
+    if (_subscriptionManager.shouldFilterMessage(event.message.id)) {
       return;
     }
 
-    if (_lastKnownMessageId != null && event.message.id <= _lastKnownMessageId!) {
-      return;
-    }
+    await _cacheManager.addMessage(event.message);
 
     emit(state.copyWith(
-      messages: [event.message, ...state.messages],
+      messages: _cacheManager.messages,
       isOfflineData: false,
     ));
 
-    if (_isViewingRoom &&
+    if (_presenceManager.isViewingRoom &&
         state.currentUserId != null &&
         event.message.senderId != state.currentUserId &&
         state.roomId != null) {
-      await _markAsReadWithRetry(state.roomId!, emit);
-    }
-  }
-
-  Future<void> _markAsReadWithRetry(
-    int roomId,
-    Emitter<ChatRoomState> emit,
-  ) async {
-    if (state.currentUserId == null) return;
-
-    _log('markAsRead: roomId=$roomId');
-
-    try {
-      await _chatRepository.markAsRead(roomId);
-      emit(state.copyWith(isReadMarked: true));
-    } catch (e) {
-      _log('Failed to mark as read: $e');
+      await _messageHandler.markAsRead(state.roomId!);
     }
   }
 
@@ -523,36 +366,22 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) async {
     try {
-      await _chatRepository.deleteMessage(event.messageId);
+      await _messageHandler.deleteMessage(event.messageId);
+      _cacheManager.markMessageAsDeleted(event.messageId);
 
-      final updatedMessages = state.messages.map((m) {
-        if (m.id == event.messageId) {
-          return m.copyWith(isDeleted: true);
-        }
-        return m;
-      }).toList();
-
-      emit(state.copyWith(messages: updatedMessages));
+      emit(state.copyWith(messages: _cacheManager.messages));
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
     }
   }
 
-  /// 다른 사용자가 메시지를 삭제했을 때 처리 (WebSocket 수신)
   void _onMessageDeletedByOther(
     MessageDeletedByOther event,
     Emitter<ChatRoomState> emit,
   ) {
     _log('_onMessageDeletedByOther: messageId=${event.messageId}');
-
-    final updatedMessages = state.messages.map((m) {
-      if (m.id == event.messageId) {
-        return m.copyWith(isDeleted: true);
-      }
-      return m;
-    }).toList();
-
-    emit(state.copyWith(messages: updatedMessages));
+    _cacheManager.markMessageAsDeleted(event.messageId);
+    emit(state.copyWith(messages: _cacheManager.messages));
   }
 
   void _onMessagesReadUpdated(
@@ -562,11 +391,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _log('_onMessagesReadUpdated: userId=${event.userId}, lastReadMessageId=${event.lastReadMessageId}');
 
     if (state.currentUserId == null) return;
-
     if (event.userId == state.currentUserId) return;
-
     if (event.lastReadMessageId == null) return;
 
+    // Use state.messages directly to handle seed state in tests
     final updatedMessages = state.messages.map((message) {
       if (message.senderId == state.currentUserId &&
           message.id <= event.lastReadMessageId! &&
@@ -575,6 +403,16 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       }
       return message;
     }).toList();
+
+    // Also update cache manager for consistency
+    _cacheManager.updateMessages((message) {
+      if (message.senderId == state.currentUserId &&
+          message.id <= event.lastReadMessageId! &&
+          message.unreadCount > 0) {
+        return message.copyWith(unreadCount: message.unreadCount - 1);
+      }
+      return message;
+    });
 
     emit(state.copyWith(messages: updatedMessages));
   }
@@ -600,16 +438,13 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
 
-    _webSocketService.sendTypingStatus(
+    _presenceManager.handleUserStartedTyping(
       roomId: state.roomId!,
       userId: state.currentUserId!,
-      isTyping: true,
+      onStopTyping: () {
+        add(const UserStoppedTyping());
+      },
     );
-
-    _typingDebounceTimer?.cancel();
-    _typingDebounceTimer = Timer(const Duration(seconds: 3), () {
-      add(const UserStoppedTyping());
-    });
   }
 
   void _onUserStoppedTyping(
@@ -618,13 +453,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
 
-    _typingDebounceTimer?.cancel();
-    _typingDebounceTimer = null;
-
-    _webSocketService.sendTypingStatus(
+    _presenceManager.handleUserStoppedTyping(
       roomId: state.roomId!,
       userId: state.currentUserId!,
-      isTyping: false,
     );
   }
 
@@ -633,19 +464,17 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) async {
     try {
-      final updatedMessage = await _chatRepository.updateMessage(
-        event.messageId,
-        event.content,
+      final updatedMessage = await _messageHandler.updateMessage(
+        messageId: event.messageId,
+        content: event.content,
       );
 
-      final updatedMessages = state.messages.map((m) {
-        if (m.id == event.messageId) {
-          return m.copyWith(content: updatedMessage.content);
-        }
-        return m;
-      }).toList();
+      _cacheManager.updateMessage(
+        event.messageId,
+        (m) => m.copyWith(content: updatedMessage.content),
+      );
 
-      emit(state.copyWith(messages: updatedMessages));
+      emit(state.copyWith(messages: _cacheManager.messages));
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
     }
@@ -659,7 +488,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     if (roomId == null) return;
 
     try {
-      await _chatRepository.leaveChatRoom(roomId);
+      await _messageHandler.leaveChatRoom(roomId);
       emit(state.copyWith(hasLeft: true));
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
@@ -676,7 +505,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     emit(state.copyWith(isReinviting: true, reinviteSuccess: false));
 
     try {
-      await _chatRepository.reinviteUser(roomId, event.inviteeId);
+      await _messageHandler.reinviteUser(
+        roomId: roomId,
+        inviteeId: event.inviteeId,
+      );
       emit(state.copyWith(
         isReinviting: false,
         reinviteSuccess: true,
@@ -712,25 +544,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) async {
     if (state.roomId == null) return;
 
-    _log('_onFileAttachmentRequested: filePath=${event.filePath}');
-
     emit(state.copyWith(isUploadingFile: true, uploadProgress: 0.0));
 
     try {
-      final file = File(event.filePath);
-
-      final uploadResult = await _chatRepository.uploadFile(file);
-      _log('File uploaded: ${uploadResult.fileUrl}');
-
-      emit(state.copyWith(uploadProgress: 0.5));
-
-      await _chatRepository.sendFileMessage(
+      await _messageHandler.handleFileAttachment(
         roomId: state.roomId!,
-        fileUrl: uploadResult.fileUrl,
-        fileName: uploadResult.fileName,
-        fileSize: uploadResult.fileSize,
-        contentType: uploadResult.contentType,
-        thumbnailUrl: uploadResult.isImage ? uploadResult.fileUrl : null,
+        filePath: event.filePath,
+        onProgress: (progress) {
+          emit(state.copyWith(uploadProgress: progress));
+        },
       );
 
       emit(state.copyWith(

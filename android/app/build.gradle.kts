@@ -18,9 +18,10 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.cotalk.co_talk_flutter"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -31,7 +32,7 @@ android {
 
     defaultConfig {
         applicationId = "com.cotalk.co_talk_flutter"
-        minSdk = flutter.minSdkVersion
+        minSdk = 23  // super_native_extensions 라이브러리 요구사항
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -68,4 +69,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

@@ -6,6 +6,7 @@ import '../../../domain/entities/profile_history.dart';
 import '../../blocs/profile/profile_bloc.dart';
 import '../../blocs/profile/profile_event.dart';
 import '../../blocs/profile/profile_state.dart';
+import 'edit_profile_page.dart';
 import 'widgets/history_item_options_sheet.dart';
 
 /// 프로필 이력 스와이프 뷰어 페이지
@@ -121,13 +122,17 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
                   ),
                   if (widget.isMyProfile) ...[
                     const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        // TODO: 추가 기능
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.add),
-                      label: Text('${_getTypeLabel()} 추가'),
+                    TextButton.icon(
+                      onPressed: () => _navigateToEditProfile(context),
+                      icon: const Icon(Icons.add_photo_alternate, color: Colors.white),
+                      label: Text(
+                        _getAddButtonLabel(),
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white24,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
                     ),
                   ],
                 ],
@@ -324,6 +329,33 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
       case ProfileHistoryType.statusMessage:
         return '상태메시지';
     }
+  }
+
+  /// 빈 이력일 때 "추가하기" 버튼 라벨
+  String _getAddButtonLabel() {
+    switch (widget.type) {
+      case ProfileHistoryType.avatar:
+        return '사진 추가하기';
+      case ProfileHistoryType.background:
+        return '배경 추가하기';
+      case ProfileHistoryType.statusMessage:
+        return '상태메시지 추가';
+    }
+  }
+
+  /// 편집 화면으로 이동 (히스토리 pop 후 편집 페이지 push)
+  void _navigateToEditProfile(BuildContext context) {
+    final bloc = context.read<ProfileBloc>();
+    final navigator = Navigator.of(context);
+    navigator.pop(context);
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider.value(
+          value: bloc,
+          child: EditProfilePage(profileBloc: bloc),
+        ),
+      ),
+    );
   }
 }
 

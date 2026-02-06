@@ -6,6 +6,9 @@ abstract class SettingsRepository {
   /// 알림 설정 조회
   Future<NotificationSettings> getNotificationSettings();
 
+  /// 알림 설정 조회 (캐시 우선, 토글 직후 알림에 즉시 반영용)
+  Future<NotificationSettings> getNotificationSettingsCached();
+
   /// 알림 설정 수정
   Future<void> updateNotificationSettings(NotificationSettings settings);
 

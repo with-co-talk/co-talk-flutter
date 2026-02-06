@@ -43,26 +43,18 @@ void main() {
 
   Widget createTestWidget({required Widget child, Size size = const Size(400, 800)}) {
     final router = GoRouter(
-      initialLocation: '/chat',
+      initialLocation: '/friends',
       routes: [
         ShellRoute(
           builder: (context, state, child) => MainPage(child: child),
           routes: [
             GoRoute(
-              path: '/chat',
+              path: '/friends',
               builder: (context, state) => child,
             ),
             GoRoute(
-              path: '/friends',
-              builder: (context, state) => const Text('Friends'),
-            ),
-            GoRoute(
-              path: '/profile',
-              builder: (context, state) => const Text('Profile'),
-            ),
-            GoRoute(
-              path: '/settings',
-              builder: (context, state) => const Text('Settings'),
+              path: '/chat',
+              builder: (context, state) => const Text('Chat'),
             ),
           ],
         ),
@@ -120,10 +112,9 @@ void main() {
       await tester.pumpWidget(createTestWidget(child: const Text('Test')));
       await tester.pumpAndSettle();
 
-      expect(find.text('채팅'), findsOneWidget);
+      // MainPage has 2 tabs: 친구 (friends) and 채팅 (chat)
       expect(find.text('친구'), findsOneWidget);
-      expect(find.text('프로필'), findsOneWidget);
-      expect(find.text('설정'), findsOneWidget);
+      expect(find.text('채팅'), findsOneWidget);
 
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -138,10 +129,9 @@ void main() {
       await tester.pumpWidget(createTestWidget(child: const Text('Test')));
       await tester.pumpAndSettle();
 
-      expect(find.text('채팅'), findsOneWidget);
+      // MainPage has 2 tabs: 친구 (friends) and 채팅 (chat)
       expect(find.text('친구'), findsOneWidget);
-      expect(find.text('프로필'), findsOneWidget);
-      expect(find.text('설정'), findsOneWidget);
+      expect(find.text('채팅'), findsOneWidget);
 
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -149,17 +139,18 @@ void main() {
       });
     });
 
-    testWidgets('shows chat icon in mobile navigation', (tester) async {
+    testWidgets('shows navigation icons in mobile navigation', (tester) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
 
       await tester.pumpWidget(createTestWidget(child: const Text('Test')));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.chat), findsOneWidget);
-      expect(find.byIcon(Icons.people_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.person_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      // When on /friends route:
+      // - Friends tab is selected -> shows Icons.people (filled)
+      // - Chat tab is not selected -> shows Icons.chat_outlined (outlined)
+      expect(find.byIcon(Icons.people), findsOneWidget);
+      expect(find.byIcon(Icons.chat_outlined), findsOneWidget);
 
       addTearDown(() {
         tester.view.resetPhysicalSize();

@@ -12,6 +12,8 @@ NotificationSettingsModel _$NotificationSettingsModelFromJson(
   messageNotification: json['messageNotification'] as bool? ?? true,
   friendRequestNotification: json['friendRequestNotification'] as bool? ?? true,
   groupInviteNotification: json['groupInviteNotification'] as bool? ?? true,
+  showMessageContentInNotification:
+      json['showMessageContentInNotification'] as bool? ?? true,
   soundEnabled: json['soundEnabled'] as bool? ?? true,
   vibrationEnabled: json['vibrationEnabled'] as bool? ?? true,
   doNotDisturbEnabled: json['doNotDisturbEnabled'] as bool? ?? false,
@@ -25,6 +27,7 @@ Map<String, dynamic> _$NotificationSettingsModelToJson(
   'messageNotification': instance.messageNotification,
   'friendRequestNotification': instance.friendRequestNotification,
   'groupInviteNotification': instance.groupInviteNotification,
+  'showMessageContentInNotification': instance.showMessageContentInNotification,
   'soundEnabled': instance.soundEnabled,
   'vibrationEnabled': instance.vibrationEnabled,
   'doNotDisturbEnabled': instance.doNotDisturbEnabled,

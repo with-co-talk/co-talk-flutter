@@ -5,26 +5,40 @@ import 'package:mocktail/mocktail.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:co_talk_flutter/core/services/fcm_service.dart';
 import 'package:co_talk_flutter/core/services/notification_service.dart';
+import 'package:co_talk_flutter/domain/repositories/settings_repository.dart';
+import 'package:co_talk_flutter/domain/entities/notification_settings.dart' as entity;
 
 class MockFirebaseMessaging extends Mock implements FirebaseMessaging {}
 
 class MockNotificationService extends Mock implements NotificationService {}
 
+class MockSettingsRepository extends Mock implements SettingsRepository {}
+
 void main() {
   late MockFirebaseMessaging mockMessaging;
   late MockNotificationService mockNotificationService;
+  late MockSettingsRepository mockSettingsRepository;
   late FcmServiceImpl fcmService;
 
   setUp(() {
     mockMessaging = MockFirebaseMessaging();
     mockNotificationService = MockNotificationService();
+    mockSettingsRepository = MockSettingsRepository();
 
     // Mock onTokenRefresh stream for constructor
     when(() => mockMessaging.onTokenRefresh).thenAnswer((_) => const Stream.empty());
+    when(() => mockSettingsRepository.getNotificationSettingsCached())
+        .thenAnswer((_) async => const entity.NotificationSettings(
+              messageNotification: true,
+              friendRequestNotification: true,
+              soundEnabled: true,
+              vibrationEnabled: true,
+            ));
 
     fcmService = FcmServiceImpl(
       messaging: mockMessaging,
       notificationService: mockNotificationService,
+      settingsRepository: mockSettingsRepository,
     );
   });
 

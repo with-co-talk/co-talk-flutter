@@ -31,6 +31,10 @@ MessageModel _$MessageModelFromJson(Map<String, dynamic> json) => MessageModel(
       ?.map((e) => MessageReactionModel.fromJson(e as Map<String, dynamic>))
       .toList(),
   unreadCount: (json['unreadCount'] as num?)?.toInt() ?? 0,
+  linkPreviewUrl: json['linkPreviewUrl'] as String?,
+  linkPreviewTitle: json['linkPreviewTitle'] as String?,
+  linkPreviewDescription: json['linkPreviewDescription'] as String?,
+  linkPreviewImageUrl: json['linkPreviewImageUrl'] as String?,
 );
 
 Map<String, dynamic> _$MessageModelToJson(MessageModel instance) =>
@@ -55,6 +59,10 @@ Map<String, dynamic> _$MessageModelToJson(MessageModel instance) =>
       'updatedAt': const NullableDateTimeConverter().toJson(instance.updatedAt),
       'reactions': instance.reactions,
       'unreadCount': instance.unreadCount,
+      'linkPreviewUrl': instance.linkPreviewUrl,
+      'linkPreviewTitle': instance.linkPreviewTitle,
+      'linkPreviewDescription': instance.linkPreviewDescription,
+      'linkPreviewImageUrl': instance.linkPreviewImageUrl,
     };
 
 MessageReactionModel _$MessageReactionModelFromJson(

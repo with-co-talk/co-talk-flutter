@@ -35,7 +35,7 @@ class ErrorPage extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () => context.go(AppRoutes.chatList),
+                onPressed: () => context.go(AppRoutes.friends),
                 child: const Text('홈으로 돌아가기'),
               ),
             ],

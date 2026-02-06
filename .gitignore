@@ -62,3 +62,25 @@ ios/fastlane/screenshots/
 ios/fastlane/test_output/
 ios/*.ipa
 ios/*.dSYM.zip
+
+# Fastlane 루트 설정
+fastlane/.env
+fastlane/keys/
+fastlane/report.xml
+fastlane/*.cer
+fastlane/*.p12
+fastlane/*.provisionprofile
+*.p8
+
+# Android keystore
+android/key.properties
+android/keystore/
+
+# Coverage
+coverage/
+
+# 인증서·프로비저닝 (루트)
+*.cer
+*.certSigningRequest
+*.p12
+*.provisionprofile

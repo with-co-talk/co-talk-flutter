@@ -9,6 +9,8 @@ class NotificationSettingsModel {
   final bool messageNotification;
   final bool friendRequestNotification;
   final bool groupInviteNotification;
+  @JsonKey(name: 'showMessageContentInNotification')
+  final bool showMessageContentInNotification;
   final bool soundEnabled;
   final bool vibrationEnabled;
   final bool doNotDisturbEnabled;
@@ -19,6 +21,7 @@ class NotificationSettingsModel {
     this.messageNotification = true,
     this.friendRequestNotification = true,
     this.groupInviteNotification = true,
+    this.showMessageContentInNotification = true,
     this.soundEnabled = true,
     this.vibrationEnabled = true,
     this.doNotDisturbEnabled = false,
@@ -36,6 +39,7 @@ class NotificationSettingsModel {
       messageNotification: messageNotification,
       friendRequestNotification: friendRequestNotification,
       groupInviteNotification: groupInviteNotification,
+      showMessageContentInNotification: showMessageContentInNotification,
       soundEnabled: soundEnabled,
       vibrationEnabled: vibrationEnabled,
       doNotDisturbEnabled: doNotDisturbEnabled,
@@ -49,6 +53,7 @@ class NotificationSettingsModel {
       messageNotification: entity.messageNotification,
       friendRequestNotification: entity.friendRequestNotification,
       groupInviteNotification: entity.groupInviteNotification,
+      showMessageContentInNotification: entity.showMessageContentInNotification,
       soundEnabled: entity.soundEnabled,
       vibrationEnabled: entity.vibrationEnabled,
       doNotDisturbEnabled: entity.doNotDisturbEnabled,
