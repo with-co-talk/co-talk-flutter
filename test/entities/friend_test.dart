@@ -60,7 +60,7 @@ void main() {
         createdAt: DateTime(2024, 1, 1),
       );
 
-      expect(friend.props.length, 3);
+      expect(friend.props.length, 4);
       expect(friend.props, contains(1));
       expect(friend.props, contains(testUser));
     });

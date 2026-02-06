@@ -31,17 +31,17 @@ void main() {
             ));
 
         await dataSource.registerFcmToken(
+          userId: 1,
           token: 'test_fcm_token',
-          platform: 'android',
-          deviceId: 'device_123',
+          deviceType: 'ANDROID',
         );
 
         verify(() => mockDioClient.post(
-              '/users/fcm-token',
+              '/devices/token',
               data: {
+                'userId': 1,
                 'token': 'test_fcm_token',
-                'platform': 'android',
-                'deviceId': 'device_123',
+                'deviceType': 'ANDROID',
               },
             )).called(1);
       });
@@ -61,9 +61,9 @@ void main() {
 
         expect(
           () => dataSource.registerFcmToken(
+            userId: 1,
             token: 'test_fcm_token',
-            platform: 'android',
-            deviceId: 'device_123',
+            deviceType: 'ANDROID',
           ),
           throwsException,
         );
@@ -74,7 +74,7 @@ void main() {
       test('unregisters FCM token from server successfully', () async {
         when(() => mockDioClient.delete(
               any(),
-              data: any(named: 'data'),
+              queryParameters: any(named: 'queryParameters'),
             )).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
               statusCode: 200,
@@ -84,18 +84,18 @@ void main() {
               },
             ));
 
-        await dataSource.unregisterFcmToken(deviceId: 'device_123');
+        await dataSource.unregisterFcmToken(token: 'test_fcm_token');
 
         verify(() => mockDioClient.delete(
-              '/users/fcm-token',
-              data: {'deviceId': 'device_123'},
+              '/devices/token',
+              queryParameters: {'token': 'test_fcm_token'},
             )).called(1);
       });
 
       test('throws exception when unregistration fails', () async {
         when(() => mockDioClient.delete(
               any(),
-              data: any(named: 'data'),
+              queryParameters: any(named: 'queryParameters'),
             )).thenThrow(DioException(
               requestOptions: RequestOptions(path: ''),
               response: Response(
@@ -106,7 +106,7 @@ void main() {
             ));
 
         expect(
-          () => dataSource.unregisterFcmToken(deviceId: 'device_123'),
+          () => dataSource.unregisterFcmToken(token: 'test_fcm_token'),
           throwsException,
         );
       });

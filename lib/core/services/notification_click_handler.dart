@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:go_router/go_router.dart';
 import 'package:injectable/injectable.dart';
@@ -43,17 +44,44 @@ class NotificationClickHandler {
   }
 
   void _handleNotificationClick(String? payload) {
+    _navigateToChatRoom(payload);
+  }
+
+  /// FCM 알림 클릭 처리 (외부에서 호출)
+  void handleFcmNotificationClick(String payload) {
+    _navigateToChatRoom(payload);
+  }
+
+  /// 채팅방으로 네비게이션
+  void _navigateToChatRoom(String? payload) {
     if (payload == null || payload.isEmpty) return;
 
-    // payload 형식: 'chatRoom:${roomId}'
-    if (payload.startsWith('chatRoom:')) {
-      final roomIdStr = payload.substring('chatRoom:'.length);
-      final roomId = int.tryParse(roomIdStr);
+    int? roomId;
 
-      if (roomId != null) {
-        _appRouter.router.go(AppRoutes.chatRoomPath(roomId));
-      }
+    // payload 형식: 'chatRoom:roomId'
+    if (payload.startsWith('chatRoom:')) {
+      final roomIdStr = payload.substring('chatRoom:'.length).trim();
+      roomId = int.tryParse(roomIdStr);
+    } else {
+      // JSON 등 다른 형식에서 chatRoomId 추출 시도
+      roomId = _parseChatRoomIdFromPayload(payload);
     }
+
+    if (roomId != null) {
+      _appRouter.router.go(AppRoutes.chatRoomPath(roomId));
+    }
+  }
+
+  int? _parseChatRoomIdFromPayload(String payload) {
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map<String, dynamic>) {
+        final id = decoded['chatRoomId'];
+        if (id is int) return id;
+        if (id is String) return int.tryParse(id);
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// 리소스 해제

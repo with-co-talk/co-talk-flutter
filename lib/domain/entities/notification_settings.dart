@@ -5,6 +5,8 @@ class NotificationSettings extends Equatable {
   final bool messageNotification;
   final bool friendRequestNotification;
   final bool groupInviteNotification;
+  /// 푸시 알림에 메시지 내용 노출 여부 (false면 "새 메시지"만 표시)
+  final bool showMessageContentInNotification;
   final bool soundEnabled;
   final bool vibrationEnabled;
   final bool doNotDisturbEnabled;
@@ -15,6 +17,7 @@ class NotificationSettings extends Equatable {
     this.messageNotification = true,
     this.friendRequestNotification = true,
     this.groupInviteNotification = true,
+    this.showMessageContentInNotification = true,
     this.soundEnabled = true,
     this.vibrationEnabled = true,
     this.doNotDisturbEnabled = false,
@@ -26,6 +29,7 @@ class NotificationSettings extends Equatable {
     bool? messageNotification,
     bool? friendRequestNotification,
     bool? groupInviteNotification,
+    bool? showMessageContentInNotification,
     bool? soundEnabled,
     bool? vibrationEnabled,
     bool? doNotDisturbEnabled,
@@ -36,6 +40,7 @@ class NotificationSettings extends Equatable {
       messageNotification: messageNotification ?? this.messageNotification,
       friendRequestNotification: friendRequestNotification ?? this.friendRequestNotification,
       groupInviteNotification: groupInviteNotification ?? this.groupInviteNotification,
+      showMessageContentInNotification: showMessageContentInNotification ?? this.showMessageContentInNotification,
       soundEnabled: soundEnabled ?? this.soundEnabled,
       vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
       doNotDisturbEnabled: doNotDisturbEnabled ?? this.doNotDisturbEnabled,
@@ -49,6 +54,7 @@ class NotificationSettings extends Equatable {
         messageNotification,
         friendRequestNotification,
         groupInviteNotification,
+        showMessageContentInNotification,
         soundEnabled,
         vibrationEnabled,
         doNotDisturbEnabled,

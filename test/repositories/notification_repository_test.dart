@@ -37,93 +37,91 @@ void main() {
       test('saves token locally and registers to server', () async {
         when(() => mockFcmService.getToken())
             .thenAnswer((_) async => 'test_fcm_token');
-        when(() => mockLocalDataSource.getDeviceId())
-            .thenAnswer((_) async => 'device_123');
         when(() => mockLocalDataSource.saveFcmToken(any()))
             .thenAnswer((_) async {});
         when(() => mockRemoteDataSource.registerFcmToken(
+              userId: any(named: 'userId'),
               token: any(named: 'token'),
-              platform: any(named: 'platform'),
-              deviceId: any(named: 'deviceId'),
+              deviceType: any(named: 'deviceType'),
             )).thenAnswer((_) async {});
 
-        await repository.registerToken(platform: 'android');
+        await repository.registerToken(userId: 1, deviceType: 'ANDROID');
 
         verify(() => mockFcmService.getToken()).called(1);
         verify(() => mockLocalDataSource.saveFcmToken('test_fcm_token')).called(1);
         verify(() => mockRemoteDataSource.registerFcmToken(
+              userId: 1,
               token: 'test_fcm_token',
-              platform: 'android',
-              deviceId: 'device_123',
+              deviceType: 'ANDROID',
             )).called(1);
       });
 
-      test('generates and saves device ID if not exists', () async {
+      test('registers token successfully when FCM token is available', () async {
         when(() => mockFcmService.getToken())
             .thenAnswer((_) async => 'test_fcm_token');
-        when(() => mockLocalDataSource.getDeviceId())
-            .thenAnswer((_) async => null);
-        when(() => mockLocalDataSource.saveDeviceId(any()))
-            .thenAnswer((_) async {});
         when(() => mockLocalDataSource.saveFcmToken(any()))
             .thenAnswer((_) async {});
         when(() => mockRemoteDataSource.registerFcmToken(
+              userId: any(named: 'userId'),
               token: any(named: 'token'),
-              platform: any(named: 'platform'),
-              deviceId: any(named: 'deviceId'),
+              deviceType: any(named: 'deviceType'),
             )).thenAnswer((_) async {});
 
-        await repository.registerToken(platform: 'android');
+        await repository.registerToken(userId: 1, deviceType: 'IOS');
 
-        verify(() => mockLocalDataSource.saveDeviceId(any())).called(1);
+        verify(() => mockLocalDataSource.saveFcmToken('test_fcm_token')).called(1);
+        verify(() => mockRemoteDataSource.registerFcmToken(
+              userId: 1,
+              token: 'test_fcm_token',
+              deviceType: 'IOS',
+            )).called(1);
       });
 
       test('does nothing when token is null', () async {
         when(() => mockFcmService.getToken()).thenAnswer((_) async => null);
 
-        await repository.registerToken(platform: 'android');
+        await repository.registerToken(userId: 1, deviceType: 'ANDROID');
 
         verifyNever(() => mockLocalDataSource.saveFcmToken(any()));
         verifyNever(() => mockRemoteDataSource.registerFcmToken(
+              userId: any(named: 'userId'),
               token: any(named: 'token'),
-              platform: any(named: 'platform'),
-              deviceId: any(named: 'deviceId'),
+              deviceType: any(named: 'deviceType'),
             ));
       });
     });
 
     group('refreshToken', () {
       test('re-registers token when refreshed', () async {
-        when(() => mockLocalDataSource.getDeviceId())
-            .thenAnswer((_) async => 'device_123');
         when(() => mockLocalDataSource.saveFcmToken(any()))
             .thenAnswer((_) async {});
         when(() => mockRemoteDataSource.registerFcmToken(
+              userId: any(named: 'userId'),
               token: any(named: 'token'),
-              platform: any(named: 'platform'),
-              deviceId: any(named: 'deviceId'),
+              deviceType: any(named: 'deviceType'),
             )).thenAnswer((_) async {});
 
         await repository.refreshToken(
+          userId: 1,
           newToken: 'new_fcm_token',
-          platform: 'ios',
+          deviceType: 'IOS',
         );
 
         verify(() => mockLocalDataSource.saveFcmToken('new_fcm_token')).called(1);
         verify(() => mockRemoteDataSource.registerFcmToken(
+              userId: 1,
               token: 'new_fcm_token',
-              platform: 'ios',
-              deviceId: 'device_123',
+              deviceType: 'IOS',
             )).called(1);
       });
     });
 
     group('unregisterToken', () {
       test('deletes token from server and clears local storage', () async {
-        when(() => mockLocalDataSource.getDeviceId())
-            .thenAnswer((_) async => 'device_123');
+        when(() => mockLocalDataSource.getFcmToken())
+            .thenAnswer((_) async => 'test_fcm_token');
         when(() => mockRemoteDataSource.unregisterFcmToken(
-              deviceId: any(named: 'deviceId'),
+              token: any(named: 'token'),
             )).thenAnswer((_) async {});
         when(() => mockLocalDataSource.clearFcmToken())
             .thenAnswer((_) async {});
@@ -131,17 +129,17 @@ void main() {
 
         await repository.unregisterToken();
 
-        verify(() => mockRemoteDataSource.unregisterFcmToken(deviceId: 'device_123'))
+        verify(() => mockRemoteDataSource.unregisterFcmToken(token: 'test_fcm_token'))
             .called(1);
         verify(() => mockLocalDataSource.clearFcmToken()).called(1);
         verify(() => mockFcmService.deleteToken()).called(1);
       });
 
       test('clears local token even if server unregistration fails', () async {
-        when(() => mockLocalDataSource.getDeviceId())
-            .thenAnswer((_) async => 'device_123');
+        when(() => mockLocalDataSource.getFcmToken())
+            .thenAnswer((_) async => 'test_fcm_token');
         when(() => mockRemoteDataSource.unregisterFcmToken(
-              deviceId: any(named: 'deviceId'),
+              token: any(named: 'token'),
             )).thenThrow(Exception('Server error'));
         when(() => mockLocalDataSource.clearFcmToken())
             .thenAnswer((_) async {});
@@ -153,8 +151,8 @@ void main() {
         verify(() => mockFcmService.deleteToken()).called(1);
       });
 
-      test('skips server unregistration when device ID is null', () async {
-        when(() => mockLocalDataSource.getDeviceId())
+      test('skips server unregistration when token is null', () async {
+        when(() => mockLocalDataSource.getFcmToken())
             .thenAnswer((_) async => null);
         when(() => mockLocalDataSource.clearFcmToken())
             .thenAnswer((_) async {});
@@ -163,7 +161,7 @@ void main() {
         await repository.unregisterToken();
 
         verifyNever(() => mockRemoteDataSource.unregisterFcmToken(
-              deviceId: any(named: 'deviceId'),
+              token: any(named: 'token'),
             ));
         verify(() => mockLocalDataSource.clearFcmToken()).called(1);
       });
@@ -175,17 +173,15 @@ void main() {
 
         when(() => mockFcmService.onTokenRefresh)
             .thenAnswer((_) => tokenController.stream);
-        when(() => mockLocalDataSource.getDeviceId())
-            .thenAnswer((_) async => 'device_123');
         when(() => mockLocalDataSource.saveFcmToken(any()))
             .thenAnswer((_) async {});
         when(() => mockRemoteDataSource.registerFcmToken(
+              userId: any(named: 'userId'),
               token: any(named: 'token'),
-              platform: any(named: 'platform'),
-              deviceId: any(named: 'deviceId'),
+              deviceType: any(named: 'deviceType'),
             )).thenAnswer((_) async {});
 
-        repository.setupTokenRefreshListener(platform: 'android');
+        repository.setupTokenRefreshListener(userId: 1, deviceType: 'ANDROID');
 
         // Emit a new token
         tokenController.add('refreshed_token');
@@ -195,9 +191,9 @@ void main() {
 
         verify(() => mockLocalDataSource.saveFcmToken('refreshed_token')).called(1);
         verify(() => mockRemoteDataSource.registerFcmToken(
+              userId: 1,
               token: 'refreshed_token',
-              platform: 'android',
-              deviceId: 'device_123',
+              deviceType: 'ANDROID',
             )).called(1);
 
         await tokenController.close();

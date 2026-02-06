@@ -13,18 +13,31 @@ class SettingsRepositoryImpl implements SettingsRepository {
   final SettingsRemoteDataSource _remoteDataSource;
   final ChatSettingsLocalDataSource _localDataSource;
 
+  NotificationSettings? _cachedNotificationSettings;
+
   SettingsRepositoryImpl(this._remoteDataSource, this._localDataSource);
 
   @override
   Future<NotificationSettings> getNotificationSettings() async {
     final model = await _remoteDataSource.getNotificationSettings();
-    return model.toEntity();
+    final entity = model.toEntity();
+    _cachedNotificationSettings = entity;
+    return entity;
+  }
+
+  @override
+  Future<NotificationSettings> getNotificationSettingsCached() async {
+    if (_cachedNotificationSettings != null) {
+      return _cachedNotificationSettings!;
+    }
+    return getNotificationSettings();
   }
 
   @override
   Future<void> updateNotificationSettings(NotificationSettings settings) async {
     final model = NotificationSettingsModel.fromEntity(settings);
     await _remoteDataSource.updateNotificationSettings(model);
+    _cachedNotificationSettings = settings;
   }
 
   @override

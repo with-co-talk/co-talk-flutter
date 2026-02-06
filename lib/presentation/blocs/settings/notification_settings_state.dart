@@ -20,10 +20,10 @@ class NotificationSettingsState extends Equatable {
   const NotificationSettingsState.loading()
       : this(status: NotificationSettingsStatus.loading);
 
-  NotificationSettingsState.loaded(NotificationSettings settings)
+  const NotificationSettingsState.loaded(NotificationSettings settings)
       : this(status: NotificationSettingsStatus.loaded, settings: settings);
 
-  NotificationSettingsState.error(String message)
+  const NotificationSettingsState.error(String message)
       : this(status: NotificationSettingsStatus.error, errorMessage: message);
 
   NotificationSettingsState copyWith({

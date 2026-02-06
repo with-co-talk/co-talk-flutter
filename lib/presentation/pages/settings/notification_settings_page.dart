@@ -113,6 +113,17 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 title: '알림 방식',
                 children: [
                   _buildSwitchTile(
+                    icon: Icons.notifications_active_outlined,
+                    title: '푸시 메시지 내용 표시',
+                    subtitle: '알림에 메시지 내용 노출 (끄면 "새 메시지"만 표시)',
+                    value: state.settings.showMessageContentInNotification,
+                    onChanged: (value) {
+                      context
+                          .read<NotificationSettingsCubit>()
+                          .setShowMessageContentInNotification(value);
+                    },
+                  ),
+                  _buildSwitchTile(
                     icon: Icons.volume_up_outlined,
                     title: '소리',
                     subtitle: '알림 소리 재생',
@@ -245,6 +256,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     bool isStartTime,
     NotificationSettingsState state,
   ) async {
+    final cubit = context.read<NotificationSettingsCubit>();
     final initialTime = _parseTime(
       isStartTime
           ? state.settings.doNotDisturbStart ?? '22:00'
@@ -260,13 +272,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       final timeString = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
 
       if (isStartTime) {
-        context.read<NotificationSettingsCubit>().setDoNotDisturb(
-              startTime: timeString,
-            );
+        cubit.setDoNotDisturb(startTime: timeString);
       } else {
-        context.read<NotificationSettingsCubit>().setDoNotDisturb(
-              endTime: timeString,
-            );
+        cubit.setDoNotDisturb(endTime: timeString);
       }
     }
   }

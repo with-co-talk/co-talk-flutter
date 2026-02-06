@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -35,6 +36,13 @@ void main() async {
     // 4. APNs 인증 키 발급 후 Firebase Console에 업로드
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       await Firebase.initializeApp();
+
+      // Firebase App Check 활성화 (앱 위변조 방지)
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: AndroidProvider.playIntegrity,
+        appleProvider: AppleProvider.deviceCheck,
+      );
+
       // Set up background message handler
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     }
@@ -106,6 +114,13 @@ Future<void> _initializeNotifications() async {
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     final fcmService = getIt<FcmService>();
     await fcmService.initialize();
+
+    // FCM 알림 클릭 시 채팅방으로 네비게이션
+    fcmService.onNotificationClick.listen((payload) {
+      if (payload != null) {
+        notificationClickHandler.handleFcmNotificationClick(payload);
+      }
+    });
   }
 
   // 데스크톱 알림 브릿지 초기화 (WebSocket → 로컬 알림)

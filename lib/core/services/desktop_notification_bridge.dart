@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
+import '../../domain/repositories/settings_repository.dart';
 import '../network/websocket_service.dart';
 import '../window/window_focus_tracker.dart';
 import 'notification_service.dart';
@@ -19,6 +20,7 @@ class DesktopNotificationBridge {
   final NotificationService _notificationService;
   final WebSocketService _webSocketService;
   final WindowFocusTracker _windowFocusTracker;
+  final SettingsRepository _settingsRepository;
 
   int? _currentUserId;
   int? _activeRoomId;
@@ -29,9 +31,11 @@ class DesktopNotificationBridge {
     required NotificationService notificationService,
     required WebSocketService webSocketService,
     required WindowFocusTracker windowFocusTracker,
+    required SettingsRepository settingsRepository,
   })  : _notificationService = notificationService,
         _webSocketService = webSocketService,
-        _windowFocusTracker = windowFocusTracker;
+        _windowFocusTracker = windowFocusTracker,
+        _settingsRepository = settingsRepository;
 
   /// 현재 활성 채팅방 ID
   int? get activeRoomId => _activeRoomId;
@@ -67,8 +71,9 @@ class DesktopNotificationBridge {
 
     _subscription = _webSocketService.chatRoomUpdates.listen(_handleChatRoomUpdate);
     _isListening = true;
-    // ignore: avoid_print
-    print('[DesktopNotificationBridge] Started listening for desktop notifications');
+    if (kDebugMode) {
+      debugPrint('[DesktopNotificationBridge] Started listening for desktop notifications');
+    }
   }
 
   /// 알림 리스닝 중지
@@ -76,8 +81,9 @@ class DesktopNotificationBridge {
     _subscription?.cancel();
     _subscription = null;
     _isListening = false;
-    // ignore: avoid_print
-    print('[DesktopNotificationBridge] Stopped listening for desktop notifications');
+    if (kDebugMode) {
+      debugPrint('[DesktopNotificationBridge] Stopped listening for desktop notifications');
+    }
   }
 
   Future<void> _handleChatRoomUpdate(WebSocketChatRoomUpdateEvent event) async {
@@ -97,11 +103,32 @@ class DesktopNotificationBridge {
       return;
     }
 
-    // 알림 표시
+    // 설정에서 '푸시 메시지 내용 표시'·소리·진동이 토글 직후에도 반영되도록 캐시 우선 조회
+    bool showContent = true;
+    bool soundEnabled = true;
+    bool vibrationEnabled = true;
+    try {
+      final settings = await _settingsRepository.getNotificationSettingsCached();
+      showContent = settings.showMessageContentInNotification;
+      soundEnabled = settings.soundEnabled;
+      vibrationEnabled = settings.vibrationEnabled;
+    } catch (_) {}
+
+    String body;
+    if (!showContent) {
+      body = '새 메시지';
+    } else if (event.lastMessageType == 'IMAGE') {
+      body = '사진을 보냈습니다';
+    } else {
+      body = event.lastMessage ?? '';
+    }
+
     await _notificationService.showNotification(
       title: event.senderNickname ?? '새 메시지',
-      body: event.lastMessage ?? '',
+      body: body,
       payload: 'chatRoom:${event.chatRoomId}',
+      soundEnabled: soundEnabled,
+      vibrationEnabled: vibrationEnabled,
     );
   }
 

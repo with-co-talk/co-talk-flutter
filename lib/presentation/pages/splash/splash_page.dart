@@ -26,7 +26,7 @@ class _SplashPageState extends State<SplashPage> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.status == AuthStatus.authenticated) {
-          context.go(AppRoutes.chatList);
+          context.go(AppRoutes.friends);
         } else if (state.status == AuthStatus.unauthenticated ||
             state.status == AuthStatus.failure) {
           context.go(AppRoutes.login);

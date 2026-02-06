@@ -8,6 +8,7 @@ import '../../presentation/blocs/auth/auth_bloc.dart';
 import '../../presentation/blocs/auth/auth_state.dart';
 import '../../presentation/blocs/chat/chat_list_bloc.dart';
 import '../../presentation/blocs/chat/chat_room_bloc.dart';
+import '../../presentation/blocs/chat/message_search/message_search_bloc.dart';
 import '../../presentation/blocs/friend/friend_bloc.dart';
 import '../../presentation/pages/auth/login_page.dart';
 import '../../presentation/pages/auth/signup_page.dart';
@@ -103,7 +104,7 @@ class AppRouter {
       }
 
       if (isLoggedIn && isAuthRoute) {
-        return AppRoutes.chatList;
+        return AppRoutes.friends;
       }
 
       return null;
@@ -316,6 +317,10 @@ class AppRouter {
                 // ChatRoomPage에서 ChatListBloc에 접근할 수 있도록 제공 (singleton)
                 BlocProvider.value(
                   value: getIt<ChatListBloc>(),
+                ),
+                // 메시지 검색을 위한 BLoC
+                BlocProvider(
+                  create: (_) => getIt<MessageSearchBloc>(),
                 ),
               ],
               child: ChatRoomPage(roomId: roomId),

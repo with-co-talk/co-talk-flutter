@@ -139,3 +139,21 @@ class UnblockUserRequested extends FriendEvent {
 class BlockedUsersLoadRequested extends FriendEvent {
   const BlockedUsersLoadRequested();
 }
+
+/// 친구 프로필 업데이트 이벤트 (WebSocket)
+class FriendProfileUpdated extends FriendEvent {
+  final int userId;
+  final String? avatarUrl;
+  final String? backgroundUrl;
+  final String? statusMessage;
+
+  const FriendProfileUpdated({
+    required this.userId,
+    this.avatarUrl,
+    this.backgroundUrl,
+    this.statusMessage,
+  });
+
+  @override
+  List<Object?> get props => [userId, avatarUrl, backgroundUrl, statusMessage];
+}

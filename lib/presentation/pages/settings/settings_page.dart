@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../blocs/auth/auth_bloc.dart';
@@ -9,8 +10,28 @@ import '../../blocs/auth/auth_state.dart';
 import '../../blocs/theme/theme_cubit.dart';
 
 /// 설정 페이지
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  String _version = '...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    setState(() {
+      _version = packageInfo.version;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +43,7 @@ class SettingsPage extends StatelessWidget {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go(AppRoutes.chatList);
+              context.go(AppRoutes.friends);
             }
           },
         ),
@@ -120,6 +141,7 @@ class SettingsPage extends StatelessWidget {
               _SettingsTile(
                 icon: Icons.lock_outline,
                 title: '비밀번호 변경',
+                subtitle: '준비 중 (서버 API 구현 필요)',
                 onTap: () => context.push(AppRoutes.changePassword),
               ),
               _SettingsTile(
@@ -134,10 +156,10 @@ class SettingsPage extends StatelessWidget {
           _SettingsSection(
             title: '정보',
             children: [
-              const _SettingsTile(
+              _SettingsTile(
                 icon: Icons.info_outline,
                 title: '앱 버전',
-                subtitle: '1.0.0',
+                subtitle: _version,
               ),
               _SettingsTile(
                 icon: Icons.description_outlined,
@@ -155,7 +177,7 @@ class SettingsPage extends StatelessWidget {
                 onTap: () => showLicensePage(
                   context: context,
                   applicationName: 'Co-Talk',
-                  applicationVersion: '1.0.0',
+                  applicationVersion: _version,
                 ),
               ),
             ],

@@ -29,9 +29,9 @@ void main() {
     when(() => mockChatRepository.clearLocalData()).thenAnswer((_) async {});
 
     // NotificationRepository mock 기본 설정
-    when(() => mockNotificationRepository.registerToken(platform: any(named: 'platform')))
+    when(() => mockNotificationRepository.registerToken(userId: any(named: 'userId'), deviceType: any(named: 'deviceType')))
         .thenAnswer((_) async {});
-    when(() => mockNotificationRepository.setupTokenRefreshListener(platform: any(named: 'platform')))
+    when(() => mockNotificationRepository.setupTokenRefreshListener(userId: any(named: 'userId'), deviceType: any(named: 'deviceType')))
         .thenReturn(null);
     when(() => mockNotificationRepository.unregisterToken()).thenAnswer((_) async {});
     when(() => mockNotificationRepository.disposeTokenRefreshListener()).thenReturn(null);

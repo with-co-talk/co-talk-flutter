@@ -65,6 +65,36 @@ class TestWindowFocusTracker implements WindowFocusTracker {
   }
 }
 
+/// Helper function to find RichText widgets containing specific text.
+/// This is needed because find.textContaining doesn't work properly with
+/// RichText that has nested TextSpan children.
+Finder findRichTextContaining(String text) {
+  return find.byWidgetPredicate((widget) {
+    if (widget is RichText) {
+      final textSpan = widget.text;
+      return _textSpanContains(textSpan, text);
+    }
+    return false;
+  });
+}
+
+/// Recursively check if a TextSpan or its children contain the given text.
+bool _textSpanContains(InlineSpan span, String text) {
+  if (span is TextSpan) {
+    if (span.text?.contains(text) == true) {
+      return true;
+    }
+    if (span.children != null) {
+      for (final child in span.children!) {
+        if (_textSpanContains(child, text)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('ko_KR', null);
@@ -311,11 +341,14 @@ void main() {
         chatRoomState: ChatRoomState(
           status: ChatRoomStatus.success,
           messages: messages,
+          currentUserId: 1,
         ),
       ));
+      await tester.pumpAndSettle();
 
-      expect(find.text('안녕하세요'), findsOneWidget);
-      expect(find.text('반갑습니다'), findsOneWidget);
+      // Messages are rendered via RichText with nested TextSpan children
+      expect(findRichTextContaining('안녕하세요'), findsOneWidget);
+      expect(findRichTextContaining('반갑습니다'), findsOneWidget);
     });
 
     testWidgets('shows loading indicator on send button when sending',
@@ -344,10 +377,12 @@ void main() {
         chatRoomState: ChatRoomState(
           status: ChatRoomStatus.success,
           messages: messages,
+          currentUserId: 1,
         ),
       ));
+      await tester.pumpAndSettle();
 
-      expect(find.text('내 메시지'), findsOneWidget);
+      expect(findRichTextContaining('내 메시지'), findsOneWidget);
     });
 
     testWidgets('shows other user message bubble with avatar', (tester) async {
@@ -367,10 +402,12 @@ void main() {
         chatRoomState: ChatRoomState(
           status: ChatRoomStatus.success,
           messages: messages,
+          currentUserId: 1,
         ),
       ));
+      await tester.pumpAndSettle();
 
-      expect(find.text('상대방 메시지'), findsOneWidget);
+      expect(findRichTextContaining('상대방 메시지'), findsOneWidget);
       expect(find.byType(CircleAvatar), findsOneWidget);
     });
 
@@ -524,11 +561,13 @@ void main() {
         chatRoomState: ChatRoomState(
           status: ChatRoomStatus.success,
           messages: messages,
+          currentUserId: 1,
         ),
       ));
+      await tester.pumpAndSettle();
 
-      expect(find.text('어제 메시지'), findsOneWidget);
-      expect(find.text('오늘 메시지'), findsOneWidget);
+      expect(findRichTextContaining('어제 메시지'), findsOneWidget);
+      expect(findRichTextContaining('오늘 메시지'), findsOneWidget);
     });
 
     testWidgets('tap attachment button', (tester) async {

@@ -20,13 +20,13 @@ class ChatSettingsState extends Equatable {
   const ChatSettingsState.loading()
       : this(status: ChatSettingsStatus.loading);
 
-  ChatSettingsState.loaded(ChatSettings settings)
+  const ChatSettingsState.loaded(ChatSettings settings)
       : this(status: ChatSettingsStatus.loaded, settings: settings);
 
   const ChatSettingsState.clearing()
       : this(status: ChatSettingsStatus.clearing);
 
-  ChatSettingsState.error(String message)
+  const ChatSettingsState.error(String message)
       : this(status: ChatSettingsStatus.error, errorMessage: message);
 
   ChatSettingsState copyWith({

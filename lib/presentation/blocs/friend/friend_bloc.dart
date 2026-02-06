@@ -16,6 +16,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
   final WebSocketService _webSocketService;
 
   StreamSubscription<WebSocketOnlineStatusEvent>? _onlineStatusSubscription;
+  StreamSubscription<WebSocketProfileUpdateEvent>? _profileUpdateSubscription;
 
   FriendBloc(this._friendRepository, this._webSocketService) : super(const FriendState()) {
     on<FriendListLoadRequested>(_onLoadRequested);
@@ -27,6 +28,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     on<ReceivedFriendRequestsLoadRequested>(_onReceivedRequestsLoadRequested);
     on<SentFriendRequestsLoadRequested>(_onSentRequestsLoadRequested);
     on<FriendOnlineStatusChanged>(_onFriendOnlineStatusChanged);
+    on<FriendProfileUpdated>(_onFriendProfileUpdated);
     on<FriendListSubscriptionStarted>(_onSubscriptionStarted);
     on<FriendListSubscriptionStopped>(_onSubscriptionStopped);
     on<HideFriendRequested>(_onHideFriendRequested);
@@ -57,6 +59,17 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         lastActiveAt: wsEvent.lastActiveAt,
       ));
     });
+
+    _profileUpdateSubscription?.cancel();
+    _profileUpdateSubscription = _webSocketService.profileUpdateEvents.listen((wsEvent) {
+      _log('Received profile update: userId=${wsEvent.userId}, avatarUrl=${wsEvent.avatarUrl}');
+      add(FriendProfileUpdated(
+        userId: wsEvent.userId,
+        avatarUrl: wsEvent.avatarUrl,
+        backgroundUrl: wsEvent.backgroundUrl,
+        statusMessage: wsEvent.statusMessage,
+      ));
+    });
   }
 
   void _onSubscriptionStopped(
@@ -65,6 +78,8 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
   ) {
     _onlineStatusSubscription?.cancel();
     _onlineStatusSubscription = null;
+    _profileUpdateSubscription?.cancel();
+    _profileUpdateSubscription = null;
   }
 
   void _onFriendOnlineStatusChanged(
@@ -89,9 +104,33 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     emit(state.copyWith(friends: updatedFriends));
   }
 
+  void _onFriendProfileUpdated(
+    FriendProfileUpdated event,
+    Emitter<FriendState> emit,
+  ) {
+    _log('Profile updated: userId=${event.userId}, avatarUrl=${event.avatarUrl}');
+
+    final updatedFriends = state.friends.map((friend) {
+      if (friend.user.id == event.userId) {
+        _log('Updating friend profile: ${friend.user.nickname}');
+        return friend.copyWith(
+          user: friend.user.copyWith(
+            avatarUrl: event.avatarUrl,
+            backgroundUrl: event.backgroundUrl,
+            statusMessage: event.statusMessage,
+          ),
+        );
+      }
+      return friend;
+    }).toList();
+
+    emit(state.copyWith(friends: updatedFriends));
+  }
+
   @override
   Future<void> close() {
     _onlineStatusSubscription?.cancel();
+    _profileUpdateSubscription?.cancel();
     return super.close();
   }
 
@@ -103,9 +142,11 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
 
     try {
       final friends = await _friendRepository.getFriends();
+      // 숨긴 친구는 목록에서 제외
+      final visibleFriends = friends.where((f) => !f.isHidden).toList();
       emit(state.copyWith(
         status: FriendStatus.success,
-        friends: friends,
+        friends: visibleFriends,
       ));
     } catch (e) {
       emit(state.copyWith(

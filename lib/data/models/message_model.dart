@@ -52,6 +52,10 @@ class MessageModel {
   final List<MessageReactionModel>? reactions;
   @JsonKey(defaultValue: 0)
   final int unreadCount;
+  final String? linkPreviewUrl;
+  final String? linkPreviewTitle;
+  final String? linkPreviewDescription;
+  final String? linkPreviewImageUrl;
 
   const MessageModel({
     required this.id,
@@ -74,6 +78,10 @@ class MessageModel {
     this.updatedAt,
     this.reactions,
     this.unreadCount = 0,
+    this.linkPreviewUrl,
+    this.linkPreviewTitle,
+    this.linkPreviewDescription,
+    this.linkPreviewImageUrl,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) =>
@@ -105,6 +113,10 @@ class MessageModel {
       updatedAt: updatedAt,
       reactions: reactions?.map((r) => r.toEntity()).toList() ?? [],
       unreadCount: unreadCount,
+      linkPreviewUrl: linkPreviewUrl,
+      linkPreviewTitle: linkPreviewTitle,
+      linkPreviewDescription: linkPreviewDescription,
+      linkPreviewImageUrl: linkPreviewImageUrl,
     );
   }
 

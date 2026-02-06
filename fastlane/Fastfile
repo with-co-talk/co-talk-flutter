@@ -1,0 +1,417 @@
+# Co-Talk Flutter 통합 Fastlane 설정
+# iOS + macOS 한번에 빌드 및 배포
+
+default_platform(:ios)
+
+# ============================================
+# App Store Connect API Key 설정
+# ============================================
+
+def get_api_key
+  app_store_connect_api_key(
+    key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"],
+    issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
+    key_filepath: ENV["APP_STORE_CONNECT_API_KEY_KEY_FILEPATH"],
+    duration: 1200,  # 20분
+    in_house: false
+  )
+end
+
+# ============================================
+# 통합 배포 (iOS + macOS)
+# ============================================
+
+desc "iOS와 macOS 모두 빌드 및 TestFlight 업로드"
+lane :deploy_all do |options|
+  # 빌드 번호 한 번만 증가 (iOS + macOS 동일)
+  bump_build unless options[:skip_bump]
+
+  # 1. iOS 빌드 및 업로드
+  UI.header("iOS 빌드 시작")
+  deploy_ios(skip_build: options[:skip_build], skip_bump: true)
+
+  # 2. macOS 빌드 및 업로드
+  UI.header("macOS 빌드 시작")
+  deploy_macos(skip_build: options[:skip_build], skip_bump: true)
+
+  UI.success("iOS + macOS 배포 완료!")
+end
+
+desc "iOS와 macOS 업로드만 (빌드 스킵)"
+lane :deploy_all_quick do
+  UI.header("iOS 업로드")
+  upload_ios
+
+  UI.header("macOS 업로드")
+  upload_macos
+
+  UI.success("iOS + macOS 업로드 완료!")
+end
+
+desc "iOS와 macOS 모두 빌드만 (업로드 X)"
+lane :build_all do
+  UI.header("iOS 빌드")
+  build_ios
+
+  UI.header("macOS 빌드")
+  build_macos
+
+  UI.success("iOS + macOS 빌드 완료!")
+end
+
+# ============================================
+# iOS 전용
+# ============================================
+
+desc "iOS 빌드 + TestFlight 업로드"
+lane :deploy_ios do |options|
+  # 빌드 번호 자동 증가
+  bump_build unless options[:skip_bump]
+
+  unless options[:skip_build]
+    build_ios
+  end
+  upload_ios
+end
+
+desc "iOS 빌드 스킵하고 업로드만 (이미 빌드된 경우)"
+lane :deploy_ios_quick do
+  upload_ios
+end
+
+desc "iOS 빌드만"
+lane :build_ios do
+  UI.message("Flutter iOS 빌드 중...")
+  project_root = File.expand_path("..", Dir.pwd)
+
+  # CocoaPods 설치
+  cocoapods(
+    podfile: "#{project_root}/ios/Podfile",
+    use_bundle_exec: false
+  )
+
+  # Flutter 빌드
+  system("cd #{project_root} && flutter build ipa --release --dart-define=ENVIRONMENT=prod") || UI.user_error!("Flutter iOS 빌드 실패")
+  UI.success("iOS 빌드 완료")
+end
+
+desc "iOS TestFlight 업로드 (이미 빌드된 IPA)"
+lane :upload_ios do
+  # IPA 파일 찾기 (프로젝트 루트 기준)
+  project_root = File.expand_path("..", Dir.pwd)
+  ipa_path = Dir["#{project_root}/build/ios/ipa/*.ipa"].first
+
+  if ipa_path.nil?
+    UI.user_error!("IPA 파일을 찾을 수 없습니다. 먼저 build_ios를 실행하세요.")
+  end
+
+  UI.message("TestFlight 업로드 중: #{ipa_path}")
+
+  # API Key 사용 (더 빠르고 안정적)
+  api_key = get_api_key
+
+  upload_to_testflight(
+    api_key: api_key,
+    ipa: ipa_path,
+    skip_waiting_for_build_processing: true,
+    skip_submission: true
+  )
+
+  UI.success("iOS TestFlight 업로드 완료")
+end
+
+# ============================================
+# macOS 전용
+# ============================================
+
+desc "macOS 인증서 및 프로비저닝 프로필 설정"
+lane :setup_macos_signing do
+  api_key = get_api_key
+
+  # 1. Apple Distribution 인증서 (앱 서명용)
+  cert(
+    platform: "macos",
+    team_id: ENV["TEAM_ID"] || "QW7DJ7FBDT",
+    api_key: api_key,
+    generate_apple_certs: true
+  )
+
+  # cert가 생성/다운로드한 인증서 ID 저장
+  app_cert_id = lane_context[SharedValues::CERT_CERTIFICATE_ID]
+  UI.message("앱 서명 인증서 ID: #{app_cert_id}")
+
+  # 2. Mac Installer Distribution 인증서 (pkg 서명용)
+  cert(
+    platform: "macos",
+    type: "mac_installer_distribution",
+    team_id: ENV["TEAM_ID"] || "QW7DJ7FBDT",
+    api_key: api_key,
+    generate_apple_certs: true
+  )
+
+  # 3. App Store 프로비저닝 프로필 (인증서 ID 명시)
+  sigh(
+    platform: "macos",
+    app_identifier: "com.cotalk.coTalkFlutter",
+    team_id: ENV["TEAM_ID"] || "QW7DJ7FBDT",
+    api_key: api_key,
+    cert_id: app_cert_id,
+    force: true  # 새 프로필 강제 생성
+  )
+end
+
+# 방법 2: match 사용 시 (Git 저장소 필요)
+# lane :setup_macos_signing_match do
+#   match(
+#     type: "appstore",
+#     platform: "macos",
+#     app_identifier: "com.cotalk.coTalkFlutter",
+#     readonly: is_ci
+#   )
+# end
+
+desc "macOS 빌드 + TestFlight 업로드"
+lane :deploy_macos do |options|
+  # 0. 빌드 번호 자동 증가
+  bump_build unless options[:skip_bump]
+
+  # 1. 코드 서명 설정
+  setup_macos_signing
+
+  # 2. 빌드
+  unless options[:skip_build]
+    build_macos_signed
+  end
+
+  # 3. 업로드
+  upload_macos
+end
+
+desc "macOS 빌드 스킵하고 업로드만 (이미 빌드된 경우) - 권장"
+desc "사용법: flutter build macos --release 후 fastlane deploy_macos_quick"
+lane :deploy_macos_quick do |options|
+  # 빌드 번호 자동 증가
+  bump_build unless options[:skip_bump]
+
+  # 서명 설정 (인증서/프로필)
+  setup_macos_signing
+
+  # 재서명 + pkg 생성 + 업로드
+  upload_macos
+end
+
+desc "macOS 빌드만 (서명 없이)"
+lane :build_macos do
+  UI.message("Flutter macOS 빌드 중...")
+  project_root = File.expand_path("..", Dir.pwd)
+
+  # CocoaPods 설치
+  cocoapods(
+    podfile: "#{project_root}/macos/Podfile",
+    use_bundle_exec: false
+  )
+
+  # Flutter 빌드
+  system("cd #{project_root} && flutter build macos --release --dart-define=ENVIRONMENT=prod") || UI.user_error!("Flutter macOS 빌드 실패")
+  UI.success("macOS 빌드 완료")
+end
+
+desc "macOS 빌드 (App Store 서명 포함)"
+lane :build_macos_signed do
+  project_root = File.expand_path("..", Dir.pwd)
+  app_path = "#{project_root}/build/macos/Build/Products/Release/Co Talk.app"
+  entitlements_path = "#{project_root}/macos/Runner/Release.entitlements"
+  profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
+  resign_script = "#{project_root}/scripts/resign_for_appstore.sh"
+
+  # CocoaPods 설치
+  cocoapods(
+    podfile: "#{project_root}/macos/Podfile",
+    use_bundle_exec: false
+  )
+
+  UI.message("Flutter macOS 빌드 중...")
+  system("cd #{project_root} && flutter build macos --release --dart-define=ENVIRONMENT=prod") || UI.user_error!("Flutter macOS 빌드 실패")
+
+  unless profile_path && File.exist?(profile_path)
+    UI.user_error!("프로비저닝 프로필을 찾을 수 없습니다.")
+  end
+
+  # 재서명 스크립트 실행
+  UI.message("App Store 배포용 재서명 스크립트 실행...")
+  sh("'#{resign_script}' '#{app_path}' '#{entitlements_path}' '#{profile_path}'")
+
+  UI.success("macOS 빌드 및 서명 완료")
+end
+
+desc "macOS TestFlight 업로드 (이미 빌드된 앱)"
+lane :upload_macos do
+  project_root = File.expand_path("..", Dir.pwd)
+  app_path = "#{project_root}/build/macos/Build/Products/Release/Co Talk.app"
+  entitlements_path = "#{project_root}/macos/Runner/Release.entitlements"
+  resign_script = "#{project_root}/scripts/resign_for_appstore.sh"
+
+  unless File.exist?(app_path)
+    UI.user_error!("macOS 앱을 찾을 수 없습니다. 먼저 flutter build macos --release를 실행하세요.")
+  end
+
+  # 프로비저닝 프로필 확인
+  profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
+  unless profile_path && File.exist?(profile_path)
+    # 프로필이 없으면 프로젝트 루트에서 찾기
+    profile_path = Dir["#{project_root}/AppStore_*.provisionprofile"].first
+  end
+
+  unless profile_path && File.exist?(profile_path)
+    UI.user_error!("프로비저닝 프로필을 찾을 수 없습니다. setup_macos_signing을 먼저 실행하세요.")
+  end
+
+  # 재서명 스크립트 실행
+  UI.message("App Store 배포용 재서명...")
+  sh("'#{resign_script}' '#{app_path}' '#{entitlements_path}' '#{profile_path}'")
+
+  # pkg 생성
+  pkg_path = "#{project_root}/build/macos/CoTalk.pkg"
+  UI.message("Installer 패키지 생성 및 서명 중...")
+  sh("productbuild --component '#{app_path}' /Applications --sign '3rd Party Mac Developer Installer' '#{pkg_path}'")
+
+  UI.message("macOS TestFlight 업로드 중...")
+  api_key = get_api_key
+
+  upload_to_testflight(
+    api_key: api_key,
+    pkg: pkg_path,
+    skip_waiting_for_build_processing: true,
+    skip_submission: true,
+    app_platform: "osx"
+  )
+
+  UI.success("macOS TestFlight 업로드 완료")
+end
+
+# ============================================
+# 유틸리티
+# ============================================
+
+desc "빌드 번호 증가 (iOS + macOS)"
+lane :bump_build do |options|
+  project_root = File.expand_path("..", Dir.pwd)
+
+  if options[:build]
+    # 명시적으로 지정된 경우
+    new_build = options[:build].to_s
+  else
+    # 현재 빌드 번호에서 +1
+    current_build = get_build_number(xcodeproj: "#{project_root}/ios/Runner.xcodeproj").to_i
+    new_build = (current_build + 1).to_s
+  end
+
+  # iOS 빌드 번호 업데이트
+  increment_build_number(
+    build_number: new_build,
+    xcodeproj: "#{project_root}/ios/Runner.xcodeproj"
+  )
+
+  # macOS 빌드 번호 업데이트
+  increment_build_number(
+    build_number: new_build,
+    xcodeproj: "#{project_root}/macos/Runner.xcodeproj"
+  )
+
+  UI.success("빌드 번호 #{new_build}로 업데이트 완료")
+end
+
+# ============================================
+# Android 전용
+# ============================================
+
+desc "Android 빌드 + Google Play 내부 테스트 업로드"
+lane :deploy_android do |options|
+  build_android unless options[:skip_build]
+  upload_android(track: options[:track] || "internal")
+end
+
+desc "Android 빌드만"
+lane :build_android do
+  UI.message("Flutter Android 빌드 중...")
+  project_root = File.expand_path("..", Dir.pwd)
+
+  system("cd #{project_root} && flutter build appbundle --release") || UI.user_error!("Flutter Android 빌드 실패")
+  UI.success("Android AAB 빌드 완료")
+end
+
+desc "Android Google Play 업로드 (이미 빌드된 AAB)"
+desc "옵션: track - internal(내부테스트), alpha(비공개테스트), beta(공개테스트), production(프로덕션)"
+lane :upload_android do |options|
+  project_root = File.expand_path("..", Dir.pwd)
+  aab_path = "#{project_root}/build/app/outputs/bundle/release/app-release.aab"
+
+  unless File.exist?(aab_path)
+    UI.user_error!("AAB 파일을 찾을 수 없습니다. 먼저 build_android를 실행하세요.")
+  end
+
+  track = options[:track] || "internal"
+
+  UI.message("Google Play #{track} 트랙에 업로드 중: #{aab_path}")
+
+  upload_to_play_store(
+    package_name: "com.cotalk.co_talk_flutter",
+    aab: aab_path,
+    track: track,
+    release_status: "draft",  # draft로 업로드 후 수동 릴리스
+    json_key: "#{Dir.pwd}/keys/play-store-key.json",
+    skip_upload_metadata: true,
+    skip_upload_images: true,
+    skip_upload_screenshots: true
+  )
+
+  UI.success("Android Google Play #{track} 업로드 완료")
+end
+
+# ============================================
+# 전체 플랫폼 배포
+# ============================================
+
+desc "iOS + macOS + Android 모두 배포"
+lane :deploy_all_platforms do |options|
+  # iOS + macOS
+  deploy_all(skip_bump: options[:skip_bump])
+
+  # Android
+  UI.header("Android 빌드 시작")
+  deploy_android(track: options[:track] || "internal")
+
+  UI.success("모든 플랫폼 배포 완료!")
+end
+
+# ============================================
+# 유틸리티
+# ============================================
+
+desc "현재 상태 확인"
+lane :status do
+  project_root = File.expand_path("..", Dir.pwd)
+
+  UI.header("iOS 상태")
+  ios_build = get_build_number(xcodeproj: "#{project_root}/ios/Runner.xcodeproj")
+  UI.message("빌드 번호: #{ios_build}")
+
+  UI.header("macOS 상태")
+  macos_build = get_build_number(xcodeproj: "#{project_root}/macos/Runner.xcodeproj")
+  UI.message("빌드 번호: #{macos_build}")
+
+  UI.header("IPA 파일")
+  ipa_files = Dir["#{project_root}/build/ios/ipa/*.ipa"]
+  if ipa_files.empty?
+    UI.message("없음")
+  else
+    ipa_files.each { |f| UI.message(f) }
+  end
+
+  UI.header("macOS 앱")
+  if File.exist?("#{project_root}/build/macos/Build/Products/Release/Co Talk.app")
+    UI.message("빌드됨")
+  else
+    UI.message("없음")
+  end
+end

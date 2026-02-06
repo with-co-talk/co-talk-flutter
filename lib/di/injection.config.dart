@@ -18,6 +18,7 @@ import 'package:injectable/injectable.dart' as _i526;
 
 import '../core/network/auth_interceptor.dart' as _i552;
 import '../core/network/dio_client.dart' as _i393;
+import '../core/network/websocket/websocket_event_parser.dart' as _i60;
 import '../core/network/websocket_service.dart' as _i682;
 import '../core/router/app_router.dart' as _i877;
 import '../core/services/desktop_notification_bridge.dart' as _i396;
@@ -34,6 +35,8 @@ import '../data/datasources/local/theme_local_datasource.dart' as _i632;
 import '../data/datasources/remote/auth_remote_datasource.dart' as _i633;
 import '../data/datasources/remote/chat_remote_datasource.dart' as _i397;
 import '../data/datasources/remote/friend_remote_datasource.dart' as _i867;
+import '../data/datasources/remote/link_preview_remote_datasource.dart'
+    as _i577;
 import '../data/datasources/remote/notification_remote_datasource.dart'
     as _i708;
 import '../data/datasources/remote/profile_remote_datasource.dart' as _i710;
@@ -41,12 +44,14 @@ import '../data/datasources/remote/settings_remote_datasource.dart' as _i991;
 import '../data/repositories/auth_repository_impl.dart' as _i74;
 import '../data/repositories/chat_repository_impl.dart' as _i919;
 import '../data/repositories/friend_repository_impl.dart' as _i364;
+import '../data/repositories/link_preview_repository_impl.dart' as _i319;
 import '../data/repositories/notification_repository_impl.dart' as _i888;
 import '../data/repositories/profile_repository_impl.dart' as _i953;
 import '../data/repositories/settings_repository_impl.dart' as _i453;
 import '../domain/repositories/auth_repository.dart' as _i800;
 import '../domain/repositories/chat_repository.dart' as _i792;
 import '../domain/repositories/friend_repository.dart' as _i1069;
+import '../domain/repositories/link_preview_repository.dart' as _i1014;
 import '../domain/repositories/notification_repository.dart' as _i965;
 import '../domain/repositories/profile_repository.dart' as _i217;
 import '../domain/repositories/settings_repository.dart' as _i977;
@@ -75,8 +80,8 @@ extension GetItInjectableX on _i174.GetIt {
   }) {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final registerModule = _$RegisterModule();
-    gh.singleton<_i682.WebSocketPayloadParser>(
-      () => const _i682.WebSocketPayloadParser(),
+    gh.singleton<_i60.WebSocketPayloadParser>(
+      () => const _i60.WebSocketPayloadParser(),
     );
     gh.lazySingleton<_i558.FlutterSecureStorage>(
       () => registerModule.secureStorage,
@@ -109,14 +114,14 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i552.AuthInterceptor>(
       () => _i552.AuthInterceptor(gh<_i860.AuthLocalDataSource>()),
     );
-    gh.lazySingleton<_i601.ChatLocalDataSource>(
-      () => _i601.ChatLocalDataSourceImpl(gh<_i441.AppDatabase>()),
-    );
     gh.lazySingleton<_i682.WebSocketService>(
       () => _i682.WebSocketService(
         gh<_i860.AuthLocalDataSource>(),
         payloadParser: gh<_i682.WebSocketPayloadParser>(),
       ),
+    );
+    gh.lazySingleton<_i601.ChatLocalDataSource>(
+      () => _i601.ChatLocalDataSourceImpl(gh<_i441.AppDatabase>()),
     );
     gh.lazySingleton<_i570.NotificationService>(
       () => _i570.NotificationService(
@@ -132,12 +137,13 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i991.SettingsRemoteDataSource>(
       () => _i991.SettingsRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
-    gh.lazySingleton<_i809.FcmService>(
-      () => _i809.FcmServiceImpl(
-        messaging: gh<_i892.FirebaseMessaging>(),
-        notificationService: gh<_i570.NotificationService>(),
+    gh.lazySingleton<_i577.LinkPreviewRemoteDataSource>(
+      () => _i577.LinkPreviewRemoteDataSourceImpl(gh<_i393.DioClient>()),
+    );
+    gh.lazySingleton<_i1014.LinkPreviewRepository>(
+      () => _i319.LinkPreviewRepositoryImpl(
+        gh<_i577.LinkPreviewRemoteDataSource>(),
       ),
-      registerFor: {_mobile},
     );
     gh.lazySingleton<_i633.AuthRemoteDataSource>(
       () => _i633.AuthRemoteDataSourceImpl(gh<_i393.DioClient>()),
@@ -156,13 +162,6 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i867.FriendRemoteDataSource>(
       () => _i867.FriendRemoteDataSourceImpl(gh<_i393.DioClient>()),
-    );
-    gh.lazySingleton<_i396.DesktopNotificationBridge>(
-      () => _i396.DesktopNotificationBridge(
-        notificationService: gh<_i570.NotificationService>(),
-        webSocketService: gh<_i682.WebSocketService>(),
-        windowFocusTracker: gh<_i156.WindowFocusTracker>(),
-      ),
     );
     gh.lazySingleton<_i792.ChatRepository>(
       () => _i919.ChatRepositoryImpl(
@@ -189,14 +188,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i30.ChatSettingsLocalDataSource>(),
       ),
     );
-    gh.factory<_i995.ChatRoomBloc>(
-      () => _i995.ChatRoomBloc(
-        gh<_i792.ChatRepository>(),
-        gh<_i682.WebSocketService>(),
-        gh<_i860.AuthLocalDataSource>(),
-        gh<_i396.DesktopNotificationBridge>(),
-      ),
-    );
     gh.lazySingleton<_i1069.FriendRepository>(
       () => _i364.FriendRepositoryImpl(gh<_i867.FriendRemoteDataSource>()),
     );
@@ -212,6 +203,14 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i217.ProfileRepository>(
       () => _i953.ProfileRepositoryImpl(gh<_i710.ProfileRemoteDataSource>()),
     );
+    gh.lazySingleton<_i809.FcmService>(
+      () => _i809.FcmServiceImpl(
+        messaging: gh<_i892.FirebaseMessaging>(),
+        notificationService: gh<_i570.NotificationService>(),
+        settingsRepository: gh<_i977.SettingsRepository>(),
+      ),
+      registerFor: {_mobile},
+    );
     gh.lazySingleton<_i995.ChatListBloc>(
       () => _i995.ChatListBloc(
         gh<_i792.ChatRepository>(),
@@ -225,6 +224,34 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i682.WebSocketService>(),
       ),
     );
+    gh.factory<_i3.AccountDeletionBloc>(
+      () => _i3.AccountDeletionBloc(
+        gh<_i977.SettingsRepository>(),
+        gh<_i800.AuthRepository>(),
+      ),
+    );
+    gh.lazySingleton<_i396.DesktopNotificationBridge>(
+      () => _i396.DesktopNotificationBridge(
+        notificationService: gh<_i570.NotificationService>(),
+        webSocketService: gh<_i682.WebSocketService>(),
+        windowFocusTracker: gh<_i156.WindowFocusTracker>(),
+        settingsRepository: gh<_i977.SettingsRepository>(),
+      ),
+    );
+    gh.factory<_i995.ChatRoomBloc>(
+      () => _i995.ChatRoomBloc(
+        gh<_i792.ChatRepository>(),
+        gh<_i682.WebSocketService>(),
+        gh<_i860.AuthLocalDataSource>(),
+        gh<_i396.DesktopNotificationBridge>(),
+      ),
+    );
+    gh.factory<_i256.ProfileBloc>(
+      () => _i256.ProfileBloc(
+        gh<_i217.ProfileRepository>(),
+        gh<_i800.AuthRepository>(),
+      ),
+    );
     gh.factory<_i525.AuthBloc>(
       () => _i525.AuthBloc(
         gh<_i800.AuthRepository>(),
@@ -232,18 +259,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i792.ChatRepository>(),
         gh<_i965.NotificationRepository>(),
         gh<_i396.DesktopNotificationBridge>(),
-      ),
-    );
-    gh.factory<_i3.AccountDeletionBloc>(
-      () => _i3.AccountDeletionBloc(
-        gh<_i977.SettingsRepository>(),
-        gh<_i800.AuthRepository>(),
-      ),
-    );
-    gh.factory<_i256.ProfileBloc>(
-      () => _i256.ProfileBloc(
-        gh<_i217.ProfileRepository>(),
-        gh<_i800.AuthRepository>(),
       ),
     );
     gh.lazySingleton<_i877.AppRouter>(

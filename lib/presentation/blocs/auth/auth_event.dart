@@ -75,13 +75,16 @@ class AuthUserLocalUpdated extends AuthEvent {
   final String? avatarUrl;
   final String? backgroundUrl;
   final String? statusMessage;
+  /// true면 avatarUrl을 null로 설정 (기본 이미지로 변경)
+  final bool clearAvatar;
 
   const AuthUserLocalUpdated({
     this.avatarUrl,
     this.backgroundUrl,
     this.statusMessage,
+    this.clearAvatar = false,
   });
 
   @override
-  List<Object?> get props => [avatarUrl, backgroundUrl, statusMessage];
+  List<Object?> get props => [avatarUrl, backgroundUrl, statusMessage, clearAvatar];
 }

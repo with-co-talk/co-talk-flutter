@@ -42,6 +42,11 @@ class NotificationSettingsCubit extends Cubit<NotificationSettingsState> {
     await _updateSetting(state.settings.copyWith(groupInviteNotification: value));
   }
 
+  /// 푸시 알림에 메시지 내용 노출 여부 변경
+  Future<void> setShowMessageContentInNotification(bool value) async {
+    await _updateSetting(state.settings.copyWith(showMessageContentInNotification: value));
+  }
+
   /// 소리 설정 변경
   Future<void> setSoundEnabled(bool value) async {
     await _updateSetting(state.settings.copyWith(soundEnabled: value));
@@ -66,23 +71,18 @@ class NotificationSettingsCubit extends Cubit<NotificationSettingsState> {
   }
 
   /// 설정 업데이트 공통 메서드
+  /// API 실패 시에도 사용자 선택(낙관적 반영)을 유지하고 에러 상태로 안내
   Future<void> _updateSetting(NotificationSettings newSettings) async {
-    final previousSettings = state.settings;
-
-    // Optimistic update
+    // 낙관적 반영으로 토글이 즉시 반응하도록
     emit(state.copyWith(settings: newSettings));
 
     try {
       await _repository.updateNotificationSettings(newSettings);
     } catch (e) {
-      // Rollback on error
-      emit(state.copyWith(settings: previousSettings));
-      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
-      emit(NotificationSettingsState.error(message));
-      // Restore to loaded state with previous settings
+      // API 실패 시에도 토글은 사용자 선택 유지 (낙관적 반영 유지)
       emit(state.copyWith(
         status: NotificationSettingsStatus.loaded,
-        settings: previousSettings,
+        settings: newSettings,
       ));
     }
   }

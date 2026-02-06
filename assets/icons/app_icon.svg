@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Background: Violet rounded square -->
+  <rect width="1024" height="1024" rx="180" ry="180" fill="#8B5CF6"/>
+
+  <!-- Main chat bubble -->
+  <path d="M512 220
+           C320 220 180 340 180 500
+           C180 580 220 652 284 704
+           L240 820
+           L400 740
+           C436 752 474 758 512 758
+           C704 758 844 638 844 478
+           C844 340 704 220 512 220Z"
+        fill="white"
+        opacity="0.95"/>
+
+  <!-- Three dots indicating typing/conversation -->
+  <circle cx="380" cy="490" r="36" fill="#8B5CF6" opacity="0.7"/>
+  <circle cx="512" cy="490" r="36" fill="#8B5CF6" opacity="0.7"/>
+  <circle cx="644" cy="490" r="36" fill="#8B5CF6" opacity="0.7"/>
+</svg>
