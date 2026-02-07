@@ -23,6 +23,7 @@ class ChatRoomState extends Equatable {
   final bool isUploadingFile; // 파일 업로드 중 여부
   final double uploadProgress; // 파일 업로드 진행률 (0.0 ~ 1.0)
   final bool isOfflineData; // 오프라인 캐시 데이터 여부
+  final Set<String> processedReadEvents; // 처리된 읽음 이벤트 (중복 방지용)
 
   const ChatRoomState({
     this.status = ChatRoomStatus.initial,
@@ -44,6 +45,7 @@ class ChatRoomState extends Equatable {
     this.isUploadingFile = false,
     this.uploadProgress = 0.0,
     this.isOfflineData = false,
+    this.processedReadEvents = const {},
   });
 
   /// 누군가 타이핑 중인지 여부
@@ -78,6 +80,7 @@ class ChatRoomState extends Equatable {
     bool? isUploadingFile,
     double? uploadProgress,
     bool? isOfflineData,
+    Set<String>? processedReadEvents,
   }) {
     return ChatRoomState(
       status: status ?? this.status,
@@ -99,6 +102,7 @@ class ChatRoomState extends Equatable {
       isUploadingFile: isUploadingFile ?? this.isUploadingFile,
       uploadProgress: uploadProgress ?? this.uploadProgress,
       isOfflineData: isOfflineData ?? this.isOfflineData,
+      processedReadEvents: processedReadEvents ?? this.processedReadEvents,
     );
   }
 
@@ -123,5 +127,6 @@ class ChatRoomState extends Equatable {
         isUploadingFile,
         uploadProgress,
         isOfflineData,
+        processedReadEvents,
       ];
 }

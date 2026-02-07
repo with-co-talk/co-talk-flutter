@@ -41,10 +41,9 @@ class NotificationRepositoryImpl implements NotificationRepository {
     // 로컬에 토큰 저장
     await _localDataSource.saveFcmToken(token);
 
-    // 서버에 토큰 등록
+    // 서버에 토큰 등록 (userId는 JWT에서 추출)
     try {
       await _remoteDataSource.registerFcmToken(
-        userId: userId,
         token: token,
         deviceType: deviceType,
       );
@@ -68,10 +67,9 @@ class NotificationRepositoryImpl implements NotificationRepository {
     // 로컬에 새 토큰 저장
     await _localDataSource.saveFcmToken(newToken);
 
-    // 서버에 새 토큰 등록
+    // 서버에 새 토큰 등록 (userId는 JWT에서 추출)
     try {
       await _remoteDataSource.registerFcmToken(
-        userId: userId,
         token: newToken,
         deviceType: deviceType,
       );

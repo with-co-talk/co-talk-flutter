@@ -9,7 +9,6 @@ import '../../../core/utils/date_parser.dart';
 import '../../models/chat_room_model.dart';
 import '../../models/message_model.dart';
 import '../base_remote_datasource.dart';
-import '../local/auth_local_datasource.dart';
 
 abstract class ChatRemoteDataSource {
   Future<List<ChatRoomModel>> getChatRooms();
@@ -39,11 +38,9 @@ abstract class ChatRemoteDataSource {
 class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
     implements ChatRemoteDataSource {
   final DioClient _dioClient;
-  final AuthLocalDataSource _authLocalDataSource;
 
   ChatRemoteDataSourceImpl(
     this._dioClient,
-    this._authLocalDataSource,
   );
 
   @override
@@ -134,18 +131,10 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   @override
   Future<ChatRoomModel> createDirectChatRoom(int otherUserId) async {
     try {
-      final currentUserId = await _authLocalDataSource.getUserId();
-      if (currentUserId == null) {
-        throw ServerException(
-          message: '사용자 인증 정보를 찾을 수 없습니다',
-          statusCode: 401,
-        );
-      }
-      
+      // JWT 토큰에서 userId를 추출하므로 currentUserId 불필요
       final response = await _dioClient.post(
         ApiConstants.chatRooms,
         data: CreateChatRoomRequest(
-          userId1: currentUserId,
           userId2: otherUserId,
         ).toJson(),
       );
@@ -441,7 +430,7 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
       final convertedData = <String, dynamic>{
         'id': responseData['messageId'] ?? responseData['id'],
         'chatRoomId': request.chatRoomId,
-        'senderId': responseData['senderId'] ?? 0,
+        'senderId': responseData['senderId'] ?? 0, // 서버에서 추출됨
         'content': responseData['content'] ?? request.fileName,
         'type': responseData['type'],
         'fileUrl': responseData['fileUrl'] ?? request.fileUrl,
@@ -505,7 +494,6 @@ class FileUploadResponse {
 
 /// 파일 메시지 전송 요청 모델
 class SendFileMessageRequest {
-  final int senderId;
   final int chatRoomId;
   final String fileUrl;
   final String fileName;
@@ -514,7 +502,6 @@ class SendFileMessageRequest {
   final String? thumbnailUrl;
 
   const SendFileMessageRequest({
-    required this.senderId,
     required this.chatRoomId,
     required this.fileUrl,
     required this.fileName,
@@ -525,7 +512,6 @@ class SendFileMessageRequest {
 
   Map<String, dynamic> toJson() {
     return {
-      'senderId': senderId,
       'chatRoomId': chatRoomId,
       'fileUrl': fileUrl,
       'fileName': fileName,

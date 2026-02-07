@@ -187,7 +187,6 @@ class ChatRepositoryImpl implements ChatRepository {
   }) async {
     final messageModel = await _remoteDataSource.sendFileMessage(
       SendFileMessageRequest(
-        senderId: 0, // Server extracts from JWT
         chatRoomId: roomId,
         fileUrl: fileUrl,
         fileName: fileName,

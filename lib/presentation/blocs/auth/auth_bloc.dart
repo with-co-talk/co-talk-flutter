@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -48,8 +49,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (isLoggedIn) {
         final user = await _authRepository.getCurrentUser();
         if (user != null) {
-          // WebSocket 연결
-          _webSocketService.connect();
+          // WebSocket 연결 (백그라운드에서 실행, 실패해도 계속 진행)
+          unawaited(_webSocketService.connect());
           // FCM 토큰 등록 (모바일만)
           await _registerFcmTokenIfMobile();
           // 데스크톱 알림에 현재 사용자 ID 설정
@@ -81,8 +82,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       final user = await _authRepository.getCurrentUser();
-      // WebSocket 연결
-      _webSocketService.connect();
+      // WebSocket 연결 (백그라운드에서 실행, 실패해도 계속 진행)
+      unawaited(_webSocketService.connect());
       // FCM 토큰 등록 (모바일만)
       await _registerFcmTokenIfMobile();
       if (user != null) {
@@ -133,8 +134,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       final user = await _authRepository.getCurrentUser();
-      // WebSocket 연결
-      _webSocketService.connect();
+      // WebSocket 연결 (백그라운드에서 실행, 실패해도 계속 진행)
+      unawaited(_webSocketService.connect());
       // FCM 토큰 등록 (모바일만)
       await _registerFcmTokenIfMobile();
       if (user != null) {

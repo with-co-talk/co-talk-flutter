@@ -32,6 +32,69 @@ class MessageBubble extends StatelessWidget {
     return DateTime.now().difference(message.createdAt).inMinutes >= 5;
   }
 
+  /// Builds failed status widget with retry and delete buttons
+  Widget _buildFailedStatusWidget(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 전송 실패 아이콘
+        Icon(
+          Icons.error_outline,
+          size: 14,
+          color: Colors.red[400],
+        ),
+        const SizedBox(width: 4),
+        // 재전송 버튼
+        GestureDetector(
+          onTap: () {
+            if (message.localId != null) {
+              context.read<ChatRoomBloc>().add(MessageRetryRequested(message.localId!));
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              '재전송',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        // 삭제 버튼
+        GestureDetector(
+          onTap: () {
+            if (message.localId != null) {
+              context.read<ChatRoomBloc>().add(PendingMessageDeleteRequested(message.localId!));
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '삭제',
+              style: TextStyle(
+                color: Colors.red[400],
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Returns appropriate icon for file type
   IconData _getFileIcon(String? contentType) {
     if (contentType == null) return Icons.insert_drive_file;
@@ -213,52 +276,21 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  /// Shows fullscreen image viewer
+  /// Shows fullscreen image viewer with drag-to-dismiss (KakaoTalk style)
   void _showFullScreenImage(BuildContext context, String imageUrl) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.black,
-            iconTheme: const IconThemeData(color: Colors.white),
-            elevation: 0,
-            actions: [
-              if (!kIsWeb)
-                IconButton(
-                  icon: const Icon(Icons.download_rounded),
-                  tooltip: '갤러리에 저장',
-                  onPressed: () => _saveImageToGallery(context, imageUrl),
-                ),
-            ],
-          ),
-          body: Center(
-            child: InteractiveViewer(
-              panEnabled: true,
-              minScale: 0.5,
-              maxScale: 4,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.contain,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => const Center(
-                  child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
-                ),
-              ),
-            ),
-          ),
-        ),
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return _DismissibleImageViewer(
+            imageUrl: imageUrl,
+            onSaveToGallery: kIsWeb ? null : () => _saveImageToGallery(context, imageUrl),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
       ),
     );
   }
@@ -447,31 +479,51 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    // Time and read status widget
-    Widget timeWidget = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (message.unreadCount > 0)
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Text(
-              '${message.unreadCount}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                  ),
-            ),
-          ),
-        Text(
-          AppDateUtils.formatMessageTime(message.createdAt),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: context.textSecondaryColor,
-                fontSize: 11,
-              ),
+    // Time and status widget (카카오톡 스타일)
+    Widget timeWidget;
+
+    // 전송 실패 시: 재전송/삭제 버튼
+    if (message.isFailed && isMe) {
+      timeWidget = _buildFailedStatusWidget(context);
+    }
+    // 전송 중: 로딩 인디케이터
+    else if (message.isPending && isMe) {
+      timeWidget = const SizedBox(
+        width: 12,
+        height: 12,
+        child: CircularProgressIndicator(
+          strokeWidth: 1.5,
+          color: AppColors.primary,
         ),
-      ],
-    );
+      );
+    }
+    // 전송 완료: 읽지 않음 개수 + 시간
+    else {
+      timeWidget = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (message.unreadCount > 0 && isMe)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Text(
+                '${message.unreadCount}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+              ),
+            ),
+          Text(
+            AppDateUtils.formatMessageTime(message.createdAt),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.textSecondaryColor,
+                  fontSize: 11,
+                ),
+          ),
+        ],
+      );
+    }
 
     // Message bubble content
     Widget bubbleWidget;
@@ -775,6 +827,142 @@ class MessageBubble extends StatelessWidget {
               Flexible(child: bubbleWidget),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 드래그로 닫을 수 있는 전체화면 이미지 뷰어 (카카오톡 스타일)
+class _DismissibleImageViewer extends StatefulWidget {
+  final String imageUrl;
+  final VoidCallback? onSaveToGallery;
+
+  const _DismissibleImageViewer({
+    required this.imageUrl,
+    this.onSaveToGallery,
+  });
+
+  @override
+  State<_DismissibleImageViewer> createState() => _DismissibleImageViewerState();
+}
+
+class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
+    with SingleTickerProviderStateMixin {
+  double _dragOffset = 0;
+  double _dragVelocity = 0;
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  static const double _dismissThreshold = 100;
+  static const double _velocityThreshold = 500;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _animation = Tween<double>(begin: 0, end: 0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    _animationController.addListener(() {
+      setState(() {
+        _dragOffset = _animation.value;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _onVerticalDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _dragOffset += details.delta.dy;
+    });
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    _dragVelocity = details.velocity.pixelsPerSecond.dy;
+
+    final shouldDismiss = _dragOffset.abs() > _dismissThreshold ||
+        _dragVelocity.abs() > _velocityThreshold;
+
+    if (shouldDismiss) {
+      Navigator.of(context).pop();
+    } else {
+      // Snap back to center
+      _animation = Tween<double>(begin: _dragOffset, end: 0).animate(
+        CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+      );
+      _animationController.forward(from: 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final opacity = (1 - (_dragOffset.abs() / 300)).clamp(0.3, 1.0);
+    final scale = (1 - (_dragOffset.abs() / 1000)).clamp(0.8, 1.0);
+
+    return Scaffold(
+      backgroundColor: Colors.black.withValues(alpha: opacity),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        iconTheme: IconThemeData(color: Colors.white.withValues(alpha: opacity)),
+        elevation: 0,
+        actions: [
+          if (widget.onSaveToGallery != null)
+            IconButton(
+              icon: Icon(Icons.download_rounded,
+                  color: Colors.white.withValues(alpha: opacity)),
+              tooltip: '갤러리에 저장',
+              onPressed: widget.onSaveToGallery,
+            ),
+        ],
+      ),
+      extendBodyBehindAppBar: true,
+      body: GestureDetector(
+        onVerticalDragUpdate: _onVerticalDragUpdate,
+        onVerticalDragEnd: _onVerticalDragEnd,
+        onTap: () => Navigator.of(context).pop(),
+        child: Container(
+          color: Colors.transparent,
+          child: Center(
+            child: Transform.translate(
+              offset: Offset(0, _dragOffset),
+              child: Transform.scale(
+                scale: scale,
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 4,
+                  child: Image.network(
+                    widget.imageUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

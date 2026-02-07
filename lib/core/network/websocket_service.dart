@@ -129,6 +129,25 @@ class WebSocketService {
     await _connectionManager.connect();
   }
 
+  /// Ensures WebSocket is connected, attempting to connect if necessary.
+  ///
+  /// Returns true if connected, false if connection failed.
+  Future<bool> ensureConnected({Duration timeout = const Duration(seconds: 5)}) async {
+    if (isConnected) return true;
+
+    // Try to connect
+    await connect();
+
+    // Wait for connection with timeout
+    final endTime = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(endTime)) {
+      if (isConnected) return true;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    return isConnected;
+  }
+
   /// Disconnects from the WebSocket server.
   void disconnect() {
     _subscriptionManager.dispose();
@@ -175,15 +194,15 @@ class WebSocketService {
   // ============================================================
 
   /// Sends a text message.
-  void sendMessage({
+  ///
+  /// Returns true if the message was sent successfully, false if not connected.
+  bool sendMessage({
     required int roomId,
-    required int senderId,
     required String content,
   }) {
-    _messageSender.sendMessage(
+    return _messageSender.sendMessage(
       stompClient: _connectionManager.stompClient,
       roomId: roomId,
-      senderId: senderId,
       content: content,
     );
   }
@@ -191,7 +210,6 @@ class WebSocketService {
   /// Sends a file message.
   void sendFileMessage({
     required int roomId,
-    required int senderId,
     required String fileUrl,
     required String fileName,
     required int fileSize,
@@ -201,7 +219,6 @@ class WebSocketService {
     _messageSender.sendFileMessage(
       stompClient: _connectionManager.stompClient,
       roomId: roomId,
-      senderId: senderId,
       fileUrl: fileUrl,
       fileName: fileName,
       fileSize: fileSize,
@@ -213,13 +230,11 @@ class WebSocketService {
   /// Adds a reaction to a message.
   void addReaction({
     required int messageId,
-    required int userId,
     required String emoji,
   }) {
     _messageSender.addReaction(
       stompClient: _connectionManager.stompClient,
       messageId: messageId,
-      userId: userId,
       emoji: emoji,
     );
   }
@@ -227,13 +242,11 @@ class WebSocketService {
   /// Removes a reaction from a message.
   void removeReaction({
     required int messageId,
-    required int userId,
     required String emoji,
   }) {
     _messageSender.removeReaction(
       stompClient: _connectionManager.stompClient,
       messageId: messageId,
-      userId: userId,
       emoji: emoji,
     );
   }
@@ -241,13 +254,11 @@ class WebSocketService {
   /// Sends typing status indicator.
   void sendTypingStatus({
     required int roomId,
-    required int userId,
     required bool isTyping,
   }) {
     _messageSender.sendTypingStatus(
       stompClient: _connectionManager.stompClient,
       roomId: roomId,
-      userId: userId,
       isTyping: isTyping,
     );
   }
@@ -255,36 +266,30 @@ class WebSocketService {
   /// Sends presence ping (TTL renewal).
   void sendPresencePing({
     required int roomId,
-    required int userId,
   }) {
     _messageSender.sendPresencePing(
       stompClient: _connectionManager.stompClient,
       roomId: roomId,
-      userId: userId,
     );
   }
 
   /// Sends presence inactive (TTL release).
   void sendPresenceInactive({
     required int roomId,
-    required int userId,
   }) {
     _messageSender.sendPresenceInactive(
       stompClient: _connectionManager.stompClient,
       roomId: roomId,
-      userId: userId,
     );
   }
 
   /// Sends mark as read notification.
   void sendMarkAsRead({
     required int roomId,
-    required int userId,
   }) {
     _messageSender.sendMarkAsRead(
       stompClient: _connectionManager.stompClient,
       roomId: roomId,
-      userId: userId,
     );
   }
 

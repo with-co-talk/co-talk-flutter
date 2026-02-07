@@ -988,8 +988,7 @@ void main() {
         errorMessage: 'Error',
       );
 
-      // props: status, roomId, currentUserId, messages, nextCursor, hasMore, isSending, errorMessage, typingUsers, isReadMarked, hasLeft, isOtherUserLeft, otherUserId, otherUserNickname, isReinviting, reinviteSuccess, isUploadingFile, uploadProgress, isOfflineData
-      expect(state.props.length, 19);
+      expect(state.props.length, 20);
     });
 
     test('equality works', () {

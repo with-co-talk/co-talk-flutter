@@ -4,23 +4,17 @@ import 'package:dio/dio.dart';
 import 'package:co_talk_flutter/core/network/dio_client.dart';
 import 'package:co_talk_flutter/core/errors/exceptions.dart';
 import 'package:co_talk_flutter/data/datasources/remote/chat_remote_datasource.dart';
-import 'package:co_talk_flutter/data/datasources/local/auth_local_datasource.dart';
 import 'package:co_talk_flutter/data/models/message_model.dart';
 
 class MockDioClient extends Mock implements DioClient {}
-class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
 
 void main() {
   late MockDioClient mockDioClient;
-  late MockAuthLocalDataSource mockAuthLocalDataSource;
   late ChatRemoteDataSourceImpl dataSource;
 
   setUp(() {
     mockDioClient = MockDioClient();
-    mockAuthLocalDataSource = MockAuthLocalDataSource();
-    // 기본적으로 userId 1을 반환하도록 설정
-    when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
-    dataSource = ChatRemoteDataSourceImpl(mockDioClient, mockAuthLocalDataSource);
+    dataSource = ChatRemoteDataSourceImpl(mockDioClient);
   });
 
   group('ChatRemoteDataSource', () {
@@ -95,10 +89,8 @@ void main() {
         expect(result.type, 'DIRECT');
       });
 
-      test('includes userId1 in request when creating chat room', () async {
-        // Given: 현재 사용자 ID가 1이고, 상대방 ID가 2인 경우
-        when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
-        
+      test('includes only userId2 in request when creating chat room', () async {
+        // Given: userId1 (current user) is extracted from JWT, only userId2 is sent
         Map<String, dynamic>? capturedData;
         when(() => mockDioClient.post(
               any(),
@@ -118,10 +110,10 @@ void main() {
         // When: 채팅방 생성 요청
         await dataSource.createDirectChatRoom(2);
 
-        // Then: 요청 데이터에 userId1과 userId2가 모두 포함되어야 함
+        // Then: 요청 데이터에 userId2만 포함되어야 함 (userId1은 JWT에서 추출)
         expect(capturedData, isNotNull, reason: 'Request data should be captured');
-        expect(capturedData!['userId1'], equals(1), reason: 'userId1 should be 1');
         expect(capturedData!['userId2'], equals(2), reason: 'userId2 should be 2');
+        expect(capturedData!.containsKey('userId1'), isFalse, reason: 'userId1 should not be in request (extracted from JWT)');
       });
     });
 
