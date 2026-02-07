@@ -21,8 +21,10 @@ import '../core/network/dio_client.dart' as _i393;
 import '../core/network/websocket/websocket_event_parser.dart' as _i60;
 import '../core/network/websocket_service.dart' as _i682;
 import '../core/router/app_router.dart' as _i877;
+import '../core/services/active_room_tracker.dart' as _i480;
 import '../core/services/desktop_notification_bridge.dart' as _i396;
 import '../core/services/fcm_service.dart' as _i809;
+import '../core/services/image_editor_service.dart' as _i413;
 import '../core/services/notification_click_handler.dart' as _i774;
 import '../core/services/notification_service.dart' as _i570;
 import '../core/window/window_focus_tracker.dart' as _i156;
@@ -58,6 +60,7 @@ import '../domain/repositories/settings_repository.dart' as _i977;
 import '../presentation/blocs/auth/auth_bloc.dart' as _i525;
 import '../presentation/blocs/chat/chat_list_bloc.dart' as _i995;
 import '../presentation/blocs/chat/chat_room_bloc.dart' as _i995;
+import '../presentation/blocs/chat/media_gallery_bloc.dart' as _i580;
 import '../presentation/blocs/chat/message_search/message_search_bloc.dart'
     as _i487;
 import '../presentation/blocs/friend/friend_bloc.dart' as _i367;
@@ -93,6 +96,10 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i156.WindowFocusTracker>(
       () => registerModule.windowFocusTracker,
     );
+    gh.lazySingleton<_i413.ImageEditorService>(
+      () => _i413.ImageEditorService(),
+    );
+    gh.lazySingleton<_i480.ActiveRoomTracker>(() => _i480.ActiveRoomTracker());
     gh.lazySingleton<_i632.ThemeLocalDataSource>(
       () => _i632.ThemeLocalDataSourceImpl(),
     );
@@ -166,6 +173,9 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i601.ChatLocalDataSource>(),
       ),
     );
+    gh.factory<_i580.MediaGalleryBloc>(
+      () => _i580.MediaGalleryBloc(gh<_i397.ChatRemoteDataSource>()),
+    );
     gh.lazySingleton<_i800.AuthRepository>(
       () => _i74.AuthRepositoryImpl(
         gh<_i633.AuthRemoteDataSource>(),
@@ -200,14 +210,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i217.ProfileRepository>(
       () => _i953.ProfileRepositoryImpl(gh<_i710.ProfileRemoteDataSource>()),
     );
-    gh.lazySingleton<_i809.FcmService>(
-      () => _i809.FcmServiceImpl(
-        messaging: gh<_i892.FirebaseMessaging>(),
-        notificationService: gh<_i570.NotificationService>(),
-        settingsRepository: gh<_i977.SettingsRepository>(),
-      ),
-      registerFor: {_mobile},
-    );
     gh.lazySingleton<_i995.ChatListBloc>(
       () => _i995.ChatListBloc(
         gh<_i792.ChatRepository>(),
@@ -227,20 +229,21 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i800.AuthRepository>(),
       ),
     );
+    gh.lazySingleton<_i809.FcmService>(
+      () => _i809.FcmServiceImpl(
+        messaging: gh<_i892.FirebaseMessaging>(),
+        notificationService: gh<_i570.NotificationService>(),
+        settingsRepository: gh<_i977.SettingsRepository>(),
+        activeRoomTracker: gh<_i480.ActiveRoomTracker>(),
+      ),
+      registerFor: {_mobile},
+    );
     gh.lazySingleton<_i396.DesktopNotificationBridge>(
       () => _i396.DesktopNotificationBridge(
         notificationService: gh<_i570.NotificationService>(),
         webSocketService: gh<_i682.WebSocketService>(),
         windowFocusTracker: gh<_i156.WindowFocusTracker>(),
         settingsRepository: gh<_i977.SettingsRepository>(),
-      ),
-    );
-    gh.factory<_i995.ChatRoomBloc>(
-      () => _i995.ChatRoomBloc(
-        gh<_i792.ChatRepository>(),
-        gh<_i682.WebSocketService>(),
-        gh<_i860.AuthLocalDataSource>(),
-        gh<_i396.DesktopNotificationBridge>(),
       ),
     );
     gh.factory<_i256.ProfileBloc>(
@@ -258,6 +261,15 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i396.DesktopNotificationBridge>(),
       ),
     );
+    gh.factory<_i995.ChatRoomBloc>(
+      () => _i995.ChatRoomBloc(
+        gh<_i792.ChatRepository>(),
+        gh<_i682.WebSocketService>(),
+        gh<_i860.AuthLocalDataSource>(),
+        gh<_i396.DesktopNotificationBridge>(),
+        gh<_i480.ActiveRoomTracker>(),
+      ),
+    );
     gh.lazySingleton<_i877.AppRouter>(
       () => _i877.AppRouter(gh<_i525.AuthBloc>()),
     );
@@ -265,6 +277,7 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i774.NotificationClickHandler(
         notificationService: gh<_i570.NotificationService>(),
         appRouter: gh<_i877.AppRouter>(),
+        activeRoomTracker: gh<_i480.ActiveRoomTracker>(),
       ),
     );
     return this;

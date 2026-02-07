@@ -14,6 +14,9 @@ import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_event.dart';
 import '../../../widgets/link_preview_card.dart';
 import '../../../widgets/link_preview_loader.dart';
+import '../../../widgets/reaction_display.dart';
+import '../../../widgets/reaction_picker.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 
 /// A message bubble widget that displays different types of messages.
 /// Handles text, image, and file messages with appropriate styling.
@@ -227,8 +230,10 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
-  /// Shows image options bottom sheet (fullscreen, save to gallery)
+  /// Shows image options bottom sheet (fullscreen, save to gallery, delete)
   void _showImageOptions(BuildContext context, String imageUrl) {
+    final canDelete = isMe && !message.isDeleted && !_isEditTimeExpired;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -266,6 +271,15 @@ class MessageBubble extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _saveImageToGallery(context, imageUrl);
+                  },
+                ),
+              if (canDelete)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _showDeleteConfirmDialog(context);
                   },
                 ),
               const SizedBox(height: 8),
@@ -312,6 +326,57 @@ class MessageBubble extends StatelessWidget {
         );
       }
     }
+  }
+
+  /// Shows file options bottom sheet (download, delete)
+  void _showFileOptions(BuildContext context, String fileUrl, String? fileName) {
+    final canDelete = isMe && !message.isDeleted && !_isEditTimeExpired;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.download_rounded),
+                title: const Text('다운로드'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _downloadFile(context, fileUrl, fileName);
+                },
+              ),
+              if (canDelete)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _showDeleteConfirmDialog(context);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// Downloads file by opening in browser
@@ -449,6 +514,122 @@ class MessageBubble extends StatelessWidget {
             child: const Text('삭제'),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Shows reaction picker on long press
+  void _showReactionPicker(BuildContext context) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => GestureDetector(
+        onTap: () => overlayEntry.remove(),
+        behavior: HitTestBehavior.opaque,
+        child: Material(
+          color: Colors.transparent,
+          child: Stack(
+            children: [
+              Positioned(
+                // Position near the message
+                top: 100, // You may need to calculate this based on message position
+                left: isMe ? null : 60,
+                right: isMe ? 16 : null,
+                child: ReactionPicker(
+                  onEmojiSelected: (emoji) {
+                    overlayEntry.remove();
+                    _addReaction(context, emoji);
+                  },
+                  onMorePressed: () {
+                    overlayEntry.remove();
+                    _showFullEmojiPicker(context);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+  }
+
+  /// Adds a reaction to the message
+  void _addReaction(BuildContext context, String emoji) {
+    context.read<ChatRoomBloc>().add(ReactionAddRequested(
+      messageId: message.id,
+      emoji: emoji,
+    ));
+  }
+
+  /// Toggles reaction (add if not present, remove if already added by current user)
+  void _toggleReaction(BuildContext context, String emoji) {
+    final currentUserId = context.read<ChatRoomBloc>().state.currentUserId;
+    if (currentUserId == null) return;
+
+    final hasMyReaction = message.reactions.any(
+      (r) => r.userId == currentUserId && r.emoji == emoji,
+    );
+
+    if (hasMyReaction) {
+      context.read<ChatRoomBloc>().add(ReactionRemoveRequested(
+        messageId: message.id,
+        emoji: emoji,
+      ));
+    } else {
+      context.read<ChatRoomBloc>().add(ReactionAddRequested(
+        messageId: message.id,
+        emoji: emoji,
+      ));
+    }
+  }
+
+  /// Shows full emoji picker in bottom sheet
+  void _showFullEmojiPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        builder: (_, controller) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Expanded(
+                child: EmojiPicker(
+                  onEmojiSelected: (category, emoji) {
+                    Navigator.pop(sheetContext);
+                    _addReaction(context, emoji.emoji);
+                  },
+                  config: const Config(
+                    height: 400,
+                    emojiViewConfig: EmojiViewConfig(
+                      columns: 8,
+                      emojiSizeMax: 28,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -591,6 +772,7 @@ class MessageBubble extends StatelessWidget {
     else if (message.type == MessageType.file && message.fileUrl != null) {
       bubbleWidget = GestureDetector(
         onTap: () => _downloadFile(context, message.fileUrl!, message.fileName),
+        onLongPress: () => _showFileOptions(context, message.fileUrl!, message.fileName),
         child: Container(
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.65,
@@ -753,81 +935,99 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    return GestureDetector(
-      onLongPress: isMe ? () => _showMessageOptions(context) : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Row(
-          mainAxisAlignment:
-              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // Other user's message: avatar + nickname + bubble + time
-            if (!isMe) ...[
-              GestureDetector(
-                onTap: () => context.push(AppRoutes.profileViewPath(message.senderId)),
-                child: CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.primaryLight,
-                  backgroundImage: message.senderAvatarUrl != null
-                      ? NetworkImage(message.senderAvatarUrl!)
-                      : null,
-                  child: message.senderAvatarUrl == null
-                      ? Text(
-                          message.senderNickname?.isNotEmpty == true
-                              ? message.senderNickname![0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Nickname (tap to go to profile)
-                    GestureDetector(
-                      onTap: () => context.push(AppRoutes.profileViewPath(message.senderId)),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 4),
-                        child: Text(
-                          message.senderNickname ?? '알 수 없음',
-                          style: TextStyle(
-                            color: context.textSecondaryColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Column(
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onLongPress: () {
+              // Long press shows reaction picker for everyone
+              _showReactionPicker(context);
+            },
+            onDoubleTap: isMe && !message.isDeleted && !_isEditTimeExpired
+                ? () => _showMessageOptions(context)
+                : null,
+            child: Row(
+              mainAxisAlignment:
+                  isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Other user's message: avatar + nickname + bubble + time
+                if (!isMe) ...[
+                  GestureDetector(
+                    onTap: () => context.push(AppRoutes.profileViewPath(message.senderId)),
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppColors.primaryLight,
+                      backgroundImage: message.senderAvatarUrl != null
+                          ? NetworkImage(message.senderAvatarUrl!)
+                          : null,
+                      child: message.senderAvatarUrl == null
+                          ? Text(
+                              message.senderNickname?.isNotEmpty == true
+                                  ? message.senderNickname![0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Nickname (tap to go to profile)
+                        GestureDetector(
+                          onTap: () => context.push(AppRoutes.profileViewPath(message.senderId)),
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 4, bottom: 4),
+                            child: Text(
+                              message.senderNickname ?? '알 수 없음',
+                              style: TextStyle(
+                                color: context.textSecondaryColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    // Bubble + time (KakaoTalk style: time on right of bubble)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(child: bubbleWidget),
-                        const SizedBox(width: 6),
-                        timeWidget,
+                        // Bubble + time (KakaoTalk style: time on right of bubble)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(child: bubbleWidget),
+                            const SizedBox(width: 6),
+                            timeWidget,
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-            ],
-            // My message: time + bubble (KakaoTalk style: time on left of bubble)
-            if (isMe) ...[
-              timeWidget,
-              const SizedBox(width: 6),
-              Flexible(child: bubbleWidget),
-            ],
-          ],
-        ),
+                  ),
+                ],
+                // My message: time + bubble (KakaoTalk style: time on left of bubble)
+                if (isMe) ...[
+                  timeWidget,
+                  const SizedBox(width: 6),
+                  Flexible(child: bubbleWidget),
+                ],
+              ],
+            ),
+          ),
+          // Reaction display
+          ReactionDisplay(
+            reactions: message.reactions,
+            currentUserId: context.read<ChatRoomBloc>().state.currentUserId ?? 0,
+            isMe: isMe,
+            onReactionTap: (emoji) => _toggleReaction(context, emoji),
+          ),
+        ],
       ),
     );
   }

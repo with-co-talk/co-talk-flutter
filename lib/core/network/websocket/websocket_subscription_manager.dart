@@ -223,9 +223,27 @@ class WebSocketSubscriptionManager {
     _profileUpdateSubscription = null;
   }
 
+  /// Called when the STOMP connection is lost (auto-disconnect).
+  ///
+  /// Moves active room subscriptions to the pending queue so they
+  /// can be restored on reconnection. Clears stale subscription refs.
+  void onDisconnected() {
+    if (kDebugMode) {
+      debugPrint('[WebSocket] onDisconnected: moving ${_roomSubscriptions.length} rooms to pending');
+    }
+    _pendingRoomSubscriptions.addAll(_roomSubscriptions.keys);
+    _roomSubscriptions.clear();
+    _chatListSubscription = null;
+    _readReceiptSubscription = null;
+    _onlineStatusSubscription = null;
+    _profileUpdateSubscription = null;
+  }
+
   /// Restores all subscriptions after reconnection.
   ///
-  /// Call this after STOMP connection is established.
+  /// Only processes pending room subscriptions (not active ones),
+  /// preventing duplicate STOMP subscriptions when the BLoC subscribes
+  /// independently after a foreground transition.
   void restoreSubscriptions({
     required StompClient stompClient,
     required StompFrameCallback Function(int roomId) onRoomMessage,
@@ -234,30 +252,23 @@ class WebSocketSubscriptionManager {
     required StompFrameCallback onOnlineStatusMessage,
     required StompFrameCallback onProfileUpdateMessage,
   }) {
-    // Restore room subscriptions
-    final roomIds = _roomSubscriptions.keys.toList();
-    _roomSubscriptions.clear();
-
-    for (final roomId in roomIds) {
-      _doSubscribeToRoom(
-        roomId: roomId,
-        stompClient: stompClient,
-        onMessage: onRoomMessage(roomId),
-      );
-    }
-
-    // Process pending subscriptions
+    // Only process pending subscriptions (rooms queued by onDisconnected or pre-connection requests).
+    // Do NOT touch _roomSubscriptions — the BLoC may have already subscribed fresh rooms.
     final pendingRoomIds = _pendingRoomSubscriptions.toList();
     if (kDebugMode && pendingRoomIds.isNotEmpty) {
-      debugPrint('[WebSocket] Processing ${pendingRoomIds.length} pending room subscriptions');
+      debugPrint('[WebSocket] Restoring ${pendingRoomIds.length} pending room subscriptions');
     }
 
     for (final roomId in pendingRoomIds) {
-      _doSubscribeToRoom(
-        roomId: roomId,
-        stompClient: stompClient,
-        onMessage: onRoomMessage(roomId),
-      );
+      if (!_roomSubscriptions.containsKey(roomId)) {
+        _doSubscribeToRoom(
+          roomId: roomId,
+          stompClient: stompClient,
+          onMessage: onRoomMessage(roomId),
+        );
+      } else {
+        _pendingRoomSubscriptions.remove(roomId);
+      }
     }
 
     // Restore user channel subscription

@@ -27,6 +27,7 @@ class ChatListState extends Equatable {
     ChatListStatus? status,
     List<ChatRoom>? chatRooms,
     String? errorMessage,
+    bool clearErrorMessage = false,
   }) {
     final newRooms = chatRooms ?? this.chatRooms;
     // chatRooms가 변경되면 totalUnreadCount 재계산
@@ -37,7 +38,7 @@ class ChatListState extends Equatable {
     return ChatListState(
       status: status ?? this.status,
       chatRooms: newRooms,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
       cachedTotalUnreadCount: newTotalUnread,
     );
   }

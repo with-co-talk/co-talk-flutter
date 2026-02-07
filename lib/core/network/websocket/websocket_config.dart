@@ -13,10 +13,18 @@ class WebSocketConfig {
   static String get wsBaseUrl => ApiConstants.wsBaseUrl;
 
   /// Maximum reconnection attempts before giving up.
-  static const int maxReconnectAttempts = 5;
+  static const int maxReconnectAttempts = 20;
 
-  /// Delay between reconnection attempts.
-  static const Duration reconnectDelay = Duration(seconds: 3);
+  /// Initial delay for reconnection (exponential backoff base).
+  static const Duration initialReconnectDelay = Duration(seconds: 1);
+
+  /// Maximum delay between reconnection attempts.
+  static const Duration maxReconnectDelay = Duration(seconds: 30);
+
+  /// Timeout for a single connection attempt.
+  /// If connecting state persists beyond this duration, the attempt is
+  /// considered stale and a fresh connection is started.
+  static const Duration connectTimeout = Duration(seconds: 15);
 
   /// Delay after connection before processing subscriptions.
   /// Prevents StompBadStateException.

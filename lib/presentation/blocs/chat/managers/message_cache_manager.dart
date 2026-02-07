@@ -62,6 +62,59 @@ class MessageCacheManager {
     _isOfflineData = false;
   }
 
+  /// Refreshes cache from server for gap recovery (foreground return).
+  ///
+  /// Fetches the latest messages from server (no cursor = newest),
+  /// merges with existing cache (server data wins, pending preserved),
+  /// deduplicates by message ID, and returns whether new messages were found.
+  Future<bool> refreshFromServer(int roomId) async {
+    try {
+      final (serverMessages, nextCursor, hasMore) =
+          await _chatRepository.getMessages(
+        roomId,
+        size: AppConstants.messagePageSize,
+      );
+
+      _log('refreshFromServer: fetched ${serverMessages.length} messages');
+
+      if (serverMessages.isEmpty) return false;
+
+      // Preserve pending/failed messages (not yet confirmed by server)
+      final pendingMsgs =
+          _messages.where((m) => m.isPending || m.isFailed).toList();
+
+      // Merge: use server messages as the base, deduplicate
+      final serverIds = serverMessages.map((m) => m.id).toSet();
+      final existingIds = _messages.map((m) => m.id).toSet();
+
+      // Check if there are genuinely new messages
+      final hasNewMessages = serverIds.any((id) => !existingIds.contains(id));
+
+      // Build merged list: pending first, then server messages
+      // (pending messages have negative temp IDs so won't collide)
+      _messages = [...pendingMsgs, ...serverMessages];
+
+      // Deduplicate by id (keep first occurrence)
+      final seenIds = <int>{};
+      _messages = _messages.where((m) {
+        if (m.isPending || m.isFailed) return true; // always keep pending
+        if (seenIds.contains(m.id)) return false;
+        seenIds.add(m.id);
+        return true;
+      }).toList();
+
+      _nextCursor = nextCursor;
+      _hasMore = hasMore;
+      _isOfflineData = false;
+
+      _log('refreshFromServer: merged to ${_messages.length} messages, hasNew=$hasNewMessages');
+      return hasNewMessages;
+    } catch (e) {
+      _log('refreshFromServer failed: $e (keeping existing cache)');
+      return false;
+    }
+  }
+
   /// Loads more messages for pagination.
   Future<List<Message>> loadMoreMessages(int roomId) async {
     if (!_hasMore || _nextCursor == null) {
@@ -76,11 +129,19 @@ class MessageCacheManager {
         beforeMessageId: _nextCursor,
       );
 
-      _messages = [..._messages, ...messages];
+      // 중복 메시지 필터링 (이미 존재하는 메시지 ID 제외)
+      final existingIds = _messages.map((m) => m.id).toSet();
+      final newMessages = messages.where((m) => !existingIds.contains(m.id)).toList();
+
+      if (newMessages.length != messages.length) {
+        _log('Filtered ${messages.length - newMessages.length} duplicate messages');
+      }
+
+      _messages = [..._messages, ...newMessages];
       _nextCursor = nextCursor;
       _hasMore = hasMore;
 
-      _log('Loaded ${messages.length} more messages. Total: ${_messages.length}');
+      _log('Loaded ${newMessages.length} more messages. Total: ${_messages.length}');
       return _messages;
     } catch (e) {
       _log('Failed to load more messages: $e');
@@ -89,7 +150,7 @@ class MessageCacheManager {
   }
 
   /// Adds a new message to the cache.
-  Future<void> addMessage(Message message) async {
+  void addMessage(Message message) {
     // Check if message already exists
     final existingIndex = _messages.indexWhere((m) => m.id == message.id);
 
@@ -106,12 +167,12 @@ class MessageCacheManager {
       _log('Added new message: id=${message.id}');
     }
 
-    // Save to local cache
-    try {
-      await _chatRepository.saveMessageLocally(message);
-    } catch (e) {
+    // Fire-and-forget: local DB write runs in background to avoid blocking BLoC event queue.
+    // In-memory cache is already updated above, so UI updates instantly.
+    _chatRepository.saveMessageLocally(message).catchError((e) {
       _log('Failed to save message locally: $e');
-    }
+      return null;
+    });
 
     _isOfflineData = false;
   }
@@ -142,6 +203,31 @@ class MessageCacheManager {
   /// Marks a message as deleted.
   void markMessageAsDeleted(int messageId) {
     updateMessage(messageId, (m) => m.copyWith(isDeleted: true));
+  }
+
+  /// Adds a reaction to a message.
+  void addReaction(int messageId, MessageReaction reaction) {
+    updateMessage(messageId, (m) {
+      // Check if reaction already exists
+      final exists = m.reactions.any(
+        (r) => r.userId == reaction.userId && r.emoji == reaction.emoji,
+      );
+      if (exists) return m;
+
+      return m.copyWith(reactions: [...m.reactions, reaction]);
+    });
+    _log('Added reaction to message $messageId: ${reaction.emoji}');
+  }
+
+  /// Removes a reaction from a message.
+  void removeReaction(int messageId, int userId, String emoji) {
+    updateMessage(messageId, (m) {
+      final updatedReactions = m.reactions
+          .where((r) => !(r.userId == userId && r.emoji == emoji))
+          .toList();
+      return m.copyWith(reactions: updatedReactions);
+    });
+    _log('Removed reaction from message $messageId: $emoji');
   }
 
   /// Clears all cached messages.

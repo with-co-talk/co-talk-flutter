@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
 import '../../domain/repositories/settings_repository.dart';
+import 'active_room_tracker.dart';
 import 'notification_service.dart';
 
 /// FCM 푸시 알림 서비스 인터페이스
@@ -67,6 +68,7 @@ class FcmServiceImpl implements FcmService {
   final FirebaseMessaging _messaging;
   final NotificationService _notificationService;
   final SettingsRepository _settingsRepository;
+  final ActiveRoomTracker _activeRoomTracker;
 
   StreamSubscription<RemoteMessage>? _foregroundMessageSubscription;
   StreamSubscription<RemoteMessage>? _messageOpenedAppSubscription;
@@ -76,9 +78,11 @@ class FcmServiceImpl implements FcmService {
     required FirebaseMessaging messaging,
     required NotificationService notificationService,
     required SettingsRepository settingsRepository,
+    required ActiveRoomTracker activeRoomTracker,
   })  : _messaging = messaging,
         _notificationService = notificationService,
-        _settingsRepository = settingsRepository;
+        _settingsRepository = settingsRepository,
+        _activeRoomTracker = activeRoomTracker;
 
   /// FCM 서비스 초기화
   ///
@@ -178,6 +182,18 @@ class FcmServiceImpl implements FcmService {
   Future<void> _handleForegroundMessageAsync(RemoteMessage message) async {
     if (kDebugMode) {
       debugPrint('[FCM] Foreground message received: ${message.messageId}');
+    }
+
+    // Suppress notification if the user is currently viewing this chat room
+    final chatRoomIdStr = message.data['chatRoomId'];
+    if (chatRoomIdStr != null) {
+      final chatRoomId = int.tryParse(chatRoomIdStr);
+      if (chatRoomId != null && chatRoomId == _activeRoomTracker.activeRoomId) {
+        if (kDebugMode) {
+          debugPrint('[FCM] Suppressing notification for active room: $chatRoomId');
+        }
+        return;
+      }
     }
 
     final notification = message.notification;

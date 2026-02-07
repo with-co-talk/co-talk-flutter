@@ -34,14 +34,21 @@ class MessageHandler {
 
   /// Sends a text message.
   ///
+  /// Pass [userId] from BLoC state to avoid an async storage read on every send.
   /// Throws an exception if the message fails to send (e.g., WebSocket not connected).
+  ///
+  /// If the first send attempt fails (e.g., STOMP connection dropped between
+  /// the isConnected check and the actual send), retries once after reconnecting.
   Future<void> sendMessage({
     required int roomId,
     required String content,
+    int? userId,
   }) async {
-    final userId = await _authLocalDataSource.getUserId();
     if (userId == null) {
-      throw Exception('사용자 정보를 찾을 수 없습니다.');
+      userId = await _authLocalDataSource.getUserId();
+      if (userId == null) {
+        throw Exception('사용자 정보를 찾을 수 없습니다.');
+      }
     }
 
     _log('Sending message: roomId=$roomId, isConnected=${_webSocketService.isConnected}');
@@ -49,7 +56,9 @@ class MessageHandler {
     // 연결이 안 되어 있으면 재연결 시도
     if (!_webSocketService.isConnected) {
       _log('WebSocket not connected, attempting to reconnect...');
-      final connected = await _webSocketService.ensureConnected();
+      final connected = await _webSocketService.ensureConnected(
+        timeout: const Duration(seconds: 10),
+      );
       if (!connected) {
         _log('Failed to reconnect WebSocket');
         throw Exception('메시지 전송에 실패했습니다. 네트워크 연결을 확인해주세요.');
@@ -57,14 +66,30 @@ class MessageHandler {
       _log('WebSocket reconnected successfully');
     }
 
-    final success = _webSocketService.sendMessage(
+    var success = _webSocketService.sendMessage(
       roomId: roomId,
       content: content,
     );
 
+    // Retry once: the STOMP connection may have dropped between isConnected
+    // check and the actual send (stale stompClient.connected state).
     if (!success) {
-      _log('Failed to send message: WebSocket send returned false');
-      throw Exception('메시지 전송에 실패했습니다. 네트워크 연결을 확인해주세요.');
+      _log('First send attempt failed, retrying after ensureConnected...');
+      final reconnected = await _webSocketService.ensureConnected(
+        timeout: const Duration(seconds: 10),
+      );
+      if (reconnected) {
+        success = _webSocketService.sendMessage(
+          roomId: roomId,
+          content: content,
+        );
+      }
+      if (!success) {
+        _log('Retry also failed, giving up');
+        throw Exception('메시지 전송에 실패했습니다. 네트워크 연결을 확인해주세요.');
+      }
+      _log('Message sent successfully on retry');
+      return;
     }
 
     _log('Message sent successfully');
