@@ -33,6 +33,8 @@ class MessageHandler {
   }
 
   /// Sends a text message.
+  ///
+  /// Throws an exception if the message fails to send (e.g., WebSocket not connected).
   Future<void> sendMessage({
     required int roomId,
     required String content,
@@ -42,12 +44,30 @@ class MessageHandler {
       throw Exception('사용자 정보를 찾을 수 없습니다.');
     }
 
-    _log('Sending message: roomId=$roomId, content=$content');
-    _webSocketService.sendMessage(
+    _log('Sending message: roomId=$roomId, isConnected=${_webSocketService.isConnected}');
+
+    // 연결이 안 되어 있으면 재연결 시도
+    if (!_webSocketService.isConnected) {
+      _log('WebSocket not connected, attempting to reconnect...');
+      final connected = await _webSocketService.ensureConnected();
+      if (!connected) {
+        _log('Failed to reconnect WebSocket');
+        throw Exception('메시지 전송에 실패했습니다. 네트워크 연결을 확인해주세요.');
+      }
+      _log('WebSocket reconnected successfully');
+    }
+
+    final success = _webSocketService.sendMessage(
       roomId: roomId,
-      senderId: userId,
       content: content,
     );
+
+    if (!success) {
+      _log('Failed to send message: WebSocket send returned false');
+      throw Exception('메시지 전송에 실패했습니다. 네트워크 연결을 확인해주세요.');
+    }
+
+    _log('Message sent successfully');
   }
 
   /// Updates an existing message.

@@ -94,8 +94,11 @@ class MessageCacheManager {
     final existingIndex = _messages.indexWhere((m) => m.id == message.id);
 
     if (existingIndex != -1) {
-      // Update existing message
-      _messages[existingIndex] = message;
+      // Update existing message (create new list for Equatable compatibility)
+      _messages = [
+        for (int i = 0; i < _messages.length; i++)
+          if (i == existingIndex) message else _messages[i],
+      ];
       _log('Updated existing message: id=${message.id}');
     } else {
       // Add new message at the beginning
@@ -150,8 +153,122 @@ class MessageCacheManager {
     _log('Cache cleared');
   }
 
-  /// Gets the last message ID in the cache.
-  int? get lastMessageId => _messages.isNotEmpty ? _messages.first.id : null;
+  /// Syncs the cache with external messages and pagination state (for tests or state recovery).
+  void syncMessages(List<Message> messages, {int? nextCursor, bool? hasMore}) {
+    _messages = List.from(messages);
+    if (nextCursor != null) _nextCursor = nextCursor;
+    if (hasMore != null) _hasMore = hasMore;
+    _log('Synced ${messages.length} messages (cursor=$nextCursor, hasMore=$hasMore)');
+  }
+
+  // ============================================================
+  // Pending Message Management (낙관적 UI용)
+  // ============================================================
+
+  /// Adds a pending message to the cache (optimistic UI).
+  void addPendingMessage(Message message) {
+    _messages = [message, ..._messages];
+    _log('Added pending message: localId=${message.localId}');
+  }
+
+  /// Updates a pending message's send status.
+  void updatePendingMessageStatus(String localId, MessageSendStatus status) {
+    _messages = _messages.map((m) {
+      if (m.localId == localId) {
+        _log('Updated pending message status: localId=$localId, status=$status');
+        return m.copyWith(sendStatus: status);
+      }
+      return m;
+    }).toList();
+  }
+
+  /// Replaces a pending message with the real message from server.
+  /// Returns true if a pending message was found and replaced.
+  ///
+  /// Matching criteria:
+  /// - Same content
+  /// - Created within 60 seconds of the real message
+  /// - If multiple matches, select the OLDEST one (FIFO)
+  bool replacePendingMessageWithReal(String content, Message realMessage) {
+    // Find all pending messages with matching content within time window
+    final matchingIndices = <int>[];
+    const maxTimeDiff = Duration(seconds: 60);
+
+    for (int i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      if (m.isPending && m.content == content) {
+        final timeDiff = realMessage.createdAt.difference(m.createdAt).abs();
+        if (timeDiff <= maxTimeDiff) {
+          matchingIndices.add(i);
+        }
+      }
+    }
+
+    if (matchingIndices.isEmpty) {
+      return false;
+    }
+
+    // Select the OLDEST matching pending message (FIFO ordering)
+    // Since messages are added at the beginning, the oldest is at the highest index
+    final pendingIndex = matchingIndices.reduce((a, b) => a > b ? a : b);
+    final pendingMessage = _messages[pendingIndex];
+
+    _log('Replacing pending message (localId=${pendingMessage.localId}) with real message (id=${realMessage.id})');
+    // Create new list for Equatable compatibility
+    _messages = [
+      for (int i = 0; i < _messages.length; i++)
+        if (i == pendingIndex)
+          realMessage.copyWith(sendStatus: MessageSendStatus.sent)
+        else
+          _messages[i],
+    ];
+    return true;
+  }
+
+  /// Removes a pending message by localId.
+  void removePendingMessage(String localId) {
+    _messages = _messages.where((m) => m.localId != localId).toList();
+    _log('Removed pending message: localId=$localId');
+  }
+
+  /// Gets a pending message by localId.
+  Message? getPendingMessage(String localId) {
+    try {
+      return _messages.firstWhere((m) => m.localId == localId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Gets the last message ID in the cache (excluding pending messages).
+  int? get lastMessageId {
+    final realMessages = _messages.where((m) => !m.isPending && !m.isFailed);
+    return realMessages.isNotEmpty ? realMessages.first.id : null;
+  }
+
+  /// Marks pending messages as failed if they exceed the timeout.
+  /// Returns the list of localIds that were timed out.
+  List<String> timeoutPendingMessages({Duration timeout = const Duration(seconds: 30)}) {
+    final now = DateTime.now();
+    final timedOutLocalIds = <String>[];
+
+    _messages = _messages.map((m) {
+      if (m.isPending && m.localId != null) {
+        final elapsed = now.difference(m.createdAt);
+        if (elapsed > timeout) {
+          _log('Pending message timed out: localId=${m.localId}, elapsed=${elapsed.inSeconds}s');
+          timedOutLocalIds.add(m.localId!);
+          return m.copyWith(sendStatus: MessageSendStatus.failed);
+        }
+      }
+      return m;
+    }).toList();
+
+    return timedOutLocalIds;
+  }
+
+  /// Gets all pending messages.
+  List<Message> get pendingMessages => _messages.where((m) => m.isPending).toList();
 
   List<Message> get messages => _messages;
   int? get nextCursor => _nextCursor;

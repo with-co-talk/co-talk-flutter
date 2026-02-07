@@ -30,11 +30,10 @@ class PresenceManager {
   void startPresencePing(int roomId, int userId) {
     stopPresencePing();
 
-    _webSocketService.sendPresencePing(roomId: roomId, userId: userId);
+    _webSocketService.sendPresencePing(roomId: roomId);
     _presencePingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       _webSocketService.sendPresencePing(
         roomId: roomId,
-        userId: userId,
       );
     });
 
@@ -58,7 +57,7 @@ class PresenceManager {
   void sendPresenceInactive(int roomId, int userId) {
     _isViewingRoom = false;
     stopPresencePing();
-    _webSocketService.sendPresenceInactive(roomId: roomId, userId: userId);
+    _webSocketService.sendPresenceInactive(roomId: roomId);
     _log('Sent presence inactive for room $roomId');
   }
 
@@ -70,7 +69,6 @@ class PresenceManager {
   }) {
     _webSocketService.sendTypingStatus(
       roomId: roomId,
-      userId: userId,
       isTyping: isTyping,
     );
     _log('Sent typing status: isTyping=$isTyping');

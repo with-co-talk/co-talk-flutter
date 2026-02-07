@@ -6,6 +6,7 @@ import 'package:injectable/injectable.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../core/network/websocket_service.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
+import '../../../domain/entities/chat_room.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import 'chat_list_event.dart';
 import 'chat_list_state.dart';
@@ -58,9 +59,11 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
 
     try {
       final chatRooms = await _chatRepository.getChatRooms();
+      // 마지막 메시지 시간 기준 내림차순 정렬 (최신이 위)
+      final sortedChatRooms = _sortChatRoomsByActivity(chatRooms);
       emit(state.copyWith(
         status: ChatListStatus.success,
-        chatRooms: chatRooms,
+        chatRooms: sortedChatRooms,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -82,9 +85,11 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     _isRefreshing = true;
     try {
       final chatRooms = await _chatRepository.getChatRooms();
+      // 마지막 메시지 시간 기준 내림차순 정렬 (최신이 위)
+      final sortedChatRooms = _sortChatRoomsByActivity(chatRooms);
       emit(state.copyWith(
         status: ChatListStatus.success,
-        chatRooms: chatRooms,
+        chatRooms: sortedChatRooms,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -94,6 +99,17 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } finally {
       _isRefreshing = false;
     }
+  }
+
+  /// 채팅방을 마지막 메시지 시간 기준으로 정렬 (최신이 위)
+  List<ChatRoom> _sortChatRoomsByActivity(List<ChatRoom> chatRooms) {
+    final sorted = List<ChatRoom>.from(chatRooms);
+    sorted.sort((a, b) {
+      final aTime = a.lastMessageAt ?? a.createdAt;
+      final bTime = b.lastMessageAt ?? b.createdAt;
+      return bTime.compareTo(aTime);
+    });
+    return sorted;
   }
 
   void _scheduleRefresh() {
