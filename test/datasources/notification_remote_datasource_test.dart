@@ -31,7 +31,6 @@ void main() {
             ));
 
         await dataSource.registerFcmToken(
-          userId: 1,
           token: 'test_fcm_token',
           deviceType: 'ANDROID',
         );
@@ -39,7 +38,6 @@ void main() {
         verify(() => mockDioClient.post(
               '/devices/token',
               data: {
-                'userId': 1,
                 'token': 'test_fcm_token',
                 'deviceType': 'ANDROID',
               },
@@ -61,7 +59,6 @@ void main() {
 
         expect(
           () => dataSource.registerFcmToken(
-            userId: 1,
             token: 'test_fcm_token',
             deviceType: 'ANDROID',
           ),

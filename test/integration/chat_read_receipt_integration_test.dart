@@ -50,11 +50,9 @@ void main() {
       when(() => mockWebSocketService.unsubscribeFromUserChannel()).thenReturn(null);
       when(() => mockWebSocketService.sendPresencePing(
             roomId: any(named: 'roomId'),
-            userId: any(named: 'userId'),
           )).thenReturn(null);
       when(() => mockWebSocketService.sendPresenceInactive(
             roomId: any(named: 'roomId'),
-            userId: any(named: 'userId'),
           )).thenReturn(null);
       when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
       when(() => mockDesktopNotificationBridge.setActiveRoomId(any())).thenReturn(null);
@@ -354,7 +352,6 @@ void main() {
           );
           when(() => mockWebSocketService.sendPresencePing(
                 roomId: any(named: 'roomId'),
-                userId: any(named: 'userId'),
               )).thenReturn(null);
 
           final chatRoomBloc = createChatRoomBloc();

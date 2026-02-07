@@ -175,24 +175,21 @@ void main() {
   group('CreateChatRoomRequest', () {
     test('creates request with required fields', () {
       const request = CreateChatRoomRequest(
-        userId1: 1,
         userId2: 2,
       );
 
-      expect(request.userId1, 1);
       expect(request.userId2, 2);
     });
 
     test('toJson returns correct map', () {
       const request = CreateChatRoomRequest(
-        userId1: 1,
         userId2: 2,
       );
 
       final json = request.toJson();
 
-      expect(json['userId1'], 1);
       expect(json['userId2'], 2);
+      expect(json.containsKey('userId1'), isFalse, reason: 'userId1 should not be in JSON (extracted from JWT)');
     });
   });
 
@@ -306,13 +303,11 @@ void main() {
   group('CreateChatRoomRequest fromJson', () {
     test('parses json correctly', () {
       final json = {
-        'userId1': 1,
         'userId2': 2,
       };
 
       final request = CreateChatRoomRequest.fromJson(json);
 
-      expect(request.userId1, 1);
       expect(request.userId2, 2);
     });
   });

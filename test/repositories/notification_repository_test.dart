@@ -40,7 +40,6 @@ void main() {
         when(() => mockLocalDataSource.saveFcmToken(any()))
             .thenAnswer((_) async {});
         when(() => mockRemoteDataSource.registerFcmToken(
-              userId: any(named: 'userId'),
               token: any(named: 'token'),
               deviceType: any(named: 'deviceType'),
             )).thenAnswer((_) async {});
@@ -50,7 +49,6 @@ void main() {
         verify(() => mockFcmService.getToken()).called(1);
         verify(() => mockLocalDataSource.saveFcmToken('test_fcm_token')).called(1);
         verify(() => mockRemoteDataSource.registerFcmToken(
-              userId: 1,
               token: 'test_fcm_token',
               deviceType: 'ANDROID',
             )).called(1);
@@ -62,7 +60,6 @@ void main() {
         when(() => mockLocalDataSource.saveFcmToken(any()))
             .thenAnswer((_) async {});
         when(() => mockRemoteDataSource.registerFcmToken(
-              userId: any(named: 'userId'),
               token: any(named: 'token'),
               deviceType: any(named: 'deviceType'),
             )).thenAnswer((_) async {});
@@ -71,7 +68,6 @@ void main() {
 
         verify(() => mockLocalDataSource.saveFcmToken('test_fcm_token')).called(1);
         verify(() => mockRemoteDataSource.registerFcmToken(
-              userId: 1,
               token: 'test_fcm_token',
               deviceType: 'IOS',
             )).called(1);
@@ -84,7 +80,6 @@ void main() {
 
         verifyNever(() => mockLocalDataSource.saveFcmToken(any()));
         verifyNever(() => mockRemoteDataSource.registerFcmToken(
-              userId: any(named: 'userId'),
               token: any(named: 'token'),
               deviceType: any(named: 'deviceType'),
             ));
@@ -96,7 +91,6 @@ void main() {
         when(() => mockLocalDataSource.saveFcmToken(any()))
             .thenAnswer((_) async {});
         when(() => mockRemoteDataSource.registerFcmToken(
-              userId: any(named: 'userId'),
               token: any(named: 'token'),
               deviceType: any(named: 'deviceType'),
             )).thenAnswer((_) async {});
@@ -109,7 +103,6 @@ void main() {
 
         verify(() => mockLocalDataSource.saveFcmToken('new_fcm_token')).called(1);
         verify(() => mockRemoteDataSource.registerFcmToken(
-              userId: 1,
               token: 'new_fcm_token',
               deviceType: 'IOS',
             )).called(1);
@@ -176,7 +169,6 @@ void main() {
         when(() => mockLocalDataSource.saveFcmToken(any()))
             .thenAnswer((_) async {});
         when(() => mockRemoteDataSource.registerFcmToken(
-              userId: any(named: 'userId'),
               token: any(named: 'token'),
               deviceType: any(named: 'deviceType'),
             )).thenAnswer((_) async {});
@@ -191,7 +183,6 @@ void main() {
 
         verify(() => mockLocalDataSource.saveFcmToken('refreshed_token')).called(1);
         verify(() => mockRemoteDataSource.registerFcmToken(
-              userId: 1,
               token: 'refreshed_token',
               deviceType: 'ANDROID',
             )).called(1);

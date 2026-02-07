@@ -616,6 +616,8 @@ void main() {
 
     setUp(() {
       mockAuthLocalDataSource = MockAuthLocalDataSource();
+      when(() => mockAuthLocalDataSource.getUserId())
+          .thenAnswer((_) async => null);
       webSocketService = WebSocketService(mockAuthLocalDataSource);
     });
 
@@ -665,7 +667,6 @@ void main() {
     test('sendMessage does nothing when not connected', () {
       webSocketService.sendMessage(
         roomId: 1,
-        senderId: 2,
         content: 'Hello',
       );
 
@@ -676,7 +677,6 @@ void main() {
     test('sendFileMessage does nothing when not connected', () {
       webSocketService.sendFileMessage(
         roomId: 1,
-        senderId: 2,
         fileUrl: 'https://example.com/file.pdf',
         fileName: 'document.pdf',
         fileSize: 1024,
@@ -690,7 +690,6 @@ void main() {
     test('addReaction does nothing when not connected', () {
       webSocketService.addReaction(
         messageId: 1,
-        userId: 2,
         emoji: '👍',
       );
 
@@ -701,7 +700,6 @@ void main() {
     test('removeReaction does nothing when not connected', () {
       webSocketService.removeReaction(
         messageId: 1,
-        userId: 2,
         emoji: '👍',
       );
 
