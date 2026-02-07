@@ -1,0 +1,180 @@
+name: Build Windows MSIX
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Build environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - dev
+          - prod
+      certificate_sign:
+        description: 'Sign with certificate'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  FLUTTER_VERSION: '3.32.2'
+
+jobs:
+  # ===========================================
+  # 1단계: Flutter 분석 + 테스트
+  # ===========================================
+  test:
+    name: Test & Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run analyzer
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: flutter test
+
+  # ===========================================
+  # 2단계: Windows MSIX 빌드
+  # ===========================================
+  build-windows:
+    name: Build Windows MSIX
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Determine environment
+        id: env
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          fi
+
+      # 인증서 서명이 필요한 경우 (수동 트리거 + certificate_sign=true)
+      - name: Decode certificate
+        if: inputs.certificate_sign == true
+        shell: powershell
+        run: |
+          $pfxBytes = [System.Convert]::FromBase64String("${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}")
+          [System.IO.File]::WriteAllBytes("${{ github.workspace }}\certificate.pfx", $pfxBytes)
+
+      # MSIX 생성 (인증서 서명 있음)
+      - name: Create MSIX (signed)
+        if: inputs.certificate_sign == true
+        run: >
+          dart run msix:create
+          --certificate-path "${{ github.workspace }}\certificate.pfx"
+          --certificate-password "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}"
+          --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }}"
+
+      # MSIX 생성 (자체 서명 - 기본)
+      - name: Create MSIX (self-signed)
+        if: inputs.certificate_sign != true
+        run: >
+          dart run msix:create
+          --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }}"
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # 빌드 결과물 업로드
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoTalk-Windows-v${{ steps.version.outputs.version }}
+          path: build/windows/x64/runner/Release/CoTalk.msix
+          retention-days: 30
+
+  # ===========================================
+  # 3단계: GitHub Release 생성 (main 브랜치, 태그 푸시 시)
+  # ===========================================
+  release:
+    name: Create Release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download MSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CoTalk-Windows-v${{ steps.version.outputs.version }}
+          path: ./release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}-windows
+          name: Co-Talk Windows v${{ steps.version.outputs.version }}
+          body: |
+            ## Co-Talk Windows Desktop v${{ steps.version.outputs.version }}
+
+            ### 설치 방법
+            1. `CoTalk.msix` 파일을 다운로드합니다
+            2. 더블클릭하여 설치합니다
+            3. 자체 서명 인증서 설치를 허용합니다
+
+            ### 요구 사항
+            - Windows 10 버전 1809 이상
+          files: ./release/CoTalk.msix
+          draft: true
+          generate_release_notes: true

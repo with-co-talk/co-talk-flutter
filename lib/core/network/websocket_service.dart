@@ -131,26 +131,42 @@ class WebSocketService {
 
   /// Ensures WebSocket is connected, attempting to connect if necessary.
   ///
-  /// Returns true if connected, false if connection failed.
+  /// Returns true if connected, false if connection failed or timed out.
+  /// Uses stream-based waiting instead of busy-polling for efficiency.
   Future<bool> ensureConnected({Duration timeout = const Duration(seconds: 5)}) async {
     if (isConnected) return true;
 
-    // Try to connect
     await connect();
 
-    // Wait for connection with timeout
-    final endTime = DateTime.now().add(timeout);
-    while (DateTime.now().isBefore(endTime)) {
-      if (isConnected) return true;
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
+    // If connected immediately after connect(), return early
+    if (isConnected) return true;
 
-    return isConnected;
+    // Wait for connection state change instead of busy-polling
+    try {
+      await connectionState
+          .firstWhere((state) => state == WebSocketConnectionState.connected)
+          .timeout(timeout);
+      return true;
+    } on TimeoutException {
+      return isConnected;
+    }
+  }
+
+  /// Resets the reconnection attempt counter.
+  ///
+  /// Call this before reconnecting after returning from background
+  /// to ensure a fresh reconnection sequence.
+  void resetReconnectAttempts() {
+    _connectionManager.resetReconnectAttempts();
   }
 
   /// Disconnects from the WebSocket server.
+  ///
+  /// Uses [clearAll] instead of [dispose] to preserve [subscribedUserId]
+  /// for automatic user channel restoration on reconnect, while clearing
+  /// stale room subscriptions so the BLoC can subscribe fresh.
   void disconnect() {
-    _subscriptionManager.dispose();
+    _subscriptionManager.clearAll();
     _connectionManager.disconnect();
   }
 
@@ -320,7 +336,11 @@ class WebSocketService {
   }
 
   void _onDisconnected() {
-    // Subscriptions will be restored on reconnection via _onConnected
+    // Move active room subscriptions to pending queue so they can be
+    // restored on reconnection. This only matters for auto-disconnects
+    // (network drops). For intentional disconnects, clearAll() already
+    // cleared everything before this callback fires.
+    _subscriptionManager.onDisconnected();
   }
 
   // ============================================================

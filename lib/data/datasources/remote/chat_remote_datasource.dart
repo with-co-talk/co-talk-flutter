@@ -8,6 +8,7 @@ import '../../../core/network/dio_client.dart';
 import '../../../core/utils/date_parser.dart';
 import '../../models/chat_room_model.dart';
 import '../../models/message_model.dart';
+import '../../models/media_gallery_model.dart';
 import '../base_remote_datasource.dart';
 
 abstract class ChatRemoteDataSource {
@@ -32,6 +33,14 @@ abstract class ChatRemoteDataSource {
 
   /// 파일/이미지 메시지를 전송합니다.
   Future<MessageModel> sendFileMessage(SendFileMessageRequest request);
+
+  /// 채팅방의 미디어 갤러리를 조회합니다.
+  Future<MediaGalleryResponse> getMediaGallery(
+    int roomId,
+    MediaType type, {
+    int page = 0,
+    int size = 30,
+  });
 }
 
 @LazySingleton(as: ChatRemoteDataSource)
@@ -459,6 +468,45 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
       }
       throw ServerException(
         message: '파일 메시지 전송 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
+    }
+  }
+
+  @override
+  Future<MediaGalleryResponse> getMediaGallery(
+    int roomId,
+    MediaType type, {
+    int page = 0,
+    int size = 30,
+  }) async {
+    try {
+      final response = await _dioClient.get(
+        '${ApiConstants.chatMessages}/rooms/$roomId/media',
+        queryParameters: {
+          'type': type.apiValue,
+          'page': page,
+          'size': size,
+        },
+      );
+
+      final responseData = response.data;
+      if (responseData is! Map<String, dynamic>) {
+        throw ServerException(
+          message: '미디어 갤러리 응답 형식이 올바르지 않습니다',
+          statusCode: null,
+        );
+      }
+
+      return MediaGalleryResponse.fromJson(responseData);
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) {
+        rethrow;
+      }
+      throw ServerException(
+        message: '미디어 갤러리를 불러오는 중 오류가 발생했습니다: ${e.toString()}',
         statusCode: null,
       );
     }

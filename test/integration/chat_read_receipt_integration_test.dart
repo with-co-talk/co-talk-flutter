@@ -19,6 +19,7 @@ void main() {
     late MockWebSocketService mockWebSocketService;
     late MockAuthLocalDataSource mockAuthLocalDataSource;
     late MockDesktopNotificationBridge mockDesktopNotificationBridge;
+    late MockActiveRoomTracker mockActiveRoomTracker;
     late StreamController<WebSocketChatMessage> messageController;
     late StreamController<WebSocketReadEvent> readEventController;
     late StreamController<WebSocketChatRoomUpdateEvent> chatRoomUpdateController;
@@ -28,6 +29,7 @@ void main() {
       mockWebSocketService = MockWebSocketService();
       mockAuthLocalDataSource = MockAuthLocalDataSource();
       mockDesktopNotificationBridge = MockDesktopNotificationBridge();
+      mockActiveRoomTracker = MockActiveRoomTracker();
 
       messageController = StreamController<WebSocketChatMessage>.broadcast();
       readEventController = StreamController<WebSocketReadEvent>.broadcast();
@@ -56,6 +58,38 @@ void main() {
           )).thenReturn(null);
       when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
       when(() => mockDesktopNotificationBridge.setActiveRoomId(any())).thenReturn(null);
+      when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
+      when(() => mockActiveRoomTracker.activeRoomId = any()).thenReturn(null);
+
+      // ChatRoomBloc에서 구독하는 추가 WebSocket 스트림 mock
+      when(() => mockWebSocketService.messageDeletedEvents).thenAnswer(
+        (_) => const Stream<WebSocketMessageDeletedEvent>.empty(),
+      );
+      when(() => mockWebSocketService.reactions).thenAnswer(
+        (_) => const Stream<WebSocketReactionEvent>.empty(),
+      );
+      when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+      when(() => mockWebSocketService.ensureConnected(
+        timeout: any(named: 'timeout'),
+      )).thenAnswer((_) async => true);
+      when(() => mockWebSocketService.disconnect()).thenReturn(null);
+
+      // ChatRoomBloc._onOpened에서 호출하는 ChatRepository mock
+      when(() => mockChatRepository.getChatRoom(any()))
+          .thenAnswer((_) async => FakeEntities.directChatRoomWithoutOtherUser);
+      when(() => mockChatRepository.getLocalMessages(
+        any(),
+        limit: any(named: 'limit'),
+        beforeMessageId: any(named: 'beforeMessageId'),
+      )).thenAnswer((_) async => <Message>[]);
+      when(() => mockChatRepository.saveMessageLocally(any()))
+          .thenAnswer((_) async {});
+
+      // ChatListBloc._onSubscriptionStarted에서 구독하는 추가 WebSocket 스트림 mock
+      when(() => mockWebSocketService.onlineStatusEvents).thenAnswer(
+        (_) => const Stream<WebSocketOnlineStatusEvent>.empty(),
+      );
+      when(() => mockWebSocketService.connect()).thenAnswer((_) async => {});
     });
 
     tearDown(() {
@@ -69,6 +103,7 @@ void main() {
           mockWebSocketService,
           mockAuthLocalDataSource,
           mockDesktopNotificationBridge,
+          mockActiveRoomTracker,
         );
 
     ChatListBloc createChatListBloc() => ChatListBloc(
@@ -77,7 +112,12 @@ void main() {
           mockAuthLocalDataSource,
         );
 
-    group('실제 WebSocket 스트림 시뮬레이션', skip: 'TODO: 🔴 RED 통합 테스트 - 구현 완료 후 활성화', () {
+    setUpAll(() {
+      registerFallbackValue(FakeEntities.textMessage);
+      registerFallbackValue(const Duration(seconds: 5));
+    });
+
+    group('실제 WebSocket 스트림 시뮬레이션', () {
       blocTest<ChatRoomBloc, ChatRoomState>(
         '🔴 RED: markAsRead 후 서버가 chatRoomUpdates로 unreadCount=0을 보내면 ChatListBloc이 업데이트됨',
         build: () {
@@ -154,10 +194,11 @@ void main() {
         },
         wait: const Duration(milliseconds: 800),
         expect: () => [
-          const ChatListState(status: ChatListStatus.loading),
+          const ChatListState(status: ChatListStatus.loading, cachedTotalUnreadCount: 0),
           ChatListState(
             status: ChatListStatus.success,
             chatRooms: [FakeEntities.directChatRoom.copyWith(unreadCount: 5)],
+            cachedTotalUnreadCount: 5,
           ),
           // 서버가 보낸 unreadCount=0으로 업데이트됨, lastMessage와 lastMessageAt도 업데이트됨
           ChatListState(
@@ -169,6 +210,7 @@ void main() {
                 lastMessageAt: DateTime(2026, 1, 25),
               ),
             ],
+            cachedTotalUnreadCount: 0,
           ),
         ],
       );
@@ -272,13 +314,14 @@ void main() {
         },
         wait: const Duration(milliseconds: 800),
         expect: () => [
-          const ChatListState(status: ChatListStatus.loading),
+          const ChatListState(status: ChatListStatus.loading, cachedTotalUnreadCount: 0),
           ChatListState(
             status: ChatListStatus.success,
             chatRooms: [
               FakeEntities.directChatRoom.copyWith(id: 1, unreadCount: 3),
               FakeEntities.groupChatRoom.copyWith(id: 2, unreadCount: 5),
             ],
+            cachedTotalUnreadCount: 8, // 3 + 5
           ),
           // roomId=1만 unreadCount=0으로 업데이트, lastMessage와 lastMessageAt도 업데이트됨
           // roomId=2는 그대로 5
@@ -293,6 +336,7 @@ void main() {
               ),
               FakeEntities.groupChatRoom.copyWith(id: 2, unreadCount: 5),
             ],
+            cachedTotalUnreadCount: 5, // 0 + 5
           ),
         ],
       );

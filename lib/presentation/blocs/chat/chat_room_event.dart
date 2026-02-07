@@ -193,3 +193,52 @@ class PendingMessageDeleteRequested extends ChatRoomEvent {
 class PendingMessagesTimeoutChecked extends ChatRoomEvent {
   const PendingMessagesTimeoutChecked();
 }
+
+/// 같은 채팅방의 푸시알림 클릭 시 갭 복구 요청 이벤트
+class ChatRoomRefreshRequested extends ChatRoomEvent {
+  const ChatRoomRefreshRequested();
+}
+
+/// 리액션 추가 요청
+class ReactionAddRequested extends ChatRoomEvent {
+  final int messageId;
+  final String emoji;
+
+  const ReactionAddRequested({required this.messageId, required this.emoji});
+
+  @override
+  List<Object?> get props => [messageId, emoji];
+}
+
+/// 리액션 제거 요청
+class ReactionRemoveRequested extends ChatRoomEvent {
+  final int messageId;
+  final String emoji;
+
+  const ReactionRemoveRequested({required this.messageId, required this.emoji});
+
+  @override
+  List<Object?> get props => [messageId, emoji];
+}
+
+/// 리액션 이벤트 수신 (WebSocket)
+class ReactionEventReceived extends ChatRoomEvent {
+  final int messageId;
+  final int userId;
+  final String? userNickname;
+  final String emoji;
+  final bool isAdd; // true = added, false = removed
+  final int? reactionId;
+
+  const ReactionEventReceived({
+    required this.messageId,
+    required this.userId,
+    this.userNickname,
+    required this.emoji,
+    required this.isAdd,
+    this.reactionId,
+  });
+
+  @override
+  List<Object?> get props => [messageId, userId, userNickname, emoji, isAdd, reactionId];
+}

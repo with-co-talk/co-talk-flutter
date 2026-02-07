@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/notification_click_handler.dart';
 import '../../../core/window/window_focus_tracker.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
@@ -14,6 +16,7 @@ import '../../blocs/chat/chat_room_state.dart';
 import '../../blocs/chat/message_search/message_search_bloc.dart';
 import '../../blocs/chat/message_search/message_search_event.dart';
 import '../../widgets/message_search_widget.dart';
+import 'media_gallery_page.dart';
 import 'widgets/widgets.dart';
 
 /// Main chat room page that orchestrates message display, input, and BLoC subscriptions.
@@ -46,6 +49,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
   bool? _hasFocusTracking;
   bool _isSearchMode = false;
   bool _initialFocusEventSent = false;
+  bool _showScrollFab = false;
+  int _unreadWhileScrolled = 0;
 
   @override
   void initState() {
@@ -53,6 +58,18 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     WidgetsBinding.instance.addObserver(this);
     _chatRoomBloc = context.read<ChatRoomBloc>();
     _chatListBloc = context.read<ChatListBloc>();
+
+    // Register same-room refresh callback for notification taps
+    try {
+      final notificationClickHandler = GetIt.instance<NotificationClickHandler>();
+      notificationClickHandler.onSameRoomRefresh = (roomId) {
+        if (!_chatRoomBloc.isClosed) {
+          _chatRoomBloc.add(const ChatRoomRefreshRequested());
+        }
+      };
+    } catch (_) {
+      // NotificationClickHandler not registered in DI (e.g., tests)
+    }
 
     // Notify ChatListBloc of room entry (to prevent unreadCount increase)
     _chatListBloc.add(ChatRoomEntered(widget.roomId));
@@ -222,6 +239,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     if (!_chatListBloc.isClosed) {
       _chatListBloc.add(const ChatRoomExited());
     }
+    // Unregister same-room refresh callback
+    try {
+      final notificationClickHandler = GetIt.instance<NotificationClickHandler>();
+      notificationClickHandler.onSameRoomRefresh = null;
+    } catch (_) {}
     super.dispose();
   }
 
@@ -229,6 +251,17 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
       context.read<ChatRoomBloc>().add(const MessagesLoadMoreRequested());
+    }
+
+    // Show/hide scroll-to-bottom FAB based on scroll position
+    final showFab = _scrollController.position.pixels > 100;
+    if (showFab != _showScrollFab) {
+      setState(() {
+        _showScrollFab = showFab;
+        if (!showFab) {
+          _unreadWhileScrolled = 0; // Reset unread count when at bottom
+        }
+      });
     }
   }
 
@@ -286,6 +319,18 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 ),
               ),
               const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('미디어 모아보기'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => MediaGalleryPage(roomId: widget.roomId),
+                    ),
+                  );
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.exit_to_app, color: Colors.red),
                 title: const Text('채팅방 나가기', style: TextStyle(color: Colors.red)),
@@ -402,6 +447,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       _scrollToBottom();
                     });
+                  } else if (_showScrollFab) {
+                    // User is scrolled up, increment unread count
+                    setState(() {
+                      _unreadWhileScrolled++;
+                    });
                   }
                 }
               },
@@ -480,22 +530,40 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                   onMessageSelected: _onMessageSelected,
                   onClose: _toggleSearchMode,
                 )
-              : Column(
+              : Stack(
                   children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: _dismissKeyboard,
-                        behavior: HitTestBehavior.opaque,
-                        child: MessageList(scrollController: _scrollController),
-                      ),
+                    Column(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: _dismissKeyboard,
+                            behavior: HitTestBehavior.opaque,
+                            child: MessageList(scrollController: _scrollController),
+                          ),
+                        ),
+                        MessageInput(
+                          controller: _messageController,
+                          focusNode: _messageFocusNode,
+                          onSend: _sendMessage,
+                          onChanged: () {
+                            context.read<ChatRoomBloc>().add(const UserStartedTyping());
+                          },
+                        ),
+                      ],
                     ),
-                    MessageInput(
-                      controller: _messageController,
-                      focusNode: _messageFocusNode,
-                      onSend: _sendMessage,
-                      onChanged: () {
-                        context.read<ChatRoomBloc>().add(const UserStartedTyping());
-                      },
+                    Positioned(
+                      right: 16,
+                      bottom: 80,
+                      child: ScrollToBottomFab(
+                        visible: _showScrollFab,
+                        unreadCount: _unreadWhileScrolled,
+                        onTap: () {
+                          _scrollToBottom();
+                          setState(() {
+                            _unreadWhileScrolled = 0;
+                          });
+                        },
+                      ),
                     ),
                   ],
                 ),

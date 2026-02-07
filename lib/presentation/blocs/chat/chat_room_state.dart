@@ -24,6 +24,9 @@ class ChatRoomState extends Equatable {
   final double uploadProgress; // 파일 업로드 진행률 (0.0 ~ 1.0)
   final bool isOfflineData; // 오프라인 캐시 데이터 여부
   final Set<String> processedReadEvents; // 처리된 읽음 이벤트 (중복 방지용)
+  final bool isLoadingMore; // 추가 메시지 로딩 중 여부 (중복 요청 방지용)
+  final bool showScrollToBottomFab;
+  final int unreadWhileScrolled;
 
   const ChatRoomState({
     this.status = ChatRoomStatus.initial,
@@ -46,6 +49,9 @@ class ChatRoomState extends Equatable {
     this.uploadProgress = 0.0,
     this.isOfflineData = false,
     this.processedReadEvents = const {},
+    this.isLoadingMore = false,
+    this.showScrollToBottomFab = false,
+    this.unreadWhileScrolled = 0,
   });
 
   /// 누군가 타이핑 중인지 여부
@@ -69,6 +75,7 @@ class ChatRoomState extends Equatable {
     bool? hasMore,
     bool? isSending,
     String? errorMessage,
+    bool clearErrorMessage = false,
     Map<int, String>? typingUsers,
     bool? isReadMarked,
     bool? hasLeft,
@@ -81,6 +88,9 @@ class ChatRoomState extends Equatable {
     double? uploadProgress,
     bool? isOfflineData,
     Set<String>? processedReadEvents,
+    bool? isLoadingMore,
+    bool? showScrollToBottomFab,
+    int? unreadWhileScrolled,
   }) {
     return ChatRoomState(
       status: status ?? this.status,
@@ -90,7 +100,7 @@ class ChatRoomState extends Equatable {
       nextCursor: nextCursor ?? this.nextCursor,
       hasMore: hasMore ?? this.hasMore,
       isSending: isSending ?? this.isSending,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
       typingUsers: typingUsers ?? this.typingUsers,
       isReadMarked: isReadMarked ?? this.isReadMarked,
       hasLeft: hasLeft ?? this.hasLeft,
@@ -103,6 +113,9 @@ class ChatRoomState extends Equatable {
       uploadProgress: uploadProgress ?? this.uploadProgress,
       isOfflineData: isOfflineData ?? this.isOfflineData,
       processedReadEvents: processedReadEvents ?? this.processedReadEvents,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      showScrollToBottomFab: showScrollToBottomFab ?? this.showScrollToBottomFab,
+      unreadWhileScrolled: unreadWhileScrolled ?? this.unreadWhileScrolled,
     );
   }
 
@@ -128,5 +141,8 @@ class ChatRoomState extends Equatable {
         uploadProgress,
         isOfflineData,
         processedReadEvents,
+        isLoadingMore,
+        showScrollToBottomFab,
+        unreadWhileScrolled,
       ];
 }

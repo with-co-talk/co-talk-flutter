@@ -137,6 +137,49 @@ void main() {
 
       expect(state1, equals(state2));
     });
+
+    group('copyWith clearErrorMessage', () {
+      test('errorMessage can be cleared with clearErrorMessage: true', () {
+        final stateWithError = const ChatListState().copyWith(
+          errorMessage: 'some error',
+        );
+        expect(stateWithError.errorMessage, 'some error');
+
+        final clearedState = stateWithError.copyWith(clearErrorMessage: true);
+        expect(clearedState.errorMessage, isNull);
+      });
+
+      test('errorMessage stays when not explicitly cleared', () {
+        final stateWithError = const ChatListState().copyWith(
+          errorMessage: 'some error',
+        );
+
+        final updatedState = stateWithError.copyWith(
+          status: ChatListStatus.success,
+        );
+        expect(updatedState.errorMessage, 'some error');
+      });
+
+      test('clearErrorMessage: false does not clear error', () {
+        final stateWithError = const ChatListState().copyWith(
+          errorMessage: 'some error',
+        );
+        final updatedState = stateWithError.copyWith(clearErrorMessage: false);
+        expect(updatedState.errorMessage, 'some error');
+      });
+
+      test('clearErrorMessage: true takes precedence over new errorMessage', () {
+        final stateWithError = const ChatListState().copyWith(
+          errorMessage: 'old error',
+        );
+        final updatedState = stateWithError.copyWith(
+          errorMessage: 'new error',
+          clearErrorMessage: true,
+        );
+        // clearErrorMessage takes precedence - it clears to null
+        expect(updatedState.errorMessage, isNull);
+      });
+    });
   });
 
   group('ChatRoomEvent', () {
@@ -301,6 +344,46 @@ void main() {
       const state2 = ChatRoomState();
 
       expect(state1, equals(state2));
+    });
+
+    group('copyWith clearErrorMessage', () {
+      test('clearErrorMessage: true resets errorMessage to null', () {
+        final state = const ChatRoomState().copyWith(errorMessage: 'error');
+        expect(state.errorMessage, 'error');
+
+        final cleared = state.copyWith(clearErrorMessage: true);
+        expect(cleared.errorMessage, isNull);
+      });
+
+      test('clearErrorMessage: false preserves errorMessage', () {
+        final state = const ChatRoomState().copyWith(errorMessage: 'error');
+        final unchanged = state.copyWith(clearErrorMessage: false);
+        expect(unchanged.errorMessage, 'error');
+      });
+
+      test('new errorMessage overrides old when clearErrorMessage is false', () {
+        final state = const ChatRoomState().copyWith(errorMessage: 'old');
+        final updated = state.copyWith(errorMessage: 'new');
+        expect(updated.errorMessage, 'new');
+      });
+
+      test('errorMessage is sticky when not explicitly cleared', () {
+        final state = const ChatRoomState().copyWith(errorMessage: 'error');
+        final updated = state.copyWith(status: ChatRoomStatus.success);
+        expect(updated.errorMessage, 'error');
+      });
+
+      test('clearErrorMessage: true takes precedence over new errorMessage', () {
+        final stateWithError = const ChatRoomState().copyWith(
+          errorMessage: 'old error',
+        );
+        final updatedState = stateWithError.copyWith(
+          errorMessage: 'new error',
+          clearErrorMessage: true,
+        );
+        // clearErrorMessage takes precedence - it clears to null
+        expect(updatedState.errorMessage, isNull);
+      });
     });
   });
 

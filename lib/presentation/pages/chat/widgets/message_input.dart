@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:super_clipboard/super_clipboard.dart';
@@ -14,6 +12,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_event.dart';
 import '../../../blocs/chat/chat_room_state.dart';
+import '../../image_editor/image_editor_page.dart';
 
 /// Message input widget with attachment options and file upload support.
 class MessageInput extends StatefulWidget {
@@ -242,13 +241,7 @@ class _MessageInputState extends State<MessageInput> {
     );
   }
 
-  /// image_cropper is only supported on Android/iOS
-  bool get _isImageCropperSupported {
-    if (kIsWeb) return false;
-    return Platform.isAndroid || Platform.isIOS;
-  }
-
-  /// Picks and optionally crops image before sending
+  /// Picks and optionally edits image before sending
   Future<void> _pickImageAndSend(String sourcePath) async {
     if (!mounted) return;
 
@@ -258,11 +251,6 @@ class _MessageInputState extends State<MessageInput> {
           const SnackBar(content: Text('이미지 경로를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
         );
       }
-      return;
-    }
-
-    if (!_isImageCropperSupported) {
-      context.read<ChatRoomBloc>().add(FileAttachmentRequested(sourcePath));
       return;
     }
 
@@ -276,24 +264,20 @@ class _MessageInputState extends State<MessageInput> {
       return;
     }
 
-    try {
-      final cropped = await ImageCropper().cropImage(
-        sourcePath: sourcePath,
-        compressQuality: 85,
-        maxWidth: 1920,
-        maxHeight: 1920,
-      );
-      if (cropped != null && cropped.path.isNotEmpty && mounted) {
-        context.read<ChatRoomBloc>().add(FileAttachmentRequested(cropped.path));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 편집을 사용할 수 없습니다: $e')),
-        );
-        context.read<ChatRoomBloc>().add(FileAttachmentRequested(sourcePath));
-      }
-    }
+    // Open image editor with direct send callback
+    await Navigator.of(context).push<File?>(
+      MaterialPageRoute(
+        builder: (_) => ImageEditorPage(
+          imageFile: sourceFile,
+          onSend: (editedFile) {
+            if (mounted) {
+              context.read<ChatRoomBloc>().add(FileAttachmentRequested(editedFile.path));
+            }
+          },
+        ),
+        fullscreenDialog: true,
+      ),
+    );
   }
 
   /// Picks image from gallery

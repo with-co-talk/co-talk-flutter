@@ -40,6 +40,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     on<ChatRoomReadCompleted>(_onChatRoomReadCompleted);
     on<ChatRoomEntered>(_onChatRoomEntered);
     on<ChatRoomExited>(_onChatRoomExited);
+    on<ChatListResetRequested>(_onResetRequested);
     on<UserOnlineStatusChanged>(_onUserOnlineStatusChanged);
   }
 
@@ -151,7 +152,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     }
   }
 
-  void _onChatRoomUpdated(
+  Future<void> _onChatRoomUpdated(
     ChatRoomUpdated event,
     Emitter<ChatListState> emit,
   ) async {
@@ -191,7 +192,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     emit(state.copyWith(chatRooms: updatedChatRooms));
   }
 
-  void _onSubscriptionStarted(
+  Future<void> _onSubscriptionStarted(
     ChatListSubscriptionStarted event,
     Emitter<ChatListState> emit,
   ) async {
@@ -199,6 +200,8 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
 
     _currentUserId = event.userId;
     _chatRoomUpdateSubscription?.cancel();
+    _readReceiptSubscription?.cancel();
+    _onlineStatusSubscription?.cancel();
 
     if (!_webSocketService.isConnected) {
       _log('WebSocket not connected, attempting to connect...');
@@ -228,9 +231,6 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
       },
       onError: (error) {
         _log('Error in chatRoomUpdates stream: $error');
-        emit(state.copyWith(
-          errorMessage: '채팅방 업데이트 수신 중 오류가 발생했습니다: ${error.toString()}',
-        ));
       },
       cancelOnError: false,
     );
@@ -272,6 +272,24 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     _readReceiptSubscription = null;
     _onlineStatusSubscription?.cancel();
     _onlineStatusSubscription = null;
+  }
+
+  void _onResetRequested(
+    ChatListResetRequested event,
+    Emitter<ChatListState> emit,
+  ) {
+    _log('_onResetRequested: clearing all state');
+    _chatRoomUpdateSubscription?.cancel();
+    _chatRoomUpdateSubscription = null;
+    _readReceiptSubscription?.cancel();
+    _readReceiptSubscription = null;
+    _onlineStatusSubscription?.cancel();
+    _onlineStatusSubscription = null;
+    _refreshDebounceTimer?.cancel();
+    _currentUserId = null;
+    _currentlyOpenRoomId = null;
+    _isRefreshing = false;
+    emit(const ChatListState());
   }
 
   void _onChatRoomReadCompleted(

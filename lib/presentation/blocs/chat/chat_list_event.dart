@@ -98,6 +98,11 @@ class ChatRoomExited extends ChatListEvent {
   const ChatRoomExited();
 }
 
+/// 로그아웃 시 모든 상태와 구독을 초기화하는 이벤트
+class ChatListResetRequested extends ChatListEvent {
+  const ChatListResetRequested();
+}
+
 /// 사용자 온라인 상태 변경 이벤트
 class UserOnlineStatusChanged extends ChatListEvent {
   final int userId;

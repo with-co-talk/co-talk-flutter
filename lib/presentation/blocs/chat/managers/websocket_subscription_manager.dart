@@ -19,6 +19,7 @@ class WebSocketSubscriptionManager {
   StreamSubscription<WebSocketReadEvent>? _readEventSubscription;
   StreamSubscription<WebSocketTypingEvent>? _typingSubscription;
   StreamSubscription<WebSocketMessageDeletedEvent>? _messageDeletedSubscription;
+  StreamSubscription<WebSocketReactionEvent>? _reactionSubscription;
 
   int? _lastKnownMessageId;
   bool _isRoomSubscribed = false;
@@ -39,6 +40,7 @@ class WebSocketSubscriptionManager {
     required Function(WebSocketReadEvent) onReadEvent,
     required Function(WebSocketTypingEvent) onTypingEvent,
     required Function(WebSocketMessageDeletedEvent) onMessageDeleted,
+    required Function(WebSocketReactionEvent) onReactionEvent,
   }) {
     final isConnected = _webSocketService.isConnected;
     _log('subscribeToRoom: roomId=$roomId, lastMessageId=$lastMessageId, wsConnected=$isConnected');
@@ -91,6 +93,16 @@ class WebSocketSubscriptionManager {
         _log('Error in message deleted stream: $error');
       },
     );
+
+    _reactionSubscription = _webSocketService.reactions.listen(
+      (reactionEvent) {
+        _log('WebSocket reaction: messageId=${reactionEvent.messageId}, userId=${reactionEvent.userId}, emoji=${reactionEvent.emoji}, type=${reactionEvent.eventType}');
+        onReactionEvent(reactionEvent);
+      },
+      onError: (error) {
+        _log('Error in reaction event stream: $error');
+      },
+    );
   }
 
   /// Unsubscribes from the current room.
@@ -112,6 +124,8 @@ class WebSocketSubscriptionManager {
     _typingSubscription = null;
     _messageDeletedSubscription?.cancel();
     _messageDeletedSubscription = null;
+    _reactionSubscription?.cancel();
+    _reactionSubscription = null;
   }
 
   /// Converts WebSocket message to domain Message entity.
@@ -153,6 +167,12 @@ class WebSocketSubscriptionManager {
       return true;
     }
     return false;
+  }
+
+  /// Updates the last known message ID (e.g., after gap recovery).
+  void updateLastKnownMessageId(int messageId) {
+    _lastKnownMessageId = messageId;
+    _log('Updated lastKnownMessageId to $messageId');
   }
 
   bool get isRoomSubscribed => _isRoomSubscribed;
