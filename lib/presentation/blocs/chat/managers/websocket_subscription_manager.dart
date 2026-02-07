@@ -40,21 +40,26 @@ class WebSocketSubscriptionManager {
     required Function(WebSocketTypingEvent) onTypingEvent,
     required Function(WebSocketMessageDeletedEvent) onMessageDeleted,
   }) {
-    _log('subscribeToRoom: roomId=$roomId, lastMessageId=$lastMessageId');
+    final isConnected = _webSocketService.isConnected;
+    _log('subscribeToRoom: roomId=$roomId, lastMessageId=$lastMessageId, wsConnected=$isConnected');
 
     _lastKnownMessageId = lastMessageId;
     cancelSubscriptions();
 
     _webSocketService.subscribeToChatRoom(roomId);
     _isRoomSubscribed = true;
+    _log('subscribeToRoom: STOMP subscription requested, now listening to streams');
 
     _messageSubscription = _webSocketService.messages.listen(
       (wsMessage) {
-        _log('WebSocket message: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}, unreadCount=${wsMessage.unreadCount}');
+        _log('STREAM received message: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}, senderId=${wsMessage.senderId}, unreadCount=${wsMessage.unreadCount}');
         onMessage(wsMessage);
       },
       onError: (error) {
         _log('Error in message stream: $error');
+      },
+      onDone: () {
+        _log('Message stream closed');
       },
     );
 

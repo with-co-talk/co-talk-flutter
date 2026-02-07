@@ -69,17 +69,11 @@ Map<String, dynamic> _$ChatRoomMemberModelToJson(
 
 CreateChatRoomRequest _$CreateChatRoomRequestFromJson(
   Map<String, dynamic> json,
-) => CreateChatRoomRequest(
-  userId1: (json['userId1'] as num).toInt(),
-  userId2: (json['userId2'] as num).toInt(),
-);
+) => CreateChatRoomRequest(userId2: (json['userId2'] as num).toInt());
 
 Map<String, dynamic> _$CreateChatRoomRequestToJson(
   CreateChatRoomRequest instance,
-) => <String, dynamic>{
-  'userId1': instance.userId1,
-  'userId2': instance.userId2,
-};
+) => <String, dynamic>{'userId2': instance.userId2};
 
 CreateGroupChatRoomRequest _$CreateGroupChatRoomRequestFromJson(
   Map<String, dynamic> json,

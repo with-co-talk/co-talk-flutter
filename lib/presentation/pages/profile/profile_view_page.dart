@@ -288,6 +288,9 @@ class _ProfileViewContent extends StatelessWidget {
   }
 
   void _showBackgroundOptions(BuildContext context, User user) {
+    final profileBloc = context.read<ProfileBloc>();
+    final backgroundHistory = profileBloc.state.getCurrentHistory(ProfileHistoryType.background);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -315,6 +318,26 @@ class _ProfileViewContent extends StatelessWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
+              // 전체화면 보기
+              if (backgroundHistory?.url != null || user.backgroundUrl != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.fullscreen, color: Colors.blue),
+                  ),
+                  title: const Text('전체 화면 보기'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _showFullScreenImage(
+                      context,
+                      backgroundHistory?.url ?? user.backgroundUrl!,
+                    );
+                  },
+                ),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
@@ -347,6 +370,55 @@ class _ProfileViewContent extends StatelessWidget {
                   _openHistoryPage(context, ProfileHistoryType.background, user);
                 },
               ),
+              // 나만 보기
+              if (backgroundHistory != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      backgroundHistory.isPrivate ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  title: Text(backgroundHistory.isPrivate ? '전체 공개로 변경' : '나만 보기'),
+                  subtitle: Text(backgroundHistory.isPrivate ? '다른 사람에게 공개됩니다' : '나만 볼 수 있습니다'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    profileBloc.add(ProfileHistoryPrivacyToggled(
+                      userId: userId,
+                      historyId: backgroundHistory.id,
+                      isPrivate: !backgroundHistory.isPrivate,
+                    ));
+                  },
+                ),
+              // 삭제
+              if (backgroundHistory != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Colors.red),
+                  ),
+                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _showDeleteConfirmDialog(
+                      context,
+                      '배경화면',
+                      () => profileBloc.add(ProfileHistoryDeleteRequested(
+                        userId: userId,
+                        historyId: backgroundHistory.id,
+                      )),
+                    );
+                  },
+                ),
               const SizedBox(height: 16),
             ],
           ),
@@ -356,6 +428,9 @@ class _ProfileViewContent extends StatelessWidget {
   }
 
   void _showAvatarOptions(BuildContext context, User user) {
+    final profileBloc = context.read<ProfileBloc>();
+    final avatarHistory = profileBloc.state.getCurrentHistory(ProfileHistoryType.avatar);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -383,6 +458,26 @@ class _ProfileViewContent extends StatelessWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
+              // 전체화면 보기
+              if (avatarHistory?.url != null || user.avatarUrl != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.fullscreen, color: Colors.blue),
+                  ),
+                  title: const Text('전체 화면 보기'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _showFullScreenImage(
+                      context,
+                      avatarHistory?.url ?? user.avatarUrl!,
+                    );
+                  },
+                ),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
@@ -415,10 +510,98 @@ class _ProfileViewContent extends StatelessWidget {
                   _openHistoryPage(context, ProfileHistoryType.avatar, user);
                 },
               ),
+              // 나만 보기
+              if (avatarHistory != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      avatarHistory.isPrivate ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  title: Text(avatarHistory.isPrivate ? '전체 공개로 변경' : '나만 보기'),
+                  subtitle: Text(avatarHistory.isPrivate ? '다른 사람에게 공개됩니다' : '나만 볼 수 있습니다'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    profileBloc.add(ProfileHistoryPrivacyToggled(
+                      userId: userId,
+                      historyId: avatarHistory.id,
+                      isPrivate: !avatarHistory.isPrivate,
+                    ));
+                  },
+                ),
+              // 삭제
+              if (avatarHistory != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Colors.red),
+                  ),
+                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _showDeleteConfirmDialog(
+                      context,
+                      '프로필 사진',
+                      () => profileBloc.add(ProfileHistoryDeleteRequested(
+                        userId: userId,
+                        historyId: avatarHistory.id,
+                      )),
+                    );
+                  },
+                ),
               const SizedBox(height: 16),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showFullScreenImage(BuildContext context, String imageUrl) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return _DismissibleProfileImageViewer(imageUrl: imageUrl);
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
+  }
+
+  void _showDeleteConfirmDialog(BuildContext context, String itemName, VoidCallback onConfirm) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('$itemName 삭제'),
+        content: Text('$itemName을(를) 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              onConfirm();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('삭제'),
+          ),
+        ],
       ),
     );
   }
@@ -711,6 +894,130 @@ class _ActionButton extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 드래그로 닫을 수 있는 프로필 이미지 뷰어 (카카오톡 스타일)
+class _DismissibleProfileImageViewer extends StatefulWidget {
+  final String imageUrl;
+
+  const _DismissibleProfileImageViewer({required this.imageUrl});
+
+  @override
+  State<_DismissibleProfileImageViewer> createState() =>
+      _DismissibleProfileImageViewerState();
+}
+
+class _DismissibleProfileImageViewerState
+    extends State<_DismissibleProfileImageViewer>
+    with SingleTickerProviderStateMixin {
+  double _dragOffset = 0;
+  double _dragVelocity = 0;
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  static const double _dismissThreshold = 100;
+  static const double _velocityThreshold = 500;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _animation = Tween<double>(begin: 0, end: 0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    _animationController.addListener(() {
+      setState(() {
+        _dragOffset = _animation.value;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _onVerticalDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _dragOffset += details.delta.dy;
+    });
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    _dragVelocity = details.velocity.pixelsPerSecond.dy;
+
+    final shouldDismiss = _dragOffset.abs() > _dismissThreshold ||
+        _dragVelocity.abs() > _velocityThreshold;
+
+    if (shouldDismiss) {
+      Navigator.of(context).pop();
+    } else {
+      _animation = Tween<double>(begin: _dragOffset, end: 0).animate(
+        CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+      );
+      _animationController.forward(from: 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final opacity = (1 - (_dragOffset.abs() / 300)).clamp(0.3, 1.0);
+    final scale = (1 - (_dragOffset.abs() / 1000)).clamp(0.8, 1.0);
+
+    return Scaffold(
+      backgroundColor: Colors.black.withValues(alpha: opacity),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        iconTheme: IconThemeData(color: Colors.white.withValues(alpha: opacity)),
+        elevation: 0,
+      ),
+      extendBodyBehindAppBar: true,
+      body: GestureDetector(
+        onVerticalDragUpdate: _onVerticalDragUpdate,
+        onVerticalDragEnd: _onVerticalDragEnd,
+        onTap: () => Navigator.of(context).pop(),
+        child: Container(
+          color: Colors.transparent,
+          child: Center(
+            child: Transform.translate(
+              offset: Offset(0, _dragOffset),
+              child: Transform.scale(
+                scale: scale,
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 4,
+                  child: Image.network(
+                    widget.imageUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

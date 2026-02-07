@@ -131,11 +131,9 @@ class ChatRoomMemberModel {
 
 @JsonSerializable()
 class CreateChatRoomRequest {
-  final int userId1;
   final int userId2;
 
   const CreateChatRoomRequest({
-    required this.userId1,
     required this.userId2,
   });
 

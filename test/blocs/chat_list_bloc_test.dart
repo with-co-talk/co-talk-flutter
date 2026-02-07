@@ -499,9 +499,9 @@ void main() {
       );
     });
 
-    group('READ event handling', skip: 'TODO: READ event handling 미구현', () {
+    group('READ event handling', () {
       blocTest<ChatListBloc, ChatListState>(
-        '🔴 RED: updates unreadCount to 0 when READ event is received after markAsRead',
+        '✅ GREEN: READ 이벤트 수신 시 unreadCount가 서버 값(0)으로 업데이트됨',
         build: () {
           when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
           return createBloc();
@@ -532,7 +532,7 @@ void main() {
       );
 
       blocTest<ChatListBloc, ChatListState>(
-        '🔴 RED: READ event updates unreadCount from server value',
+        '✅ GREEN: READ 이벤트로 unreadCount가 서버 값으로 업데이트됨',
         build: () {
           when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
           return createBloc();
@@ -565,9 +565,9 @@ void main() {
       );
     });
 
-    group('채팅방 목록 unreadCount 표시 시나리오', skip: 'TODO: unreadCount 시나리오 미구현', () {
+    group('채팅방 목록 unreadCount 표시 시나리오', () {
       blocTest<ChatListBloc, ChatListState>(
-        '🔴 RED: 시나리오 1 - 채팅방 목록에서 내가 읽지 않은 메시지의 총 개수가 표시됨',
+        '✅ GREEN: 시나리오 1 - 채팅방 목록에서 내가 읽지 않은 메시지의 총 개수가 표시됨',
         build: () {
           when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
           return createBloc();
@@ -616,7 +616,7 @@ void main() {
       );
 
       blocTest<ChatListBloc, ChatListState>(
-        '🔴 RED: 시나리오 2 - 읽는 순간 전부 읽음 처리되어서 채팅 목록에는 0으로 되어서 숫자 표시 안 됨',
+        '✅ GREEN: 시나리오 2 - 읽는 순간 전부 읽음 처리되어서 채팅 목록에는 0으로 표시됨',
         build: () {
           when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
           return createBloc();
@@ -653,7 +653,7 @@ void main() {
       );
 
       blocTest<ChatListBloc, ChatListState>(
-        '🔴 RED: 시나리오 3 - 그룹 채팅일 때 안 읽은 메시지가 3개일 때 안 읽은 사람이 2명이라 안 읽은 개수만 다 더하면 6개더라도 목록에는 내가 안 읽은 메시지 개수 3개만 표시됨',
+        '✅ GREEN: 시나리오 3 - 그룹 채팅에서 내가 안 읽은 메시지 개수만 표시됨 (다른 사람의 안 읽은 수 무시)',
         build: () {
           when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
           return createBloc();

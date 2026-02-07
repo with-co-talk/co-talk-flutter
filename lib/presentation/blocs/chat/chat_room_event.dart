@@ -168,3 +168,28 @@ class FileAttachmentRequested extends ChatRoomEvent {
   @override
   List<Object?> get props => [filePath];
 }
+
+/// 전송 실패 메시지 재전송 요청 이벤트
+class MessageRetryRequested extends ChatRoomEvent {
+  final String localId;
+
+  const MessageRetryRequested(this.localId);
+
+  @override
+  List<Object?> get props => [localId];
+}
+
+/// 전송 실패 메시지 삭제 요청 이벤트
+class PendingMessageDeleteRequested extends ChatRoomEvent {
+  final String localId;
+
+  const PendingMessageDeleteRequested(this.localId);
+
+  @override
+  List<Object?> get props => [localId];
+}
+
+/// Pending 메시지 타임아웃 체크 이벤트 (내부 사용)
+class PendingMessagesTimeoutChecked extends ChatRoomEvent {
+  const PendingMessagesTimeoutChecked();
+}

@@ -239,6 +239,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     context.read<ChatRoomBloc>().add(MessageSent(content));
     _messageController.clear();
     _messageFocusNode.requestFocus();
+
+    // 메시지 전송 시 스크롤 맨 아래로
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom(smooth: false);
+    });
+  }
+
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
   }
 
   void _scrollToBottom({bool smooth = true}) {
@@ -474,7 +483,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
               : Column(
                   children: [
                     Expanded(
-                      child: MessageList(scrollController: _scrollController),
+                      child: GestureDetector(
+                        onTap: _dismissKeyboard,
+                        behavior: HitTestBehavior.opaque,
+                        child: MessageList(scrollController: _scrollController),
+                      ),
                     ),
                     MessageInput(
                       controller: _messageController,
