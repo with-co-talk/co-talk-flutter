@@ -2,6 +2,16 @@ import 'package:equatable/equatable.dart';
 
 enum MessageType { text, image, file, system }
 
+/// 메시지 전송 상태 (카카오톡 스타일 UI용)
+enum MessageSendStatus {
+  /// 전송 중 (로딩 표시)
+  pending,
+  /// 전송 완료 (읽지 않음 개수 표시)
+  sent,
+  /// 전송 실패 (재전송/삭제 버튼 표시)
+  failed,
+}
+
 class Message extends Equatable {
   final int id;
   final int chatRoomId;
@@ -29,6 +39,12 @@ class Message extends Equatable {
   final String? linkPreviewDescription;
   final String? linkPreviewImageUrl;
 
+  /// 메시지 전송 상태 (낙관적 UI용)
+  final MessageSendStatus sendStatus;
+
+  /// 로컬 임시 ID (pending 메시지 매칭용, UUID 형식)
+  final String? localId;
+
   const Message({
     required this.id,
     required this.chatRoomId,
@@ -54,7 +70,15 @@ class Message extends Equatable {
     this.linkPreviewTitle,
     this.linkPreviewDescription,
     this.linkPreviewImageUrl,
+    this.sendStatus = MessageSendStatus.sent,
+    this.localId,
   });
+
+  /// pending 메시지인지 확인
+  bool get isPending => sendStatus == MessageSendStatus.pending;
+
+  /// 전송 실패 메시지인지 확인
+  bool get isFailed => sendStatus == MessageSendStatus.failed;
 
   bool get hasLinkPreview =>
       linkPreviewUrl != null &&
@@ -96,6 +120,8 @@ class Message extends Equatable {
     String? linkPreviewTitle,
     String? linkPreviewDescription,
     String? linkPreviewImageUrl,
+    MessageSendStatus? sendStatus,
+    String? localId,
   }) {
     return Message(
       id: id ?? this.id,
@@ -122,6 +148,8 @@ class Message extends Equatable {
       linkPreviewTitle: linkPreviewTitle ?? this.linkPreviewTitle,
       linkPreviewDescription: linkPreviewDescription ?? this.linkPreviewDescription,
       linkPreviewImageUrl: linkPreviewImageUrl ?? this.linkPreviewImageUrl,
+      sendStatus: sendStatus ?? this.sendStatus,
+      localId: localId ?? this.localId,
     );
   }
 
@@ -151,6 +179,8 @@ class Message extends Equatable {
         linkPreviewTitle,
         linkPreviewDescription,
         linkPreviewImageUrl,
+        sendStatus,
+        localId,
       ];
 }
 

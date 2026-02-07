@@ -21,7 +21,6 @@ class WebSocketMessageSender {
   bool sendMessage({
     required StompClient? stompClient,
     required int roomId,
-    required int senderId,
     required String content,
   }) {
     if (stompClient == null || !stompClient.connected) {
@@ -35,7 +34,6 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendMessageDestination,
       body: jsonEncode({
         'roomId': roomId,
-        'senderId': senderId,
         'content': content,
       }),
     );
@@ -48,7 +46,6 @@ class WebSocketMessageSender {
   bool sendFileMessage({
     required StompClient? stompClient,
     required int roomId,
-    required int senderId,
     required String fileUrl,
     required String fileName,
     required int fileSize,
@@ -66,7 +63,6 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendFileMessageDestination,
       body: jsonEncode({
         'roomId': roomId,
-        'senderId': senderId,
         'fileUrl': fileUrl,
         'fileName': fileName,
         'fileSize': fileSize,
@@ -83,7 +79,6 @@ class WebSocketMessageSender {
   bool addReaction({
     required StompClient? stompClient,
     required int messageId,
-    required int userId,
     required String emoji,
   }) {
     if (stompClient == null || !stompClient.connected) {
@@ -97,7 +92,6 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendReactionAddDestination,
       body: jsonEncode({
         'messageId': messageId,
-        'userId': userId,
         'emoji': emoji,
       }),
     );
@@ -110,7 +104,6 @@ class WebSocketMessageSender {
   bool removeReaction({
     required StompClient? stompClient,
     required int messageId,
-    required int userId,
     required String emoji,
   }) {
     if (stompClient == null || !stompClient.connected) {
@@ -124,7 +117,6 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendReactionRemoveDestination,
       body: jsonEncode({
         'messageId': messageId,
-        'userId': userId,
         'emoji': emoji,
       }),
     );
@@ -137,7 +129,6 @@ class WebSocketMessageSender {
   bool sendTypingStatus({
     required StompClient? stompClient,
     required int roomId,
-    required int userId,
     required bool isTyping,
   }) {
     if (stompClient == null || !stompClient.connected) {
@@ -151,7 +142,6 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendTypingDestination,
       body: jsonEncode({
         'roomId': roomId,
-        'userId': userId,
         'isTyping': isTyping,
       }),
     );
@@ -164,7 +154,6 @@ class WebSocketMessageSender {
   bool sendPresencePing({
     required StompClient? stompClient,
     required int roomId,
-    required int userId,
   }) {
     if (stompClient == null || !stompClient.connected) {
       return false;
@@ -174,7 +163,6 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendPresenceDestination,
       body: jsonEncode({
         'roomId': roomId,
-        'userId': userId,
       }),
     );
     return true;
@@ -186,7 +174,6 @@ class WebSocketMessageSender {
   bool sendPresenceInactive({
     required StompClient? stompClient,
     required int roomId,
-    required int userId,
   }) {
     if (stompClient == null || !stompClient.connected) {
       return false;
@@ -196,7 +183,6 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendPresenceInactiveDestination,
       body: jsonEncode({
         'roomId': roomId,
-        'userId': userId,
       }),
     );
     return true;
@@ -208,7 +194,6 @@ class WebSocketMessageSender {
   bool sendMarkAsRead({
     required StompClient? stompClient,
     required int roomId,
-    required int userId,
   }) {
     if (stompClient == null || !stompClient.connected) {
       if (kDebugMode) {
@@ -225,7 +210,6 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendMarkAsReadDestination,
       body: jsonEncode({
         'roomId': roomId,
-        'userId': userId,
       }),
     );
     return true;

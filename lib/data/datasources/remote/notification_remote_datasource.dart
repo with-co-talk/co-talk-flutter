@@ -9,11 +9,9 @@ import '../base_remote_datasource.dart';
 abstract class NotificationRemoteDataSource {
   /// FCM 토큰 서버 등록
   ///
-  /// [userId] 사용자 ID
   /// [token] FCM 토큰
   /// [deviceType] 디바이스 타입 ('ANDROID' 또는 'IOS')
   Future<void> registerFcmToken({
-    required int userId,
     required String token,
     required String deviceType,
   });
@@ -33,7 +31,6 @@ class NotificationRemoteDataSourceImpl extends BaseRemoteDataSource
 
   @override
   Future<void> registerFcmToken({
-    required int userId,
     required String token,
     required String deviceType,
   }) async {
@@ -41,7 +38,6 @@ class NotificationRemoteDataSourceImpl extends BaseRemoteDataSource
       await _dioClient.post(
         ApiConstants.fcmToken,
         data: {
-          'userId': userId,
           'token': token,
           'deviceType': deviceType,
         },

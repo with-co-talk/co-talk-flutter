@@ -151,17 +151,14 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i710.ProfileRemoteDataSource>(
       () => _i710.ProfileRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
-    gh.lazySingleton<_i397.ChatRemoteDataSource>(
-      () => _i397.ChatRemoteDataSourceImpl(
-        gh<_i393.DioClient>(),
-        gh<_i860.AuthLocalDataSource>(),
-      ),
-    );
     gh.lazySingleton<_i708.NotificationRemoteDataSource>(
       () => _i708.NotificationRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
     gh.lazySingleton<_i867.FriendRemoteDataSource>(
       () => _i867.FriendRemoteDataSourceImpl(gh<_i393.DioClient>()),
+    );
+    gh.lazySingleton<_i397.ChatRemoteDataSource>(
+      () => _i397.ChatRemoteDataSourceImpl(gh<_i393.DioClient>()),
     );
     gh.lazySingleton<_i792.ChatRepository>(
       () => _i919.ChatRepositoryImpl(
