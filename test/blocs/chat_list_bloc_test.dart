@@ -692,5 +692,157 @@ void main() {
         ],
       );
     });
+
+    group('Bug fix verification', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'ChatRoomUpdated handler completes fully with async getUserId',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer(
+            (_) async {
+              await Future.delayed(const Duration(milliseconds: 50));
+              return 1;
+            },
+          );
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [FakeEntities.directChatRoom],
+        ),
+        act: (bloc) => bloc.add(const ChatRoomUpdated(
+          chatRoomId: 1,
+          eventType: 'NEW_MESSAGE',
+          lastMessage: 'Test message',
+          unreadCount: 5,
+          senderId: 2,
+        )),
+        wait: const Duration(milliseconds: 100),
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.firstWhere((r) => r.id == 1).unreadCount,
+            'unreadCount',
+            5,
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        'SubscriptionStarted handler completes fully with async operations',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer(
+            (_) async {
+              await Future.delayed(const Duration(milliseconds: 50));
+              return 1;
+            },
+          );
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const ChatListSubscriptionStarted(1)),
+        wait: const Duration(milliseconds: 200),
+        verify: (_) {
+          verify(() => mockWebSocketService.subscribeToUserChannel(1)).called(1);
+        },
+      );
+    });
+
+    group('Subscription leak prevention', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'cancels all previous subscriptions before reassigning on repeated SubscriptionStarted',
+        build: () {
+          when(() => mockWebSocketService.isConnected).thenReturn(true);
+          return createBloc();
+        },
+        act: (bloc) async {
+          // First subscription
+          bloc.add(const ChatListSubscriptionStarted(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          // Second subscription (should cancel the first three streams)
+          bloc.add(const ChatListSubscriptionStarted(2));
+          await Future.delayed(const Duration(milliseconds: 100));
+        },
+        verify: (_) {
+          // subscribeToUserChannel should be called twice (once per start)
+          verify(() => mockWebSocketService.subscribeToUserChannel(1)).called(1);
+          verify(() => mockWebSocketService.subscribeToUserChannel(2)).called(1);
+          // chatRoomUpdates, readEvents, onlineStatusEvents each accessed twice
+          // (once per SubscriptionStarted to create new listeners)
+          verify(() => mockWebSocketService.chatRoomUpdates).called(2);
+          verify(() => mockWebSocketService.readEvents).called(2);
+          verify(() => mockWebSocketService.onlineStatusEvents).called(2);
+        },
+      );
+    });
+
+    group('ChatListResetRequested', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'clears all state and returns to initial when reset is requested',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(unreadCount: 3),
+            FakeEntities.groupChatRoom.copyWith(unreadCount: 7),
+          ],
+          cachedTotalUnreadCount: 10,
+        ),
+        act: (bloc) async {
+          // First start subscriptions to have active state
+          bloc.add(const ChatListSubscriptionStarted(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          // Enter a room to set _currentlyOpenRoomId
+          bloc.add(const ChatRoomEntered(1));
+          await Future.delayed(const Duration(milliseconds: 50));
+          // Now reset everything (simulating logout)
+          bloc.add(const ChatListResetRequested());
+        },
+        expect: () => [
+          // The final emission should be the initial/default state
+          const ChatListState(),
+        ],
+        verify: (bloc) {
+          // After reset, state should be completely clean
+          expect(bloc.state.status, ChatListStatus.initial);
+          expect(bloc.state.chatRooms, isEmpty);
+          expect(bloc.state.totalUnreadCount, 0);
+          expect(bloc.state.errorMessage, isNull);
+        },
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        'after reset, can load fresh data for a new user',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          when(() => mockChatRepository.getChatRooms())
+              .thenAnswer((_) async => [FakeEntities.directChatRoom]);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [FakeEntities.groupChatRoom],
+          cachedTotalUnreadCount: 5,
+        ),
+        act: (bloc) async {
+          // Reset (simulating logout)
+          bloc.add(const ChatListResetRequested());
+          await Future.delayed(const Duration(milliseconds: 50));
+          // Load fresh data (simulating login as new user)
+          bloc.add(const ChatListLoadRequested());
+        },
+        expect: () => [
+          // Reset emission
+          const ChatListState(),
+          // Load emissions
+          const ChatListState(status: ChatListStatus.loading),
+          ChatListState(
+            status: ChatListStatus.success,
+            chatRooms: [FakeEntities.directChatRoom],
+            cachedTotalUnreadCount: 0,
+          ),
+        ],
+      );
+    });
   });
 }

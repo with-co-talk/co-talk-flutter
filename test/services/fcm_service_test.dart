@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:co_talk_flutter/core/services/active_room_tracker.dart';
 import 'package:co_talk_flutter/core/services/fcm_service.dart';
 import 'package:co_talk_flutter/core/services/notification_service.dart';
 import 'package:co_talk_flutter/domain/repositories/settings_repository.dart';
@@ -14,16 +15,20 @@ class MockNotificationService extends Mock implements NotificationService {}
 
 class MockSettingsRepository extends Mock implements SettingsRepository {}
 
+class MockActiveRoomTracker extends Mock implements ActiveRoomTracker {}
+
 void main() {
   late MockFirebaseMessaging mockMessaging;
   late MockNotificationService mockNotificationService;
   late MockSettingsRepository mockSettingsRepository;
+  late MockActiveRoomTracker mockActiveRoomTracker;
   late FcmServiceImpl fcmService;
 
   setUp(() {
     mockMessaging = MockFirebaseMessaging();
     mockNotificationService = MockNotificationService();
     mockSettingsRepository = MockSettingsRepository();
+    mockActiveRoomTracker = MockActiveRoomTracker();
 
     // Mock onTokenRefresh stream for constructor
     when(() => mockMessaging.onTokenRefresh).thenAnswer((_) => const Stream.empty());
@@ -34,11 +39,13 @@ void main() {
               soundEnabled: true,
               vibrationEnabled: true,
             ));
+    when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
 
     fcmService = FcmServiceImpl(
       messaging: mockMessaging,
       notificationService: mockNotificationService,
       settingsRepository: mockSettingsRepository,
+      activeRoomTracker: mockActiveRoomTracker,
     );
   });
 
@@ -190,6 +197,9 @@ void main() {
           ),
           data: {'chatRoomId': '123'},
         ));
+
+        // Wait for the async _handleForegroundMessageAsync to complete
+        await Future.delayed(const Duration(milliseconds: 50));
 
         verify(() => mockNotificationService.showNotification(
               title: 'New Message',

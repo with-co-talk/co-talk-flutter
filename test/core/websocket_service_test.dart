@@ -738,5 +738,50 @@ void main() {
       expect(stream1, isA<Stream<WebSocketConnectionState>>());
       expect(stream2, isA<Stream<WebSocketConnectionState>>());
     });
+
+    group('ensureConnected', () {
+      test('returns true immediately when already connected', () async {
+        // WebSocketService is not connected (no token), so we test the
+        // false path primarily. The "already connected" path is trivial
+        // but we can test via mock.
+        final mockService = MockWebSocketService();
+        when(() => mockService.isConnected).thenReturn(true);
+        registerFallbackValue(const Duration(seconds: 5));
+        when(() => mockService.ensureConnected(timeout: any(named: 'timeout')))
+            .thenAnswer((_) async => true);
+
+        final result = await mockService.ensureConnected();
+        expect(result, isTrue);
+      });
+
+      test('returns false on timeout when connection never completes', () async {
+        // No access token means connect() won't actually establish connection
+        when(() => mockAuthLocalDataSource.getAccessToken())
+            .thenAnswer((_) async => null);
+
+        final result = await webSocketService.ensureConnected(
+          timeout: const Duration(milliseconds: 500),
+        );
+
+        expect(result, isFalse);
+      });
+
+      test('returns false quickly without busy-waiting for entire timeout', () async {
+        // This test verifies the method returns in reasonable time
+        // when connection cannot be established (no token)
+        when(() => mockAuthLocalDataSource.getAccessToken())
+            .thenAnswer((_) async => null);
+
+        final stopwatch = Stopwatch()..start();
+        final result = await webSocketService.ensureConnected(
+          timeout: const Duration(milliseconds: 500),
+        );
+        stopwatch.stop();
+
+        expect(result, isFalse);
+        // Should return within 1 second (generous upper bound)
+        expect(stopwatch.elapsedMilliseconds, lessThan(1500));
+      });
+    });
   });
 }

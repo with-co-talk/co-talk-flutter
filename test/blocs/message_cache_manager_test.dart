@@ -73,7 +73,7 @@ void main() {
         createdAt: DateTime.now(),
         sendStatus: MessageSendStatus.sent,
       );
-      await cacheManager.addMessage(originalMsg);
+      cacheManager.addMessage(originalMsg);
 
       // Capture current list reference
       final listBefore = cacheManager.messages;
@@ -82,7 +82,7 @@ void main() {
       final updatedMsg = originalMsg.copyWith(
         content: 'Hello Updated',
       );
-      await cacheManager.addMessage(updatedMsg);
+      cacheManager.addMessage(updatedMsg);
 
       // CRITICAL: Must be a different list reference for Equatable to detect change
       expect(identical(cacheManager.messages, listBefore), isFalse,
@@ -192,7 +192,7 @@ void main() {
         content: 'First',
         createdAt: DateTime.now(),
       );
-      await cacheManager.addMessage(msg1);
+      cacheManager.addMessage(msg1);
 
       final msg2 = Message(
         id: 2,
@@ -201,7 +201,7 @@ void main() {
         content: 'Second',
         createdAt: DateTime.now(),
       );
-      await cacheManager.addMessage(msg2);
+      cacheManager.addMessage(msg2);
 
       expect(cacheManager.messages.length, 2);
       expect(cacheManager.messages.first.id, 2);

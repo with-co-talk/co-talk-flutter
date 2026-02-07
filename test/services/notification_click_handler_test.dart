@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:go_router/go_router.dart';
+import 'package:co_talk_flutter/core/services/active_room_tracker.dart';
 import 'package:co_talk_flutter/core/services/notification_click_handler.dart';
 import 'package:co_talk_flutter/core/services/notification_service.dart';
 import 'package:co_talk_flutter/core/router/app_router.dart';
@@ -13,10 +14,13 @@ class MockGoRouter extends Mock implements GoRouter {}
 
 class MockAppRouter extends Mock implements AppRouter {}
 
+class MockActiveRoomTracker extends Mock implements ActiveRoomTracker {}
+
 void main() {
   late MockNotificationService mockNotificationService;
   late MockAppRouter mockAppRouter;
   late MockGoRouter mockRouter;
+  late MockActiveRoomTracker mockActiveRoomTracker;
   late NotificationClickHandler handler;
   late StreamController<String?> notificationClickController;
 
@@ -24,15 +28,18 @@ void main() {
     mockNotificationService = MockNotificationService();
     mockAppRouter = MockAppRouter();
     mockRouter = MockGoRouter();
+    mockActiveRoomTracker = MockActiveRoomTracker();
     notificationClickController = StreamController<String?>.broadcast();
 
     when(() => mockNotificationService.onNotificationClick)
         .thenAnswer((_) => notificationClickController.stream);
     when(() => mockAppRouter.router).thenReturn(mockRouter);
+    when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
 
     handler = NotificationClickHandler(
       notificationService: mockNotificationService,
       appRouter: mockAppRouter,
+      activeRoomTracker: mockActiveRoomTracker,
     );
   });
 
