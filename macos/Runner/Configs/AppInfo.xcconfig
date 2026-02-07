@@ -10,5 +10,9 @@ PRODUCT_NAME = Co Talk
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = com.cotalk.coTalkFlutter
 
+// 로컬 빌드용 자동 서명 (Runner 타깃)
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM = QW7DJ7FBDT
+
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.cotalk. All rights reserved.
