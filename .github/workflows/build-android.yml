@@ -1,0 +1,205 @@
+name: Build & Deploy Android
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      skip_upload:
+        description: 'Skip Google Play upload (build only)'
+        required: false
+        default: false
+        type: boolean
+      track:
+        description: 'Google Play track'
+        required: true
+        default: 'internal'
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'appbundle'
+        type: choice
+        options:
+          - appbundle
+          - apk
+      environment:
+        description: 'Build environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - dev
+          - prod
+
+env:
+  FLUTTER_VERSION: '3.32.2'
+  JAVA_VERSION: '17'
+
+jobs:
+  # ===========================================
+  # 1단계: 테스트
+  # ===========================================
+  test:
+    name: Test & Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run analyzer
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: flutter test
+
+  # ===========================================
+  # 2단계: Android 빌드 + Google Play 업로드
+  # ===========================================
+  build-android:
+    name: Build Android & Upload to Google Play
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Android 서명 키 설정
+      - name: Set up Android signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          echo "$ANDROID_KEY_PROPERTIES" > android/key.properties
+
+      # Firebase google-services.json 설정
+      - name: Set up Firebase
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
+      # 환경 결정
+      - name: Determine build config
+        id: config
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "build_type=${{ inputs.build_type }}" >> $GITHUB_OUTPUT
+            echo "track=${{ inputs.track }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "build_type=appbundle" >> $GITHUB_OUTPUT
+            echo "track=internal" >> $GITHUB_OUTPUT
+          fi
+
+      # Gradle 캐시
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      # AAB 빌드
+      - name: Build App Bundle
+        if: steps.config.outputs.build_type == 'appbundle'
+        run: |
+          flutter build appbundle \
+            --release \
+            --dart-define=ENVIRONMENT=${{ steps.config.outputs.environment }}
+
+      # APK 빌드
+      - name: Build APK
+        if: steps.config.outputs.build_type == 'apk'
+        run: |
+          flutter build apk \
+            --release \
+            --dart-define=ENVIRONMENT=${{ steps.config.outputs.environment }}
+
+      # 버전 정보 추출
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # AAB Artifact 업로드
+      - name: Upload AAB artifact
+        if: steps.config.outputs.build_type == 'appbundle'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoTalk-Android-AAB-v${{ steps.version.outputs.version }}
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      # APK Artifact 업로드
+      - name: Upload APK artifact
+        if: steps.config.outputs.build_type == 'apk'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoTalk-Android-APK-v${{ steps.version.outputs.version }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      # Google Play 업로드 (Fastlane)
+      - name: Set up Ruby
+        if: inputs.skip_upload != true && steps.config.outputs.build_type == 'appbundle'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Set up Google Play credentials
+        if: inputs.skip_upload != true && steps.config.outputs.build_type == 'appbundle'
+        env:
+          PLAY_STORE_KEY_JSON: ${{ secrets.PLAY_STORE_KEY_JSON }}
+        run: |
+          mkdir -p fastlane/keys
+          echo "$PLAY_STORE_KEY_JSON" > fastlane/keys/play-store-key.json
+
+      - name: Upload to Google Play
+        if: inputs.skip_upload != true && steps.config.outputs.build_type == 'appbundle'
+        run: |
+          cd fastlane && bundle exec fastlane upload_android track:${{ steps.config.outputs.track }}

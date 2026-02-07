@@ -225,6 +225,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.19.1"
+  console:
+    dependency: transitive
+    description:
+      name: console
+      sha256: e04e7824384c5b39389acdd6dc7d33f3efe6b232f6f16d7626f194f6a01ad69a
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0"
   convert:
     dependency: transitive
     description:
@@ -337,6 +345,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.28.0"
+  emoji_picker_flutter:
+    dependency: "direct main"
+    description:
+      name: emoji_picker_flutter
+      sha256: "08567e6f914d36c32091a96cf2f51d2558c47aa2bd47a590dc4f50e42e0965f6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.0"
   equatable:
     dependency: "direct main"
     description:
@@ -944,6 +960,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.4"
+  msix:
+    dependency: "direct dev"
+    description:
+      name: msix
+      sha256: f88033fcb9e0dd8de5b18897cbebbd28ea30596810f4a7c86b12b0c03ace87e5
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.16.12"
   nested:
     dependency: transitive
     description:
@@ -1096,6 +1120,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.3"
+  pro_image_editor:
+    dependency: "direct main"
+    description:
+      name: pro_image_editor
+      sha256: "27190b0333af71e9949f366ac303496511ef6d67607f6f9797c9f136371a321f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.2.3"
   provider:
     dependency: transitive
     description:
@@ -1581,6 +1613,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.4"
+  vibration:
+    dependency: transitive
+    description:
+      name: vibration
+      sha256: "3b08a0579c2f9c18d5d78cb5c74f1005f731e02eeca6d72561a2e8059bf98ec3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
+  vibration_platform_interface:
+    dependency: transitive
+    description:
+      name: vibration_platform_interface
+      sha256: "6ffeee63547562a6fef53c05a41d4fdcae2c0595b83ef59a4813b0612cd2bc36"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.3"
   vm_service:
     dependency: transitive
     description:

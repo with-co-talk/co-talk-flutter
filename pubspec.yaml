@@ -50,6 +50,10 @@ dependencies:
   super_clipboard: ^0.9.1
   gal: ^2.3.2
 
+  # Image Editor
+  pro_image_editor: ^6.0.8
+  emoji_picker_flutter: ^3.1.0
+
   # Desktop Support
   window_manager: ^0.4.3
 
@@ -83,6 +87,7 @@ dev_dependencies:
 
   # App Icon Generator
   flutter_launcher_icons: ^0.14.3
+  msix: 3.16.12
 
 flutter_launcher_icons:
   android: true
@@ -97,6 +102,21 @@ flutter_launcher_icons:
   image_path: "assets/icons/app_icon.png"
   adaptive_icon_background: "#8B5CF6"
   adaptive_icon_foreground: "assets/icons/app_icon.png"
+
+msix_config:
+  display_name: Co-Talk
+  publisher_display_name: Co-Talk
+  identity_name: com.cotalk.app
+  msix_version: 1.0.0.0
+  logo_path: assets/icons/app_icon.png
+  trim_logo: true
+  architecture: x64
+  capabilities: internetClient, internetClientServer, microphone
+  languages: ko-kr, en-us
+  os_min_version: 10.0.17763.0
+  output_name: CoTalk
+  windows_build_args: --dart-define=ENVIRONMENT=prod
+  install_certificate: true
 
 flutter:
   uses-material-design: true
