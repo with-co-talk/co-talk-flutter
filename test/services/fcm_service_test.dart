@@ -220,6 +220,102 @@ void main() {
             ));
       });
     });
+
+    group('active room notification suppression', () {
+      test('suppresses notification when chatRoomId matches active room', () async {
+        // Set active room to 123
+        when(() => mockActiveRoomTracker.activeRoomId).thenReturn(123);
+
+        when(() => mockNotificationService.showNotification(
+              title: any(named: 'title'),
+              body: any(named: 'body'),
+              payload: any(named: 'payload'),
+            )).thenAnswer((_) async {});
+
+        // Send message for room 123 (same as active room)
+        fcmService.handleForegroundMessage(const RemoteMessage(
+          notification: RemoteNotification(
+            title: 'New Message',
+            body: 'Hello!',
+          ),
+          data: {'chatRoomId': '123'},
+        ));
+
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        // Notification should NOT be shown
+        verifyNever(() => mockNotificationService.showNotification(
+              title: any(named: 'title'),
+              body: any(named: 'body'),
+              payload: any(named: 'payload'),
+            ));
+      });
+
+      test('shows notification when chatRoomId differs from active room', () async {
+        // Set active room to 456
+        when(() => mockActiveRoomTracker.activeRoomId).thenReturn(456);
+
+        when(() => mockNotificationService.showNotification(
+              title: any(named: 'title'),
+              body: any(named: 'body'),
+              payload: any(named: 'payload'),
+              soundEnabled: any(named: 'soundEnabled'),
+              vibrationEnabled: any(named: 'vibrationEnabled'),
+            )).thenAnswer((_) async {});
+
+        // Send message for room 123 (different from active room 456)
+        fcmService.handleForegroundMessage(const RemoteMessage(
+          notification: RemoteNotification(
+            title: 'New Message',
+            body: 'Hello!',
+          ),
+          data: {'chatRoomId': '123'},
+        ));
+
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        // Notification SHOULD be shown
+        verify(() => mockNotificationService.showNotification(
+              title: 'New Message',
+              body: 'Hello!',
+              payload: any(named: 'payload'),
+              soundEnabled: any(named: 'soundEnabled'),
+              vibrationEnabled: any(named: 'vibrationEnabled'),
+            )).called(1);
+      });
+
+      test('shows notification when no active room is set', () async {
+        // Active room is null (default from setUp)
+        when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
+
+        when(() => mockNotificationService.showNotification(
+              title: any(named: 'title'),
+              body: any(named: 'body'),
+              payload: any(named: 'payload'),
+              soundEnabled: any(named: 'soundEnabled'),
+              vibrationEnabled: any(named: 'vibrationEnabled'),
+            )).thenAnswer((_) async {});
+
+        fcmService.handleForegroundMessage(const RemoteMessage(
+          notification: RemoteNotification(
+            title: 'New Message',
+            body: 'Hello!',
+          ),
+          data: {'chatRoomId': '123'},
+        ));
+
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        // Notification SHOULD be shown (no active room)
+        verify(() => mockNotificationService.showNotification(
+              title: 'New Message',
+              body: 'Hello!',
+              payload: any(named: 'payload'),
+              soundEnabled: any(named: 'soundEnabled'),
+              vibrationEnabled: any(named: 'vibrationEnabled'),
+            )).called(1);
+      });
+    });
   });
 
   group('NoOpFcmService', () {

@@ -4,17 +4,24 @@ import 'package:dio/dio.dart';
 import 'package:co_talk_flutter/core/network/dio_client.dart';
 import 'package:co_talk_flutter/core/errors/exceptions.dart';
 import 'package:co_talk_flutter/data/datasources/remote/chat_remote_datasource.dart';
+import 'package:co_talk_flutter/data/datasources/local/auth_local_datasource.dart';
 import 'package:co_talk_flutter/data/models/message_model.dart';
 
 class MockDioClient extends Mock implements DioClient {}
+class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
 
 void main() {
   late MockDioClient mockDioClient;
+  late MockAuthLocalDataSource mockAuthLocalDataSource;
   late ChatRemoteDataSourceImpl dataSource;
 
   setUp(() {
     mockDioClient = MockDioClient();
-    dataSource = ChatRemoteDataSourceImpl(mockDioClient);
+    mockAuthLocalDataSource = MockAuthLocalDataSource();
+    dataSource = ChatRemoteDataSourceImpl(mockDioClient, mockAuthLocalDataSource);
+
+    // Default stub for getUserId
+    when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
   });
 
   group('ChatRemoteDataSource', () {
@@ -318,14 +325,10 @@ void main() {
               data: any(named: 'data'),
             )).thenAnswer((_) async => Response(
               requestOptions: RequestOptions(path: ''),
+              // Backend returns UpdateMessageResponse(messageId, content, updatedAt)
               data: {
-                'id': 1,
-                'chatRoomId': 1,
-                'senderId': 1,
-                'senderNickname': 'User1',
+                'messageId': 1,
                 'content': 'Updated',
-                'type': 'text',
-                'createdAt': '2024-01-01T00:00:00.000Z',
                 'updatedAt': '2024-01-01T01:00:00.000Z',
               },
               statusCode: 200,
@@ -333,6 +336,7 @@ void main() {
 
         final result = await dataSource.updateMessage(1, 'Updated');
 
+        expect(result.id, 1);
         expect(result.content, 'Updated');
       });
     });

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
+import 'package:co_talk_flutter/domain/repositories/chat_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_bloc.dart';
@@ -10,6 +12,8 @@ import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_state.dart';
 import '../mocks/mock_repositories.dart';
 import '../mocks/fake_entities.dart';
+
+class FakeFile extends Fake implements File {}
 
 void main() {
   late MockChatRepository mockChatRepository;
@@ -22,6 +26,7 @@ void main() {
     // Register fallback values for mocktail
     registerFallbackValue(FakeEntities.textMessage);
     registerFallbackValue(const Duration(seconds: 5));
+    registerFallbackValue(FakeFile());
   });
 
   setUp(() {
@@ -64,8 +69,14 @@ void main() {
     when(() => mockWebSocketService.messageDeletedEvents).thenAnswer(
       (_) => const Stream<WebSocketMessageDeletedEvent>.empty(),
     );
+    when(() => mockWebSocketService.messageUpdatedEvents).thenAnswer(
+      (_) => const Stream<WebSocketMessageUpdatedEvent>.empty(),
+    );
     when(() => mockWebSocketService.reactions).thenAnswer(
       (_) => const Stream<WebSocketReactionEvent>.empty(),
+    );
+    when(() => mockWebSocketService.reconnected).thenAnswer(
+      (_) => const Stream<void>.empty(),
     );
     when(() => mockWebSocketService.sendMessage(
           roomId: any(named: 'roomId'),
@@ -79,6 +90,14 @@ void main() {
           timeout: any(named: 'timeout'),
         )).thenAnswer((_) async => true);
     when(() => mockWebSocketService.disconnect()).thenReturn(null);
+    when(() => mockWebSocketService.addReaction(
+          messageId: any(named: 'messageId'),
+          emoji: any(named: 'emoji'),
+        )).thenReturn(null);
+    when(() => mockWebSocketService.removeReaction(
+          messageId: any(named: 'messageId'),
+          emoji: any(named: 'emoji'),
+        )).thenReturn(null);
 
     // DesktopNotificationBridge mock 기본 설정
     when(() => mockDesktopNotificationBridge.setActiveRoomId(any())).thenReturn(null);
@@ -305,7 +324,7 @@ void main() {
     group('MessageSent', () {
       // Note: 낙관적 UI로 변경됨 - pending 메시지가 즉시 추가되고 WebSocket으로 전송 시도
       blocTest<ChatRoomBloc, ChatRoomState>(
-        'adds pending message and sends via WebSocket when successful',
+        'adds pending message, sends via WebSocket, and marks as sent on success',
         build: () {
           // MessageHandler에서 사용
           when(() => mockAuthLocalDataSource.getUserId())
@@ -320,12 +339,17 @@ void main() {
         ),
         act: (bloc) => bloc.add(const MessageSent('안녕하세요!')),
         expect: () => [
-          // 낙관적 UI: pending 메시지가 추가됨
+          // 1. 낙관적 UI: pending 메시지가 추가됨
           isA<ChatRoomState>()
               .having((s) => s.messages.length, 'messages length', 1)
               .having((s) => s.messages.first.content, 'content', '안녕하세요!')
               .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.pending)
               .having((s) => s.messages.first.senderId, 'senderId', 42),
+          // 2. Fire-and-forget 전송 성공 → 즉시 sent로 전환
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.content, 'content', '안녕하세요!')
+              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sent),
         ],
         verify: (_) {
           verify(() => mockWebSocketService.sendMessage(
@@ -2155,6 +2179,123 @@ void main() {
       );
     });
 
+    group('OtherUserLeftStatusChanged', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sets isOtherUserLeft to true when other user leaves',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          isOtherUserLeft: false,
+        ),
+        act: (bloc) => bloc.add(const OtherUserLeftStatusChanged(
+          isOtherUserLeft: true,
+          relatedUserId: 2,
+          relatedUserNickname: 'OtherUser',
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.isOtherUserLeft, 'isOtherUserLeft', true)
+              .having((s) => s.otherUserId, 'otherUserId', 2)
+              .having((s) => s.otherUserNickname, 'otherUserNickname', 'OtherUser'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sets isOtherUserLeft to false when other user re-joins',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          isOtherUserLeft: true,
+          otherUserId: 2,
+          otherUserNickname: 'OtherUser',
+        ),
+        act: (bloc) => bloc.add(const OtherUserLeftStatusChanged(
+          isOtherUserLeft: false,
+          relatedUserId: 2,
+          relatedUserNickname: 'OtherUser',
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.isOtherUserLeft, 'isOtherUserLeft', false)
+              .having((s) => s.otherUserId, 'otherUserId', 2)
+              .having((s) => s.otherUserNickname, 'otherUserNickname', 'OtherUser'),
+        ],
+      );
+    });
+
+    group('ReinviteUserRequested', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'reinvite succeeds and sets isOtherUserLeft to false',
+        build: () {
+          when(() => mockChatRepository.reinviteUser(any(), any()))
+              .thenAnswer((_) async {});
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          isOtherUserLeft: true,
+        ),
+        act: (bloc) => bloc.add(const ReinviteUserRequested(inviteeId: 2)),
+        expect: () => [
+          // isReinviting becomes true
+          isA<ChatRoomState>()
+              .having((s) => s.isReinviting, 'isReinviting', true)
+              .having((s) => s.reinviteSuccess, 'reinviteSuccess', false),
+          // reinvite succeeds
+          isA<ChatRoomState>()
+              .having((s) => s.isReinviting, 'isReinviting', false)
+              .having((s) => s.reinviteSuccess, 'reinviteSuccess', true)
+              .having((s) => s.isOtherUserLeft, 'isOtherUserLeft', false),
+        ],
+        verify: (_) {
+          verify(() => mockChatRepository.reinviteUser(1, 2)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'reinvite fails and sets error',
+        build: () {
+          when(() => mockChatRepository.reinviteUser(any(), any()))
+              .thenThrow(Exception('Failed to reinvite'));
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          isOtherUserLeft: true,
+        ),
+        act: (bloc) => bloc.add(const ReinviteUserRequested(inviteeId: 2)),
+        expect: () => [
+          // isReinviting becomes true
+          isA<ChatRoomState>()
+              .having((s) => s.isReinviting, 'isReinviting', true)
+              .having((s) => s.reinviteSuccess, 'reinviteSuccess', false),
+          // reinvite fails
+          isA<ChatRoomState>()
+              .having((s) => s.isReinviting, 'isReinviting', false)
+              .having((s) => s.reinviteSuccess, 'reinviteSuccess', false)
+              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when roomId is null',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: null,
+        ),
+        act: (bloc) => bloc.add(const ReinviteUserRequested(inviteeId: 2)),
+        expect: () => [],
+        verify: (_) {
+          verifyNever(() => mockChatRepository.reinviteUser(any(), any()));
+        },
+      );
+    });
+
     group('Bug fix verification', () {
       blocTest<ChatRoomBloc, ChatRoomState>(
         'ChatRoomOpened clears cache from previous room',
@@ -2240,6 +2381,987 @@ void main() {
         // Verify unsubscribe was called (this would fail if dispose happened first)
         verify(() => mockWebSocketService.unsubscribeFromChatRoom(1)).called(1);
       });
+    });
+
+    group('ReactionAddRequested', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sends addReaction to WebSocket when reaction is added',
+        build: () {
+          when(() => mockWebSocketService.addReaction(
+                messageId: any(named: 'messageId'),
+                emoji: any(named: 'emoji'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [FakeEntities.textMessage],
+        ),
+        act: (bloc) => bloc.add(const ReactionAddRequested(
+          messageId: 1,
+          emoji: '👍',
+        )),
+        expect: () => [],
+        verify: (_) {
+          verify(() => mockWebSocketService.addReaction(
+                messageId: 1,
+                emoji: '👍',
+              )).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'handles gracefully when WebSocket is not connected',
+        build: () {
+          when(() => mockWebSocketService.isConnected).thenReturn(false);
+          when(() => mockWebSocketService.addReaction(
+                messageId: any(named: 'messageId'),
+                emoji: any(named: 'emoji'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [FakeEntities.textMessage],
+        ),
+        act: (bloc) => bloc.add(const ReactionAddRequested(
+          messageId: 1,
+          emoji: '👍',
+        )),
+        expect: () => [],
+        verify: (_) {
+          // WebSocketService should still be called even if not connected
+          // (it handles connection logic internally)
+          verify(() => mockWebSocketService.addReaction(
+                messageId: 1,
+                emoji: '👍',
+              )).called(1);
+        },
+      );
+    });
+
+    group('ReactionRemoveRequested', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sends removeReaction to WebSocket when reaction is removed',
+        build: () {
+          when(() => mockWebSocketService.removeReaction(
+                messageId: any(named: 'messageId'),
+                emoji: any(named: 'emoji'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [
+            FakeEntities.textMessage.copyWith(
+              reactions: [
+                const MessageReaction(
+                  id: 1,
+                  messageId: 1,
+                  userId: 1,
+                  emoji: '👍',
+                ),
+              ],
+            ),
+          ],
+        ),
+        act: (bloc) => bloc.add(const ReactionRemoveRequested(
+          messageId: 1,
+          emoji: '👍',
+        )),
+        expect: () => [],
+        verify: (_) {
+          verify(() => mockWebSocketService.removeReaction(
+                messageId: 1,
+                emoji: '👍',
+              )).called(1);
+        },
+      );
+    });
+
+    group('ReactionEventReceived', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'adds reaction to message when reaction_added event is received',
+        build: () => createBloc(),
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [FakeEntities.textMessage],
+        ),
+        act: (bloc) => bloc.add(const ReactionEventReceived(
+          messageId: 1,
+          userId: 2,
+          userNickname: 'OtherUser',
+          emoji: '👍',
+          isAdd: true,
+          reactionId: 10,
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.reactions.length, 'reactions length', 1)
+              .having((s) => s.messages.first.reactions.first.emoji, 'emoji', '👍')
+              .having((s) => s.messages.first.reactions.first.userId, 'userId', 2)
+              .having((s) => s.messages.first.reactions.first.id, 'reactionId', 10),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'removes reaction from message when reaction_removed event is received',
+        build: () => createBloc(),
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [
+            FakeEntities.textMessage.copyWith(
+              reactions: [
+                const MessageReaction(
+                  id: 10,
+                  messageId: 1,
+                  userId: 2,
+                  userNickname: 'OtherUser',
+                  emoji: '👍',
+                ),
+              ],
+            ),
+          ],
+        ),
+        act: (bloc) => bloc.add(const ReactionEventReceived(
+          messageId: 1,
+          userId: 2,
+          emoji: '👍',
+          isAdd: false,
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.reactions.length, 'reactions length', 0),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when reaction is for non-existent message',
+        build: () => createBloc(),
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [FakeEntities.textMessage], // id: 1
+        ),
+        act: (bloc) => bloc.add(const ReactionEventReceived(
+          messageId: 999, // non-existent message
+          userId: 2,
+          emoji: '👍',
+          isAdd: true,
+          reactionId: 10,
+        )),
+        expect: () => [],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does not duplicate reaction if already exists',
+        build: () => createBloc(),
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [
+            FakeEntities.textMessage.copyWith(
+              reactions: [
+                const MessageReaction(
+                  id: 10,
+                  messageId: 1,
+                  userId: 2,
+                  emoji: '👍',
+                ),
+              ],
+            ),
+          ],
+        ),
+        act: (bloc) => bloc.add(const ReactionEventReceived(
+          messageId: 1,
+          userId: 2,
+          emoji: '👍',
+          isAdd: true,
+          reactionId: 11, // different ID but same user+emoji
+        )),
+        expect: () => [], // no state change - duplicate prevented
+      );
+    });
+
+    group('FileAttachmentRequested', () {
+      late String tempFilePath;
+
+      setUp(() {
+        // Create a real temp file for file attachment tests
+        final tempDir = Directory.systemTemp;
+        final tempFile = File('${tempDir.path}/test_file_${DateTime.now().millisecondsSinceEpoch}.jpg');
+        tempFile.writeAsBytesSync([0xFF, 0xD8, 0xFF, 0xE0]); // minimal JPEG header
+        tempFilePath = tempFile.path;
+      });
+
+      tearDown(() {
+        try {
+          File(tempFilePath).deleteSync();
+        } catch (_) {}
+      });
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'uploads file and sends message successfully',
+        build: () {
+          when(() => mockChatRepository.uploadFile(any())).thenAnswer(
+            (_) async => const FileUploadResult(
+              fileUrl: 'https://example.com/file.jpg',
+              fileName: 'file.jpg',
+              contentType: 'image/jpeg',
+              fileSize: 1024,
+              isImage: true,
+            ),
+          );
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+              )).thenAnswer((_) async => FakeEntities.imageMessage);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(FileAttachmentRequested(tempFilePath)),
+        wait: const Duration(milliseconds: 500),
+        expect: () => [
+          // 1st emit: upload starts (isUploadingFile: true, uploadProgress: 0.0)
+          isA<ChatRoomState>()
+              .having((s) => s.isUploadingFile, 'isUploadingFile', true)
+              .having((s) => s.uploadProgress, 'uploadProgress', 0.0),
+          // 2nd emit: progress 0.5 from onProgress callback
+          // Note: onProgress(0.0) is deduplicated by Equatable (same as initial state)
+          isA<ChatRoomState>()
+              .having((s) => s.isUploadingFile, 'isUploadingFile', true)
+              .having((s) => s.uploadProgress, 'uploadProgress', 0.5),
+          // 3rd emit: progress 1.0 from onProgress
+          isA<ChatRoomState>()
+              .having((s) => s.uploadProgress, 'uploadProgress', 1.0),
+          // 4th emit: upload complete
+          isA<ChatRoomState>()
+              .having((s) => s.isUploadingFile, 'isUploadingFile', false)
+              .having((s) => s.uploadProgress, 'uploadProgress', 1.0),
+        ],
+        verify: (_) {
+          verify(() => mockChatRepository.uploadFile(any())).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'emits error state when file does not exist',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(const FileAttachmentRequested('/nonexistent/path.jpg')),
+        expect: () => [
+          // 1st emit: upload starts
+          isA<ChatRoomState>()
+              .having((s) => s.isUploadingFile, 'isUploadingFile', true),
+          // 2nd emit: file not found error
+          isA<ChatRoomState>()
+              .having((s) => s.isUploadingFile, 'isUploadingFile', false)
+              .having((s) => s.errorMessage, 'errorMessage', contains('파일')),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'updates upload progress correctly',
+        build: () {
+          when(() => mockChatRepository.uploadFile(any())).thenAnswer(
+            (_) async => const FileUploadResult(
+              fileUrl: 'https://example.com/file.jpg',
+              fileName: 'file.jpg',
+              contentType: 'image/jpeg',
+              fileSize: 1024,
+              isImage: true,
+            ),
+          );
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+              )).thenAnswer((_) async => FakeEntities.imageMessage);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(FileAttachmentRequested(tempFilePath)),
+        wait: const Duration(milliseconds: 500),
+        verify: (bloc) {
+          // After all emissions, final state should have uploadProgress 1.0
+          expect(bloc.state.isUploadingFile, false);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when roomId is null',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: null,
+        ),
+        act: (bloc) => bloc.add(const FileAttachmentRequested('/path/to/file.jpg')),
+        expect: () => [],
+        verify: (_) {
+          verifyNever(() => mockChatRepository.uploadFile(any()));
+        },
+      );
+    });
+
+    group('MessageRetryRequested', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'retries failed message successfully',
+        build: () {
+          // MessageHandler calls sendMessage twice per invocation (initial + retry after ensureConnected).
+          // sendCallCount >= 3: first two calls (MessageSent) fail, third call (MessageRetryRequested) succeeds.
+          var sendCallCount = 0;
+          when(() => mockWebSocketService.isConnected).thenReturn(true);
+          when(() => mockWebSocketService.sendMessage(
+                roomId: any(named: 'roomId'),
+                content: any(named: 'content'),
+              )).thenAnswer((_) {
+            sendCallCount++;
+            return sendCallCount >= 3;
+          });
+          when(() => mockWebSocketService.ensureConnected(
+                timeout: any(named: 'timeout'),
+              )).thenAnswer((_) async => true);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+        ),
+        act: (bloc) async {
+          // First, send a message that will fail
+          bloc.add(const MessageSent('Test message'));
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // Get the localId from the failed message
+          final localId = bloc.state.messages.firstWhere((m) => m.sendStatus == MessageSendStatus.failed).localId;
+
+          // Then retry it
+          bloc.add(MessageRetryRequested(localId!));
+        },
+        skip: 1, // Skip the initial pending message from MessageSent
+        expect: () => [
+          // MessageSent failed emit (via MessageSendCompleted)
+          isA<ChatRoomState>()
+              .having((s) => s.messages.first.sendStatus, 'sendStatus after fail', MessageSendStatus.failed),
+          // MessageRetryRequested: status changes to pending
+          isA<ChatRoomState>()
+              .having((s) => s.messages.first.sendStatus, 'sendStatus retry', MessageSendStatus.pending),
+          // Fire-and-forget retry succeeds → sent
+          isA<ChatRoomState>()
+              .having((s) => s.messages.first.sendStatus, 'sendStatus retry sent', MessageSendStatus.sent),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'marks message as failed when retry fails',
+        build: () {
+          when(() => mockWebSocketService.sendMessage(
+                roomId: any(named: 'roomId'),
+                content: any(named: 'content'),
+              )).thenReturn(false);
+          when(() => mockWebSocketService.isConnected).thenReturn(false);
+          when(() => mockWebSocketService.ensureConnected(
+                timeout: any(named: 'timeout'),
+              )).thenAnswer((_) async => false);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+        ),
+        act: (bloc) async {
+          // First, send a message that will fail
+          bloc.add(const MessageSent('Test message'));
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // Get the localId from the failed message
+          final localId = bloc.state.messages.firstWhere((m) => m.sendStatus == MessageSendStatus.failed).localId;
+
+          // Then retry it (will also fail)
+          bloc.add(MessageRetryRequested(localId!));
+        },
+        skip: 1, // Skip the initial pending message from MessageSent
+        expect: () => [
+          // MessageSent failed emit
+          isA<ChatRoomState>()
+              .having((s) => s.messages.first.sendStatus, 'sendStatus after fail', MessageSendStatus.failed),
+          // MessageRetryRequested: status changes to pending
+          isA<ChatRoomState>()
+              .having((s) => s.messages.first.sendStatus, 'sendStatus retry pending', MessageSendStatus.pending),
+          // Retry failed: status back to failed
+          isA<ChatRoomState>()
+              .having((s) => s.messages.first.sendStatus, 'sendStatus retry failed', MessageSendStatus.failed)
+              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when message not found',
+        build: () => createBloc(),
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [
+            Message(
+              id: 1,
+              chatRoomId: 1,
+              senderId: 1,
+              content: 'Normal message',
+              createdAt: DateTime.now(),
+            ),
+          ],
+        ),
+        act: (bloc) => bloc.add(const MessageRetryRequested('non-existent-id')),
+        expect: () => [],
+        verify: (_) {
+          verifyNever(() => mockWebSocketService.sendMessage(
+                roomId: any(named: 'roomId'),
+                content: any(named: 'content'),
+              ));
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when roomId is null',
+        build: () => createBloc(),
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: null,
+          currentUserId: 1,
+          messages: [
+            Message(
+              id: -1,
+              chatRoomId: 1,
+              senderId: 1,
+              content: 'Failed message',
+              createdAt: DateTime.now(),
+              sendStatus: MessageSendStatus.failed,
+              localId: 'failed-local-id',
+            ),
+          ],
+        ),
+        act: (bloc) => bloc.add(const MessageRetryRequested('failed-local-id')),
+        expect: () => [],
+      );
+    });
+
+    group('PendingMessageDeleteRequested', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'removes pending/failed message from state',
+        build: () {
+          when(() => mockWebSocketService.sendMessage(
+                roomId: any(named: 'roomId'),
+                content: any(named: 'content'),
+              )).thenReturn(false); // Message will fail
+          when(() => mockWebSocketService.isConnected).thenReturn(false);
+          when(() => mockWebSocketService.ensureConnected(
+                timeout: any(named: 'timeout'),
+              )).thenAnswer((_) async => false);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+        ),
+        act: (bloc) async {
+          // First, send a message that will fail
+          bloc.add(const MessageSent('Test message'));
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // Get the localId from the failed message
+          final localId = bloc.state.messages.first.localId;
+
+          // Delete the failed message
+          bloc.add(PendingMessageDeleteRequested(localId!));
+        },
+        skip: 1, // Skip the initial pending message
+        expect: () => [
+          // Message failed
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length after fail', 1)
+              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.failed),
+          // Message deleted
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length after delete', 0),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when message not found',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          messages: [],
+        ),
+        act: (bloc) => bloc.add(const PendingMessageDeleteRequested('non-existent-id')),
+        expect: () => [],
+      );
+    });
+
+    group('PendingMessagesTimeoutChecked', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when no pending messages in cache',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          messages: [],
+        ),
+        act: (bloc) => bloc.add(const PendingMessagesTimeoutChecked()),
+        expect: () => [],
+      );
+
+      // Note: Full timeout testing requires messages to be in cache manager,
+      // which happens through MessageSent flow. This is tested implicitly
+      // through the timer that runs every 10 seconds in the bloc.
+    });
+
+    group('TypingStatusChanged (user sends typing status)', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sends typing=true via WebSocket when user starts typing',
+        build: () {
+          when(() => mockWebSocketService.sendTypingStatus(
+                roomId: any(named: 'roomId'),
+                isTyping: any(named: 'isTyping'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+        ),
+        act: (bloc) => bloc.add(const UserStartedTyping()),
+        wait: const Duration(milliseconds: 100),
+        verify: (_) {
+          verify(() => mockWebSocketService.sendTypingStatus(
+                roomId: 1,
+                isTyping: true,
+              )).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sends typing=false via WebSocket when user stops typing',
+        build: () {
+          when(() => mockWebSocketService.sendTypingStatus(
+                roomId: any(named: 'roomId'),
+                isTyping: any(named: 'isTyping'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+        ),
+        act: (bloc) => bloc.add(const UserStoppedTyping()),
+        wait: const Duration(milliseconds: 100),
+        verify: (_) {
+          verify(() => mockWebSocketService.sendTypingStatus(
+                roomId: 1,
+                isTyping: false,
+              )).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when roomId is null',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: null,
+          currentUserId: 1,
+          messages: [],
+        ),
+        act: (bloc) => bloc.add(const UserStartedTyping()),
+        expect: () => [],
+        verify: (_) {
+          verifyNever(() => mockWebSocketService.sendTypingStatus(
+                roomId: any(named: 'roomId'),
+                isTyping: any(named: 'isTyping'),
+              ));
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when currentUserId is null',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: null,
+          messages: [],
+        ),
+        act: (bloc) => bloc.add(const UserStartedTyping()),
+        expect: () => [],
+        verify: (_) {
+          verifyNever(() => mockWebSocketService.sendTypingStatus(
+                roomId: any(named: 'roomId'),
+                isTyping: any(named: 'isTyping'),
+              ));
+        },
+      );
+    });
+
+    group('UserStartedTyping / UserStoppedTyping (received from WebSocket)', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'adds other user to typingUsers map when they start typing',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.length, 'typingUsers length', 1)
+              .having((s) => s.typingUsers[2], 'user 2 nickname', 'Alice'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'removes user from typingUsers map when they stop typing',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {2: 'Alice', 3: 'Bob'},
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: false,
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.length, 'typingUsers length', 1)
+              .having((s) => s.typingUsers.containsKey(2), 'user 2 removed', false)
+              .having((s) => s.typingUsers[3], 'user 3 remains', 'Bob'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'uses default nickname when userNickname is null',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: null,
+          isTyping: true,
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers[2], 'default nickname', '상대방'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'handles stop typing for non-existent user gracefully',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {3: 'Bob'},
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 999,
+          userNickname: 'Ghost',
+          isTyping: false,
+        )),
+        expect: () => [],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'multiple users can be typing simultaneously',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+        ),
+        act: (bloc) {
+          bloc.add(const TypingStatusChanged(userId: 2, userNickname: 'Alice', isTyping: true));
+          bloc.add(const TypingStatusChanged(userId: 3, userNickname: 'Bob', isTyping: true));
+          bloc.add(const TypingStatusChanged(userId: 4, userNickname: 'Charlie', isTyping: true));
+        },
+        expect: () => [
+          isA<ChatRoomState>().having((s) => s.typingUsers.length, 'after Alice', 1),
+          isA<ChatRoomState>().having((s) => s.typingUsers.length, 'after Bob', 2),
+          isA<ChatRoomState>().having((s) => s.typingUsers.length, 'after Charlie', 3)
+              .having((s) => s.typingUsers[2], 'Alice', 'Alice')
+              .having((s) => s.typingUsers[3], 'Bob', 'Bob')
+              .having((s) => s.typingUsers[4], 'Charlie', 'Charlie'),
+        ],
+      );
+    });
+
+    group('MessageDeletedByOther (received from WebSocket)', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'marks message as deleted when deleted by other user',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                Message(
+                  id: 1,
+                  chatRoomId: 1,
+                  senderId: 2,
+                  content: 'Hello',
+                  createdAt: DateTime(2024, 1, 1),
+                  isDeleted: false,
+                ),
+              ], null, false));
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          bloc.add(const MessageDeletedByOther(1));
+        },
+        skip: 2, // Skip loading and success states from ChatRoomOpened
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.isDeleted, 'isDeleted', true),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'state unchanged when message id does not exist',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                Message(
+                  id: 1,
+                  chatRoomId: 1,
+                  senderId: 2,
+                  content: 'Hello',
+                  createdAt: DateTime(2024, 1, 1),
+                  isDeleted: false,
+                ),
+              ], null, false));
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          bloc.add(const MessageDeletedByOther(999));
+        },
+        skip: 2, // Skip loading and success states from ChatRoomOpened
+        expect: () => [],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'handles delete event for already deleted message gracefully',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                Message(
+                  id: 1,
+                  chatRoomId: 1,
+                  senderId: 2,
+                  content: 'Hello',
+                  createdAt: DateTime(2024, 1, 1),
+                  isDeleted: true,
+                ),
+              ], null, false));
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          bloc.add(const MessageDeletedByOther(1));
+        },
+        skip: 2, // Skip loading and success states from ChatRoomOpened
+        expect: () => [],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'deletes correct message when multiple messages exist',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                Message(id: 3, chatRoomId: 1, senderId: 2, content: 'Third', createdAt: DateTime(2024, 1, 3), isDeleted: false),
+                Message(id: 2, chatRoomId: 1, senderId: 2, content: 'Second', createdAt: DateTime(2024, 1, 2), isDeleted: false),
+                Message(id: 1, chatRoomId: 1, senderId: 2, content: 'First', createdAt: DateTime(2024, 1, 1), isDeleted: false),
+              ], null, false));
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+          bloc.add(const MessageDeletedByOther(2));
+        },
+        skip: 2, // Skip loading and success states from ChatRoomOpened
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 3)
+              .having((s) => s.messages[0].isDeleted, 'third message', false)
+              .having((s) => s.messages[1].isDeleted, 'second message (deleted)', true)
+              .having((s) => s.messages[2].isDeleted, 'first message', false),
+        ],
+      );
+    });
+
+    group('ChatRoomRefreshRequested', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'refreshes messages from server when requested',
+        build: () {
+          var callCount = 0;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async {
+            callCount++;
+            if (callCount == 1) {
+              return ([FakeEntities.textMessage], 123, false);
+            } else {
+              return ([FakeEntities.imageMessage, FakeEntities.textMessage], 456, true);
+            }
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          // Open room first (call 1: returns [textMessage])
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // Refresh (call 2: returns [imageMessage, textMessage] with new data)
+          bloc.add(const ChatRoomRefreshRequested());
+        },
+        wait: const Duration(milliseconds: 300),
+        skip: 2, // Skip loading and success from ChatRoomOpened
+        expect: () => [
+          // Refresh updates messages (new imageMessage found via gap recovery)
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 2)
+              .having((s) => s.nextCursor, 'nextCursor', 456)
+              .having((s) => s.hasMore, 'hasMore', true)
+              .having((s) => s.isOfflineData, 'isOfflineData', false),
+        ],
+        verify: (_) {
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size'))).called(greaterThan(0));
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does nothing when roomId is null',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: null,
+          messages: [],
+        ),
+        act: (bloc) => bloc.add(const ChatRoomRefreshRequested()),
+        expect: () => [],
+        verify: (_) {
+          verifyNever(() => mockChatRepository.getMessages(
+                any(),
+                size: any(named: 'size'),
+              ));
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'does not call markAsRead when not viewing room',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([FakeEntities.imageMessage], null, false));
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [FakeEntities.textMessage],
+        ),
+        act: (bloc) => bloc.add(const ChatRoomRefreshRequested()),
+        wait: const Duration(milliseconds: 200),
+        verify: (_) {
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size'))).called(1);
+          verifyNever(() => mockChatRepository.markAsRead(any()));
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'handles refresh with no new messages gracefully',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([FakeEntities.textMessage], 123, false));
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [FakeEntities.textMessage],
+          nextCursor: 123,
+          hasMore: false,
+        ),
+        act: (bloc) => bloc.add(const ChatRoomRefreshRequested()),
+        wait: const Duration(milliseconds: 200),
+        expect: () => [],
+        verify: (_) {
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size'))).called(1);
+        },
+      );
     });
   });
 }
