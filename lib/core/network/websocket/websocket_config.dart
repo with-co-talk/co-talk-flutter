@@ -38,7 +38,6 @@ class WebSocketConfig {
   static const String sendTypingDestination = '/app/chat/typing';
   static const String sendPresenceDestination = '/app/chat/presence';
   static const String sendPresenceInactiveDestination = '/app/chat/presence/inactive';
-  static const String sendMarkAsReadDestination = '/app/chat/read';
 
   /// STOMP topic patterns for subscriptions.
   static String chatRoomTopic(int roomId) => '/topic/chat/room/$roomId';
@@ -46,6 +45,9 @@ class WebSocketConfig {
   static String userReadReceiptTopic(int userId) => '/topic/user/$userId/read-receipt';
   static String userOnlineStatusTopic(int userId) => '/topic/user/$userId/online-status';
   static String userProfileUpdateTopic(int userId) => '/topic/user/$userId/profile-update';
+
+  /// User error queue (receives @SendToUser("/queue/errors") from backend).
+  static const String userErrorQueue = '/user/queue/errors';
 
   /// Event dedupe cache settings.
   static const Duration dedupeCacheTtl = Duration(seconds: 15);

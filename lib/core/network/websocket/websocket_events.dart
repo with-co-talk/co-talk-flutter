@@ -15,6 +15,8 @@ enum WebSocketConnectionState {
   connecting,
   connected,
   reconnecting,
+  /// All reconnection attempts exhausted. User action required.
+  failed,
 }
 
 /// WebSocket chat message event.
@@ -104,7 +106,7 @@ class WebSocketChatMessage {
       final nano = value.length > 6 ? value[6] as int : 0;
       final millisecond = nano ~/ 1000000;
       final microsecond = (nano ~/ 1000) % 1000;
-      return DateTime(year, month, day, hour, minute, second, millisecond, microsecond);
+      return DateTime.utc(year, month, day, hour, minute, second, millisecond, microsecond);
     }
     return DateTime.now();
   }
@@ -281,6 +283,41 @@ class WebSocketOnlineStatusEvent {
   }
 }
 
+/// WebSocket message updated event.
+class WebSocketMessageUpdatedEvent {
+  final int? schemaVersion;
+  final String? eventId;
+  final int chatRoomId;
+  final int messageId;
+  final int updatedBy;
+  final String newContent;
+  final DateTime updatedAt;
+
+  WebSocketMessageUpdatedEvent({
+    this.schemaVersion,
+    this.eventId,
+    required this.chatRoomId,
+    required this.messageId,
+    required this.updatedBy,
+    required this.newContent,
+    required this.updatedAt,
+  });
+
+  factory WebSocketMessageUpdatedEvent.fromJson(Map<String, dynamic> json) {
+    return WebSocketMessageUpdatedEvent(
+      schemaVersion: json['schemaVersion'] as int?,
+      eventId: json['eventId'] as String?,
+      chatRoomId: (json['chatRoomId'] as num).toInt(),
+      messageId: (json['messageId'] as num).toInt(),
+      updatedBy: (json['updatedBy'] as num).toInt(),
+      newContent: json['newContent'] as String? ?? '',
+      updatedAt: json['updatedAtMillis'] != null
+          ? DateTime.fromMillisecondsSinceEpoch((json['updatedAtMillis'] as num).toInt())
+          : DateTime.now(),
+    );
+  }
+}
+
 /// WebSocket message deleted event.
 class WebSocketMessageDeletedEvent {
   final int? schemaVersion;
@@ -308,6 +345,29 @@ class WebSocketMessageDeletedEvent {
       deletedBy: (json['deletedBy'] as num).toInt(),
       deletedAt: json['deletedAtMillis'] != null
           ? DateTime.fromMillisecondsSinceEpoch((json['deletedAtMillis'] as num).toInt())
+          : DateTime.now(),
+    );
+  }
+}
+
+/// WebSocket error event from backend @SendToUser("/queue/errors").
+class WebSocketErrorEvent {
+  final String code;
+  final String message;
+  final DateTime timestamp;
+
+  WebSocketErrorEvent({
+    required this.code,
+    required this.message,
+    required this.timestamp,
+  });
+
+  factory WebSocketErrorEvent.fromJson(Map<String, dynamic> json) {
+    return WebSocketErrorEvent(
+      code: json['code'] as String? ?? 'UNKNOWN',
+      message: json['message'] as String? ?? '',
+      timestamp: json['timestamp'] != null
+          ? DateTime.fromMillisecondsSinceEpoch((json['timestamp'] as num).toInt())
           : DateTime.now(),
     );
   }

@@ -10,6 +10,7 @@ import '../../models/chat_room_model.dart';
 import '../../models/message_model.dart';
 import '../../models/media_gallery_model.dart';
 import '../base_remote_datasource.dart';
+import '../local/auth_local_datasource.dart';
 
 abstract class ChatRemoteDataSource {
   Future<List<ChatRoomModel>> getChatRooms();
@@ -47,9 +48,11 @@ abstract class ChatRemoteDataSource {
 class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
     implements ChatRemoteDataSource {
   final DioClient _dioClient;
+  final AuthLocalDataSource _authLocalDataSource;
 
   ChatRemoteDataSourceImpl(
     this._dioClient,
+    this._authLocalDataSource,
   );
 
   @override
@@ -285,7 +288,7 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
         ApiConstants.chatMessages,
         data: request.toJson(),
       );
-      
+
       final responseData = response.data;
       if (responseData is! Map) {
         throw ServerException(
@@ -293,7 +296,10 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
           statusCode: null,
         );
       }
-      
+
+      // Get current user ID as fallback for senderId
+      final currentUserId = await _authLocalDataSource.getUserId() ?? 0;
+
       // API 응답 형식 변환
       // 응답: {"messageId":..., "content":"...", "type":"TEXT", "createdAt":[2026,1,22,3,4,10,946596000], ...}
       // 기대: {"id":..., "chatRoomId":..., "senderId":..., "content":"...", "createdAt":"2026-01-22T03:04:10.946596Z", ...}
@@ -302,14 +308,14 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
         'id': responseData['messageId'] ?? responseData['id'],
         // 요청에서 가져온 정보
         'chatRoomId': request.chatRoomId,
-        // senderId는 서버 응답에서 가져오거나 JWT에서 추출
-        'senderId': responseData['senderId'] ?? 0,
+        // senderId는 서버 응답에서 가져오거나 현재 사용자 ID 사용
+        'senderId': responseData['senderId'] ?? currentUserId,
         'content': responseData['content'] ?? request.content,
         'type': responseData['type'],
         'fileUrl': responseData['fileUrl'],
         'fileName': responseData['fileName'],
         'fileSize': responseData['fileSize'],
-        'fileContentType': responseData['contentType'],
+        'fileContentType': responseData['fileContentType'] ?? responseData['contentType'],
         'thumbnailUrl': responseData['thumbnailUrl'],
         'replyToMessageId': responseData['replyToMessageId'],
         'forwardedFromMessageId': responseData['forwardedFromMessageId'],
@@ -350,7 +356,18 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
         '${ApiConstants.chatMessages}/$messageId',
         data: {'content': content},
       );
-      return MessageModel.fromJson(response.data);
+      // Backend returns UpdateMessageResponse(messageId, content, updatedAt),
+      // not a full MessageModel. Parse the slim response accordingly.
+      final data = response.data as Map<String, dynamic>;
+      return MessageModel(
+        id: (data['messageId'] as num).toInt(),
+        senderId: 0,
+        content: data['content'] as String,
+        createdAt: DateTime.now(),
+        updatedAt: data['updatedAt'] != null
+            ? DateParser.parse(data['updatedAt'])
+            : DateTime.now(),
+      );
     } on DioException catch (e) {
       throw handleDioError(e);
     }
@@ -435,17 +452,20 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
         );
       }
 
+      // Get current user ID as fallback for senderId
+      final currentUserId = await _authLocalDataSource.getUserId() ?? 0;
+
       // API 응답 형식 변환 (sendMessage와 동일한 형식)
       final convertedData = <String, dynamic>{
         'id': responseData['messageId'] ?? responseData['id'],
         'chatRoomId': request.chatRoomId,
-        'senderId': responseData['senderId'] ?? 0, // 서버에서 추출됨
+        'senderId': responseData['senderId'] ?? currentUserId, // 서버에서 추출되거나 현재 사용자 ID 사용
         'content': responseData['content'] ?? request.fileName,
         'type': responseData['type'],
         'fileUrl': responseData['fileUrl'] ?? request.fileUrl,
         'fileName': responseData['fileName'] ?? request.fileName,
         'fileSize': responseData['fileSize'] ?? request.fileSize,
-        'fileContentType': responseData['contentType'] ?? request.contentType,
+        'fileContentType': responseData['fileContentType'] ?? responseData['contentType'] ?? request.contentType,
         'thumbnailUrl': responseData['thumbnailUrl'] ?? request.thumbnailUrl,
         'replyToMessageId': responseData['replyToMessageId'],
         'forwardedFromMessageId': responseData['forwardedFromMessageId'],

@@ -395,7 +395,8 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
   Future<void> blockUser(int userId) async {
     try {
       await _dioClient.post(
-        ApiConstants.blockUser(userId),
+        ApiConstants.blocks,
+        data: {'blockedId': userId},
       );
     } on DioException catch (e) {
       throw handleDioError(e);
@@ -420,8 +421,15 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
         ApiConstants.blocks,
       );
 
-      final data = extractListFromResponse(response.data, 'users');
-      return data.map((json) => UserModel.fromJson(json)).toList();
+      final data = extractListFromResponse(response.data, 'blockedUsers');
+      // Backend BlockedUserDto only returns id, nickname, avatarUrl (no email).
+      // Manually construct UserModel to avoid fromJson crash on missing fields.
+      return data.map((json) => UserModel(
+        id: (json['id'] as num).toInt(),
+        email: '',
+        nickname: json['nickname'] as String? ?? '',
+        avatarUrl: json['avatarUrl'] as String?,
+      )).toList();
     } on DioException catch (e) {
       throw handleDioError(e);
     } catch (e) {

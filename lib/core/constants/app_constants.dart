@@ -22,7 +22,7 @@ class AppConstants {
   static const int maxNicknameLength = 20;
 
   // Chat
-  static const int maxMessageLength = 5000;
+  static const int maxMessageLength = 2000;
   static const int maxFileSize = 10 * 1024 * 1024; // 10MB
 
   // Desktop Window

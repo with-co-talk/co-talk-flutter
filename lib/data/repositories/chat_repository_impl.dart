@@ -17,14 +17,25 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<List<ChatRoom>> getChatRooms() async {
-    // Fetch from server
-    final chatRoomModels = await _remoteDataSource.getChatRooms();
-    final chatRooms = chatRoomModels.map((m) => m.toEntity()).toList();
+    try {
+      // Fetch from server
+      final chatRoomModels = await _remoteDataSource.getChatRooms();
+      final chatRooms = chatRoomModels.map((m) => m.toEntity()).toList();
 
-    // Save to local cache
-    await _localDataSource.saveChatRooms(chatRooms);
+      // Save to local cache (fire-and-forget)
+      _localDataSource.saveChatRooms(chatRooms).catchError((_) {});
 
-    return chatRooms;
+      return chatRooms;
+    } catch (e) {
+      // Fallback to cached data on network failure
+      try {
+        final cachedRooms = await _localDataSource.getChatRooms();
+        if (cachedRooms.isNotEmpty) return cachedRooms;
+      } catch (_) {
+        // Ignore cache errors and rethrow original error
+      }
+      rethrow;
+    }
   }
 
   @override
@@ -142,8 +153,8 @@ class ChatRepositoryImpl implements ChatRepository {
 
     final message = messageModel.toEntity();
 
-    // Update in local cache
-    await _localDataSource.saveMessage(message);
+    // Don't save the slim UpdateMessageResponse to local cache — it lacks
+    // senderId, createdAt, etc. The BLoC updates the in-memory cache directly.
 
     return message;
   }

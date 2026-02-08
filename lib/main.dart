@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -21,7 +22,16 @@ void main() async {
   // Release 모드에서도 에러를 캐치하기 위한 글로벌 에러 핸들러
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    debugPrint('FlutterError: ${details.exception}');
+    if (kReleaseMode) {
+      // In release mode, log to console but don't crash
+      debugPrint('Flutter error: ${details.exception}');
+    }
+  };
+
+  // Catch non-Flutter errors (e.g., async errors outside Flutter framework)
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Unhandled error: $error');
+    return true;
   };
 
   try {

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -103,10 +104,10 @@ class _ProfileViewContent extends StatelessWidget {
         final backgroundHistory = profileState.getCurrentHistory(ProfileHistoryType.background);
         final avatarHistory = profileState.getCurrentHistory(ProfileHistoryType.avatar);
 
-        // ignore: avoid_print
-        print('[ProfileViewPage] avatarHistory?.url=${avatarHistory?.url}, user.avatarUrl=${user.avatarUrl}');
-        // ignore: avoid_print
-        print('[ProfileViewPage] histories count=${profileState.histories.length}, avatarHistories=${profileState.histories.where((h) => h.type == ProfileHistoryType.avatar).map((h) => "id=${h.id}, isCurrent=${h.isCurrent}, url=${h.url}").toList()}');
+        if (kDebugMode) {
+          debugPrint('[ProfileViewPage] avatarHistory?.url=${avatarHistory?.url}, user.avatarUrl=${user.avatarUrl}');
+          debugPrint('[ProfileViewPage] histories count=${profileState.histories.length}, avatarHistories=${profileState.histories.where((h) => h.type == ProfileHistoryType.avatar).map((h) => "id=${h.id}, isCurrent=${h.isCurrent}, url=${h.url}").toList()}');
+        }
 
         return Scaffold(
           extendBodyBehindAppBar: true,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/utils/url_utils.dart';
@@ -433,7 +434,7 @@ class MessageBubble extends StatelessWidget {
                 leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
                 title: const Text('수정'),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(bottomSheetContext);
                   _showEditDialog(context);
                 },
               ),
@@ -441,7 +442,7 @@ class MessageBubble extends StatelessWidget {
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
                 title: const Text('삭제', style: TextStyle(color: Colors.red)),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(bottomSheetContext);
                   _showDeleteConfirmDialog(context);
                 },
               ),
@@ -727,27 +728,20 @@ class MessageBubble extends StatelessWidget {
               maxWidth: MediaQuery.of(context).size.width * 0.65,
               maxHeight: 250,
             ),
-            child: Image.network(
-              imageUrl,
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
               fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  width: 200,
-                  height: 150,
-                  color: context.dividerColor,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      strokeWidth: 2,
-                    ),
+              placeholder: (context, url) => Container(
+                width: 200,
+                height: 150,
+                color: context.dividerColor,
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
                   ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) => Container(
+                ),
+              ),
+              errorWidget: (context, url, error) => Container(
                 width: 200,
                 height: 150,
                 color: context.dividerColor,
@@ -1140,22 +1134,15 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
                   panEnabled: true,
                   minScale: 0.5,
                   maxScale: 4,
-                  child: Image.network(
-                    widget.imageUrl,
+                  child: CachedNetworkImage(
+                    imageUrl: widget.imageUrl,
                     fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) => const Center(
+                    placeholder: (context, url) => const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => const Center(
                       child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
                     ),
                   ),

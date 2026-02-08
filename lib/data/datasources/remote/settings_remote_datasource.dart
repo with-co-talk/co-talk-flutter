@@ -51,7 +51,7 @@ class SettingsRemoteDataSourceImpl extends BaseRemoteDataSource
   Future<void> deleteAccount(int userId, String password) async {
     try {
       await _dioClient.delete(
-        ApiConstants.accountDeletion(userId),
+        ApiConstants.accountDeletion,
         data: {'password': password},
       );
     } on DioException catch (e) {

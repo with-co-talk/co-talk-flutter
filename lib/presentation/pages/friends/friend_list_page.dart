@@ -41,19 +41,33 @@ class _FriendListPageState extends State<FriendListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<FriendBloc, FriendState>(
-      listenWhen: (previous, current) =>
-          previous.errorMessage != current.errorMessage && current.errorMessage != null,
-      listener: (context, state) {
-        if (state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(ErrorMessageMapper.toUserFriendlyMessage(state.errorMessage!)),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      },
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<FriendBloc, FriendState>(
+          listenWhen: (previous, current) =>
+              previous.errorMessage != current.errorMessage && current.errorMessage != null,
+          listener: (context, state) {
+            if (state.errorMessage != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(ErrorMessageMapper.toUserFriendlyMessage(state.errorMessage!)),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+        ),
+        BlocListener<FriendBloc, FriendState>(
+          listenWhen: (previous, current) =>
+              previous.successMessage != current.successMessage &&
+              current.successMessage != null,
+          listener: (context, state) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.successMessage!)),
+            );
+          },
+        ),
+      ],
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
@@ -491,12 +505,6 @@ class _FriendTile extends StatelessWidget {
             onPressed: () {
               context.read<FriendBloc>().add(FriendRemoved(friend.user.id));
               Navigator.pop(dialogContext);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('친구를 삭제했습니다'),
-                  backgroundColor: Colors.red,
-                ),
-              );
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('삭제'),

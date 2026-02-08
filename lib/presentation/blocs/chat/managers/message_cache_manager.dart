@@ -79,25 +79,47 @@ class MessageCacheManager {
 
       if (serverMessages.isEmpty) return false;
 
-      // Preserve pending/failed messages (not yet confirmed by server)
-      final pendingMsgs =
-          _messages.where((m) => m.isPending || m.isFailed).toList();
+      // Preserve locally-originated messages that are NOT yet on the server.
+      // A locally-originated message (negative ID) is considered "resolved" if
+      // a server message with the same content exists within a 60-second window.
+      final localMsgs =
+          _messages.where((m) => m.id < 0).toList();
 
       // Merge: use server messages as the base, deduplicate
       final serverIds = serverMessages.map((m) => m.id).toSet();
-      final existingIds = _messages.map((m) => m.id).toSet();
+      final existingIds = _messages.where((m) => m.id > 0).map((m) => m.id).toSet();
 
       // Check if there are genuinely new messages
       final hasNewMessages = serverIds.any((id) => !existingIds.contains(id));
 
-      // Build merged list: pending first, then server messages
-      // (pending messages have negative temp IDs so won't collide)
-      _messages = [...pendingMsgs, ...serverMessages];
+      // Resolve local messages that match server messages (prevent duplicates)
+      // Must match sender too: don't resolve my local msg with another user's msg
+      const maxTimeDiff = Duration(seconds: 60);
+      final resolvedLocalIds = <String>{};
+      for (final local in localMsgs) {
+        for (final server in serverMessages) {
+          if (local.senderId == server.senderId &&
+              local.content == server.content &&
+              server.createdAt.difference(local.createdAt).abs() <= maxTimeDiff) {
+            if (local.localId != null) resolvedLocalIds.add(local.localId!);
+            _log('refreshFromServer: resolved local message (localId=${local.localId}) with server message (id=${server.id})');
+            break;
+          }
+        }
+      }
+
+      // Keep only unresolved local messages (failed ones that weren't sent)
+      final unresolvedLocals = localMsgs
+          .where((m) => m.localId == null || !resolvedLocalIds.contains(m.localId!))
+          .toList();
+
+      // Build merged list: unresolved locals first, then server messages
+      _messages = [...unresolvedLocals, ...serverMessages];
 
       // Deduplicate by id (keep first occurrence)
       final seenIds = <int>{};
       _messages = _messages.where((m) {
-        if (m.isPending || m.isFailed) return true; // always keep pending
+        if (m.id < 0) return true; // always keep local messages
         if (seenIds.contains(m.id)) return false;
         seenIds.add(m.id);
         return true;
@@ -268,21 +290,27 @@ class MessageCacheManager {
     }).toList();
   }
 
-  /// Replaces a pending message with the real message from server.
-  /// Returns true if a pending message was found and replaced.
+  /// Replaces a locally-originated message with the real message from server.
+  /// Returns true if a local message was found and replaced.
+  ///
+  /// Matches locally-originated messages (negative ID) regardless of send status
+  /// (pending or already marked as sent). This handles:
+  /// - pending messages waiting for echo
+  /// - messages already marked as "sent" via fire-and-forget
   ///
   /// Matching criteria:
+  /// - Locally originated (negative ID)
   /// - Same content
   /// - Created within 60 seconds of the real message
   /// - If multiple matches, select the OLDEST one (FIFO)
   bool replacePendingMessageWithReal(String content, Message realMessage) {
-    // Find all pending messages with matching content within time window
     final matchingIndices = <int>[];
     const maxTimeDiff = Duration(seconds: 60);
 
     for (int i = 0; i < _messages.length; i++) {
       final m = _messages[i];
-      if (m.isPending && m.content == content) {
+      // Match locally-originated messages (negative temp ID) with same content
+      if (m.id < 0 && m.content == content) {
         final timeDiff = realMessage.createdAt.difference(m.createdAt).abs();
         if (timeDiff <= maxTimeDiff) {
           matchingIndices.add(i);
@@ -294,16 +322,16 @@ class MessageCacheManager {
       return false;
     }
 
-    // Select the OLDEST matching pending message (FIFO ordering)
+    // Select the OLDEST matching local message (FIFO ordering)
     // Since messages are added at the beginning, the oldest is at the highest index
-    final pendingIndex = matchingIndices.reduce((a, b) => a > b ? a : b);
-    final pendingMessage = _messages[pendingIndex];
+    final localIndex = matchingIndices.reduce((a, b) => a > b ? a : b);
+    final localMessage = _messages[localIndex];
 
-    _log('Replacing pending message (localId=${pendingMessage.localId}) with real message (id=${realMessage.id})');
+    _log('Replacing local message (localId=${localMessage.localId}) with real message (id=${realMessage.id})');
     // Create new list for Equatable compatibility
     _messages = [
       for (int i = 0; i < _messages.length; i++)
-        if (i == pendingIndex)
+        if (i == localIndex)
           realMessage.copyWith(sendStatus: MessageSendStatus.sent)
         else
           _messages[i],

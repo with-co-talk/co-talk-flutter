@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:super_clipboard/super_clipboard.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_event.dart';
@@ -565,6 +566,17 @@ class _MessageInputState extends State<MessageInput> {
                           ),
                           maxLines: null,
                           minLines: 1,
+                          maxLength: AppConstants.maxMessageLength,
+                          buildCounter: (context, {required currentLength, required isFocused, required maxLength}) {
+                            if (!isFocused || currentLength < (maxLength! * 0.8)) return null;
+                            return Text(
+                              '$currentLength/$maxLength',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: currentLength >= maxLength ? Colors.red : context.textSecondaryColor,
+                              ),
+                            );
+                          },
                           textInputAction: TextInputAction.send,
                           textCapitalization: TextCapitalization.sentences,
                           onChanged: (_) {

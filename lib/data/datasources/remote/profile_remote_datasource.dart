@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/dio_client.dart';
@@ -69,24 +70,27 @@ class ProfileRemoteDataSourceImpl extends BaseRemoteDataSource
         queryParams['type'] = type;
       }
 
-      // ignore: avoid_print
-      print('[ProfileRemoteDataSource] GET ${ApiConstants.profileHistory(userId)}, params=$queryParams');
+      if (kDebugMode) {
+        debugPrint('[ProfileRemoteDataSource] GET ${ApiConstants.profileHistory(userId)}, params=$queryParams');
+      }
 
       final response = await _dioClient.get(
         ApiConstants.profileHistory(userId),
         queryParameters: queryParams,
       );
 
-      // ignore: avoid_print
-      print('[ProfileRemoteDataSource] Response: ${response.data}');
+      if (kDebugMode) {
+        debugPrint('[ProfileRemoteDataSource] Response: ${response.data}');
+      }
 
       final List<dynamic> data = response.data['histories'] ?? response.data;
       return data
           .map((json) => ProfileHistoryModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } on DioException catch (e) {
-      // ignore: avoid_print
-      print('[ProfileRemoteDataSource] Error: $e');
+      if (kDebugMode) {
+        debugPrint('[ProfileRemoteDataSource] Error: $e');
+      }
       throw handleDioError(e);
     }
   }
@@ -109,21 +113,24 @@ class ProfileRemoteDataSourceImpl extends BaseRemoteDataSource
         'setCurrent': setCurrent,
       };
 
-      // ignore: avoid_print
-      print('[ProfileRemoteDataSource] POST ${ApiConstants.profileHistory(userId)}, data=$requestData');
+      if (kDebugMode) {
+        debugPrint('[ProfileRemoteDataSource] POST ${ApiConstants.profileHistory(userId)}, data=$requestData');
+      }
 
       final response = await _dioClient.post(
         ApiConstants.profileHistory(userId),
         data: requestData,
       );
 
-      // ignore: avoid_print
-      print('[ProfileRemoteDataSource] Create response: ${response.data}');
+      if (kDebugMode) {
+        debugPrint('[ProfileRemoteDataSource] Create response: ${response.data}');
+      }
 
       return ProfileHistoryModel.fromJson(response.data);
     } on DioException catch (e) {
-      // ignore: avoid_print
-      print('[ProfileRemoteDataSource] Create error: $e');
+      if (kDebugMode) {
+        debugPrint('[ProfileRemoteDataSource] Create error: $e');
+      }
       throw handleDioError(e);
     }
   }

@@ -25,6 +25,7 @@ class WebSocketSubscriptionManager {
   StompUnsubscribe? _readReceiptSubscription;
   StompUnsubscribe? _onlineStatusSubscription;
   StompUnsubscribe? _profileUpdateSubscription;
+  StompUnsubscribe? _errorSubscription;
   /// Currently subscribed user ID (if any).
   ///
   /// Used to remember user ID for automatic reconnection when setting,
@@ -123,6 +124,7 @@ class WebSocketSubscriptionManager {
     required StompFrameCallback onReadReceiptMessage,
     required StompFrameCallback onOnlineStatusMessage,
     required StompFrameCallback onProfileUpdateMessage,
+    StompFrameCallback? onErrorMessage,
   }) {
     if (kDebugMode) {
       debugPrint('[WebSocket] subscribeToUserChannel($userId) - connected: ${stompClient?.connected}');
@@ -153,6 +155,7 @@ class WebSocketSubscriptionManager {
       onReadReceiptMessage: onReadReceiptMessage,
       onOnlineStatusMessage: onOnlineStatusMessage,
       onProfileUpdateMessage: onProfileUpdateMessage,
+      onErrorMessage: onErrorMessage,
     );
   }
 
@@ -163,6 +166,7 @@ class WebSocketSubscriptionManager {
     required StompFrameCallback onReadReceiptMessage,
     required StompFrameCallback onOnlineStatusMessage,
     required StompFrameCallback onProfileUpdateMessage,
+    StompFrameCallback? onErrorMessage,
   }) {
     try {
       // Chat list updates
@@ -188,6 +192,14 @@ class WebSocketSubscriptionManager {
         destination: WebSocketConfig.userProfileUpdateTopic(userId),
         callback: onProfileUpdateMessage,
       );
+
+      // Error queue (server-side application errors)
+      if (onErrorMessage != null) {
+        _errorSubscription = stompClient.subscribe(
+          destination: WebSocketConfig.userErrorQueue,
+          callback: onErrorMessage,
+        );
+      }
 
       subscribedUserId = userId;
 
@@ -221,6 +233,8 @@ class WebSocketSubscriptionManager {
     _onlineStatusSubscription = null;
     _profileUpdateSubscription?.call();
     _profileUpdateSubscription = null;
+    _errorSubscription?.call();
+    _errorSubscription = null;
   }
 
   /// Called when the STOMP connection is lost (auto-disconnect).
@@ -237,6 +251,7 @@ class WebSocketSubscriptionManager {
     _readReceiptSubscription = null;
     _onlineStatusSubscription = null;
     _profileUpdateSubscription = null;
+    _errorSubscription = null;
   }
 
   /// Restores all subscriptions after reconnection.
@@ -251,6 +266,7 @@ class WebSocketSubscriptionManager {
     required StompFrameCallback onReadReceiptMessage,
     required StompFrameCallback onOnlineStatusMessage,
     required StompFrameCallback onProfileUpdateMessage,
+    StompFrameCallback? onErrorMessage,
   }) {
     // Only process pending subscriptions (rooms queued by onDisconnected or pre-connection requests).
     // Do NOT touch _roomSubscriptions — the BLoC may have already subscribed fresh rooms.
@@ -280,6 +296,7 @@ class WebSocketSubscriptionManager {
         onReadReceiptMessage: onReadReceiptMessage,
         onOnlineStatusMessage: onOnlineStatusMessage,
         onProfileUpdateMessage: onProfileUpdateMessage,
+        onErrorMessage: onErrorMessage,
       );
     }
   }
@@ -294,6 +311,7 @@ class WebSocketSubscriptionManager {
     _readReceiptSubscription = null;
     _onlineStatusSubscription = null;
     _profileUpdateSubscription = null;
+    _errorSubscription = null;
   }
 
   /// Disposes all subscriptions properly.

@@ -34,10 +34,18 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   bool _roomInitialized = false;
   bool _pendingForegrounded = false;
 
+  // WebSocket reconnection subscription for gap recovery
+  StreamSubscription<void>? _reconnectedSubscription;
+
   // Pending message timeout timer
   Timer? _pendingTimeoutTimer;
   static const _pendingTimeoutCheckInterval = Duration(seconds: 10);
-  static const _pendingMessageTimeout = Duration(seconds: 30);
+  static const _pendingMessageTimeout = Duration(seconds: 15);
+
+  // markAsRead debounce timer: coalesces rapid consecutive calls into one
+  Timer? _markAsReadDebounceTimer;
+  // markAsRead retry timer: separate from debounce to allow independent cancellation
+  Timer? _markAsReadRetryTimer;
 
   ChatRoomBloc(
     this._chatRepository,
@@ -66,6 +74,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<MessageReceived>(_onMessageReceived);
     on<MessageDeleted>(_onMessageDeleted);
     on<MessageDeletedByOther>(_onMessageDeletedByOther);
+    on<MessageUpdatedByOther>(_onMessageUpdatedByOther);
     on<MessagesReadUpdated>(_onMessagesReadUpdated);
     on<TypingStatusChanged>(_onTypingStatusChanged);
     on<UserStartedTyping>(_onUserStartedTyping);
@@ -76,6 +85,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<OtherUserLeftStatusChanged>(_onOtherUserLeftStatusChanged);
     on<FileAttachmentRequested>(_onFileAttachmentRequested);
     on<MessageRetryRequested>(_onMessageRetryRequested);
+    on<MessageSendCompleted>(_onMessageSendCompleted);
     on<PendingMessageDeleteRequested>(_onPendingMessageDeleteRequested);
     on<PendingMessagesTimeoutChecked>(_onPendingMessagesTimeoutChecked);
     on<ChatRoomRefreshRequested>(_onRefreshRequested);
@@ -146,6 +156,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _log('Fetched ${_cacheManager.messages.length} messages from server');
 
       await _subscribeToWebSocket(event.roomId);
+
+      // Subscribe to reconnection events for gap recovery
+      _reconnectedSubscription?.cancel();
+      _reconnectedSubscription = _webSocketService.reconnected.listen((_) {
+        if (state.roomId != null && state.status == ChatRoomStatus.success) {
+          _log('WebSocket reconnected, triggering gap recovery');
+          add(const ChatRoomRefreshRequested());
+        }
+      });
 
       emit(state.copyWith(
         status: ChatRoomStatus.success,
@@ -270,6 +289,16 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
           add(MessageDeletedByOther(deletedEvent.messageId));
         }
       },
+      onMessageUpdated: (updatedEvent) {
+        _log('WebSocket message updated: messageId=${updatedEvent.messageId}');
+
+        if (state.roomId != null && updatedEvent.chatRoomId == state.roomId) {
+          add(MessageUpdatedByOther(
+            messageId: updatedEvent.messageId,
+            newContent: updatedEvent.newContent,
+          ));
+        }
+      },
       onReactionEvent: (reactionEvent) {
         _log('WebSocket reaction: messageId=${reactionEvent.messageId}, userId=${reactionEvent.userId}, emoji=${reactionEvent.emoji}, type=${reactionEvent.eventType}');
 
@@ -277,7 +306,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
           messageId: reactionEvent.messageId,
           userId: reactionEvent.userId,
           emoji: reactionEvent.emoji,
-          isAdd: reactionEvent.eventType == 'REACTION_ADDED',
+          isAdd: reactionEvent.eventType == 'ADDED',
           reactionId: reactionEvent.reactionId,
         ));
       },
@@ -291,6 +320,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     if (state.roomId != null) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
+    _reconnectedSubscription?.cancel();
+    _reconnectedSubscription = null;
     _presenceManager.dispose();
     _stopPendingTimeoutChecker();
     _roomInitialized = false;
@@ -344,9 +375,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       if (latestId != null) {
         _subscriptionManager.updateLastKnownMessageId(latestId);
       }
+      final newCursor = _cacheManager.nextCursor;
       emit(state.copyWith(
         messages: _cacheManager.messages,
-        nextCursor: _cacheManager.nextCursor,
+        nextCursor: newCursor,
+        clearNextCursor: newCursor == null,
         hasMore: _cacheManager.hasMore,
         isOfflineData: false,
       ));
@@ -434,6 +467,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
           _subscriptionManager.updateLastKnownMessageId(latestId);
         }
       }
+
+      // 5. Resolve pending messages that were actually sent to server
+      //    (gap recovery already fetched them, no need to retry)
     } else {
       // Desktop: WebSocket stayed connected, just resume presence
       _log('_onForegrounded: resuming presence (desktop)');
@@ -444,9 +480,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     await _messageHandler.markAsRead(state.roomId!);
 
     // Emit updated state
+    final newCursor = _cacheManager.nextCursor;
     emit(state.copyWith(
       messages: _cacheManager.messages,
-      nextCursor: _cacheManager.nextCursor,
+      nextCursor: newCursor,
+      clearNextCursor: newCursor == null,
       hasMore: _cacheManager.hasMore,
       isReadMarked: true,
       isOfflineData: false,
@@ -456,6 +494,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   @override
   Future<void> close() {
     _stopPendingTimeoutChecker();
+    _markAsReadDebounceTimer?.cancel();
+    _markAsReadRetryTimer?.cancel();
+    _reconnectedSubscription?.cancel();
     if (state.roomId != null && _subscriptionManager.isRoomSubscribed) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
@@ -506,10 +547,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
-  Future<void> _onMessageSent(
+  void _onMessageSent(
     MessageSent event,
     Emitter<ChatRoomState> emit,
-  ) async {
+  ) {
     if (state.roomId == null || state.currentUserId == null) return;
 
     // 1. 낙관적 UI: 즉시 pending 메시지를 화면에 추가
@@ -528,22 +569,67 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _cacheManager.addPendingMessage(pendingMessage);
     emit(state.copyWith(messages: _cacheManager.messages));
 
-    // 2. 실제 전송 시도
-    try {
-      await _messageHandler.sendMessage(
-        roomId: state.roomId!,
-        content: event.content,
-        userId: state.currentUserId,
+    // 2. Fire-and-forget: 전송을 백그라운드에서 처리.
+    //    BLoC 이벤트 큐를 차단하지 않으므로 다른 이벤트(에코 수신 등) 즉시 처리 가능.
+    _sendMessageInBackground(
+      localId: localId,
+      roomId: state.roomId!,
+      content: event.content,
+      userId: state.currentUserId,
+    );
+  }
+
+  /// Sends a message in the background without blocking the BLoC event queue.
+  ///
+  /// Results are dispatched via [MessageSendCompleted] events.
+  void _sendMessageInBackground({
+    required String localId,
+    required int roomId,
+    required String content,
+    int? userId,
+  }) {
+    _messageHandler.sendMessage(
+      roomId: roomId,
+      content: content,
+      userId: userId,
+    ).then((_) {
+      if (!isClosed) {
+        add(MessageSendCompleted(localId: localId, success: true));
+      }
+    }).catchError((Object e) {
+      if (!isClosed) {
+        add(MessageSendCompleted(
+          localId: localId,
+          success: false,
+          error: e.toString(),
+        ));
+      }
+    });
+  }
+
+  /// Handles the result of a background message send.
+  void _onMessageSendCompleted(
+    MessageSendCompleted event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    if (event.success) {
+      _log('_onMessageSendCompleted: sent (localId=${event.localId})');
+      // 전송 성공 → 즉시 "sent" 상태로 변경 (에코를 기다리지 않음).
+      // 에코가 오면 _onMessageReceived에서 서버 메시지로 교체.
+      _cacheManager.updatePendingMessageStatus(
+        event.localId,
+        MessageSendStatus.sent,
       );
-      _log('_onMessageSent: Message sent successfully (localId=$localId)');
-      // 전송 성공 시 WebSocket으로 메시지가 돌아오면 _onMessageReceived에서 처리
-    } catch (e) {
-      _log('_onMessageSent: Message send failed (localId=$localId): $e');
-      // 3. 전송 실패 시 메시지 상태를 failed로 변경
-      _cacheManager.updatePendingMessageStatus(localId, MessageSendStatus.failed);
+      emit(state.copyWith(messages: _cacheManager.messages));
+    } else {
+      _log('_onMessageSendCompleted: failed (localId=${event.localId}): ${event.error}');
+      _cacheManager.updatePendingMessageStatus(
+        event.localId,
+        MessageSendStatus.failed,
+      );
       emit(state.copyWith(
         messages: _cacheManager.messages,
-        errorMessage: e.toString(),
+        errorMessage: event.error,
       ));
     }
   }
@@ -600,9 +686,24 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         state.currentUserId != null &&
         event.message.senderId != state.currentUserId &&
         state.roomId != null) {
-      // Fire-and-forget: don't await markAsRead to avoid blocking the BLoC event queue.
-      // This prevents MessageSent events from being delayed behind slow HTTP calls.
-      _messageHandler.markAsRead(state.roomId!);
+      // Debounce markAsRead: coalesce rapid consecutive messages into a single REST call.
+      // Without debounce, 10 messages arriving at once would fire 10 HTTP POST requests,
+      // each triggering read receipts + chat list updates on the server.
+      _markAsReadDebounceTimer?.cancel();
+      _markAsReadRetryTimer?.cancel();
+      final roomId = state.roomId!;
+      _markAsReadDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        if (!isClosed && state.roomId == roomId) {
+          _messageHandler.markAsRead(roomId).catchError((e) {
+            if (kDebugMode) debugPrint('[ChatRoomBloc] markAsRead failed, retrying: $e');
+            _markAsReadRetryTimer = Timer(const Duration(seconds: 2), () {
+              if (!isClosed && state.roomId == roomId) {
+                _messageHandler.markAsRead(roomId).catchError((_) {});
+              }
+            });
+          });
+        }
+      });
     }
   }
 
@@ -631,6 +732,18 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) {
     _log('_onMessageDeletedByOther: messageId=${event.messageId}');
     _cacheManager.markMessageAsDeleted(event.messageId);
+    emit(state.copyWith(messages: _cacheManager.messages));
+  }
+
+  void _onMessageUpdatedByOther(
+    MessageUpdatedByOther event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    _log('_onMessageUpdatedByOther: messageId=${event.messageId}');
+    _cacheManager.updateMessage(
+      event.messageId,
+      (m) => m.copyWith(content: event.newContent),
+    );
     emit(state.copyWith(messages: _cacheManager.messages));
   }
 
@@ -871,10 +984,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   }
 
   /// 전송 실패 메시지 재전송 요청 처리
-  Future<void> _onMessageRetryRequested(
+  void _onMessageRetryRequested(
     MessageRetryRequested event,
     Emitter<ChatRoomState> emit,
-  ) async {
+  ) {
     final pendingMessage = _cacheManager.getPendingMessage(event.localId);
     if (pendingMessage == null || state.roomId == null) return;
 
@@ -884,21 +997,13 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _cacheManager.updatePendingMessageStatus(event.localId, MessageSendStatus.pending);
     emit(state.copyWith(messages: _cacheManager.messages));
 
-    // 재전송 시도
-    try {
-      await _messageHandler.sendMessage(
-        roomId: state.roomId!,
-        content: pendingMessage.content,
-      );
-      _log('_onMessageRetryRequested: Message resent successfully');
-    } catch (e) {
-      _log('_onMessageRetryRequested: Message retry failed: $e');
-      _cacheManager.updatePendingMessageStatus(event.localId, MessageSendStatus.failed);
-      emit(state.copyWith(
-        messages: _cacheManager.messages,
-        errorMessage: e.toString(),
-      ));
-    }
+    // Fire-and-forget 재전송 (BLoC 큐 차단하지 않음)
+    _sendMessageInBackground(
+      localId: event.localId,
+      roomId: state.roomId!,
+      content: pendingMessage.content,
+      userId: state.currentUserId,
+    );
   }
 
   /// 전송 실패 메시지 삭제 요청 처리

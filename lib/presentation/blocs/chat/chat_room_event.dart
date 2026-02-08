@@ -72,6 +72,20 @@ class MessageDeletedByOther extends ChatRoomEvent {
   List<Object?> get props => [messageId];
 }
 
+/// 다른 사용자에 의해 메시지가 수정됨 (WebSocket 수신)
+class MessageUpdatedByOther extends ChatRoomEvent {
+  final int messageId;
+  final String newContent;
+
+  const MessageUpdatedByOther({
+    required this.messageId,
+    required this.newContent,
+  });
+
+  @override
+  List<Object?> get props => [messageId, newContent];
+}
+
 /// 읽음 상태 업데이트 이벤트
 class MessagesReadUpdated extends ChatRoomEvent {
   final int userId;
@@ -187,6 +201,24 @@ class PendingMessageDeleteRequested extends ChatRoomEvent {
 
   @override
   List<Object?> get props => [localId];
+}
+
+/// 메시지 전송 결과 이벤트 (내부 사용)
+///
+/// fire-and-forget 전송 후 BLoC 이벤트 큐를 통해 결과를 처리.
+class MessageSendCompleted extends ChatRoomEvent {
+  final String localId;
+  final bool success;
+  final String? error;
+
+  const MessageSendCompleted({
+    required this.localId,
+    required this.success,
+    this.error,
+  });
+
+  @override
+  List<Object?> get props => [localId, success, error];
 }
 
 /// Pending 메시지 타임아웃 체크 이벤트 (내부 사용)

@@ -19,6 +19,7 @@ class WebSocketSubscriptionManager {
   StreamSubscription<WebSocketReadEvent>? _readEventSubscription;
   StreamSubscription<WebSocketTypingEvent>? _typingSubscription;
   StreamSubscription<WebSocketMessageDeletedEvent>? _messageDeletedSubscription;
+  StreamSubscription<WebSocketMessageUpdatedEvent>? _messageUpdatedSubscription;
   StreamSubscription<WebSocketReactionEvent>? _reactionSubscription;
 
   int? _lastKnownMessageId;
@@ -40,6 +41,7 @@ class WebSocketSubscriptionManager {
     required Function(WebSocketReadEvent) onReadEvent,
     required Function(WebSocketTypingEvent) onTypingEvent,
     required Function(WebSocketMessageDeletedEvent) onMessageDeleted,
+    required Function(WebSocketMessageUpdatedEvent) onMessageUpdated,
     required Function(WebSocketReactionEvent) onReactionEvent,
   }) {
     final isConnected = _webSocketService.isConnected;
@@ -94,6 +96,16 @@ class WebSocketSubscriptionManager {
       },
     );
 
+    _messageUpdatedSubscription = _webSocketService.messageUpdatedEvents.listen(
+      (updatedEvent) {
+        _log('WebSocket message updated: messageId=${updatedEvent.messageId}, roomId=${updatedEvent.chatRoomId}');
+        onMessageUpdated(updatedEvent);
+      },
+      onError: (error) {
+        _log('Error in message updated stream: $error');
+      },
+    );
+
     _reactionSubscription = _webSocketService.reactions.listen(
       (reactionEvent) {
         _log('WebSocket reaction: messageId=${reactionEvent.messageId}, userId=${reactionEvent.userId}, emoji=${reactionEvent.emoji}, type=${reactionEvent.eventType}');
@@ -124,6 +136,8 @@ class WebSocketSubscriptionManager {
     _typingSubscription = null;
     _messageDeletedSubscription?.cancel();
     _messageDeletedSubscription = null;
+    _messageUpdatedSubscription?.cancel();
+    _messageUpdatedSubscription = null;
     _reactionSubscription?.cancel();
     _reactionSubscription = null;
   }

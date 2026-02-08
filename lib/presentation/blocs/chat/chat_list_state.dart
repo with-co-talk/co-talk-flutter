@@ -8,12 +8,14 @@ class ChatListState extends Equatable {
   final List<ChatRoom> chatRooms;
   final String? errorMessage;
   final int _cachedTotalUnreadCount;
+  final bool isWebSocketDegraded;
 
   const ChatListState({
     this.status = ChatListStatus.initial,
     this.chatRooms = const [],
     this.errorMessage,
     int? cachedTotalUnreadCount,
+    this.isWebSocketDegraded = false,
   }) : _cachedTotalUnreadCount = cachedTotalUnreadCount ?? 0;
 
   /// 전체 읽지 않은 메시지 수 (캐싱됨)
@@ -28,6 +30,7 @@ class ChatListState extends Equatable {
     List<ChatRoom>? chatRooms,
     String? errorMessage,
     bool clearErrorMessage = false,
+    bool? isWebSocketDegraded,
   }) {
     final newRooms = chatRooms ?? this.chatRooms;
     // chatRooms가 변경되면 totalUnreadCount 재계산
@@ -40,9 +43,10 @@ class ChatListState extends Equatable {
       chatRooms: newRooms,
       errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
       cachedTotalUnreadCount: newTotalUnread,
+      isWebSocketDegraded: isWebSocketDegraded ?? this.isWebSocketDegraded,
     );
   }
 
   @override
-  List<Object?> get props => [status, chatRooms, errorMessage, _cachedTotalUnreadCount];
+  List<Object?> get props => [status, chatRooms, errorMessage, _cachedTotalUnreadCount, isWebSocketDegraded];
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/utils/error_message_mapper.dart';
@@ -53,8 +54,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     ProfileHistoryLoadRequested event,
     Emitter<ProfileState> emit,
   ) async {
-    // ignore: avoid_print
-    print('[ProfileBloc] _onLoadRequested: userId=${event.userId}, type=${event.type}');
+    if (kDebugMode) {
+      debugPrint('[ProfileBloc] _onLoadRequested: userId=${event.userId}, type=${event.type}');
+    }
 
     emit(state.copyWith(
       status: ProfileStatus.loading,
@@ -69,16 +71,18 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         type: event.type,
       );
 
-      // ignore: avoid_print
-      print('[ProfileBloc] Loaded ${histories.length} histories: ${histories.map((h) => 'id=${h.id}, type=${h.type}, url=${h.url}').toList()}');
+      if (kDebugMode) {
+        debugPrint('[ProfileBloc] Loaded ${histories.length} histories: ${histories.map((h) => 'id=${h.id}, type=${h.type}, url=${h.url}').toList()}');
+      }
 
       emit(state.copyWith(
         status: ProfileStatus.loaded,
         histories: histories,
       ));
     } catch (e) {
-      // ignore: avoid_print
-      print('[ProfileBloc] Error loading histories: $e');
+      if (kDebugMode) {
+        debugPrint('[ProfileBloc] Error loading histories: $e');
+      }
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       emit(state.copyWith(
         status: ProfileStatus.failure,
@@ -91,8 +95,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     ProfileHistoryCreateRequested event,
     Emitter<ProfileState> emit,
   ) async {
-    // ignore: avoid_print
-    print('[ProfileBloc] _onCreateRequested: userId=${event.userId}, type=${event.type}');
+    if (kDebugMode) {
+      debugPrint('[ProfileBloc] _onCreateRequested: userId=${event.userId}, type=${event.type}');
+    }
 
     emit(state.copyWith(
       status: ProfileStatus.creating,
@@ -106,8 +111,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       // 이미지 업로드가 필요한 경우
       if (event.imageFile != null) {
         url = await _authRepository.uploadAvatar(event.imageFile!);
-        // ignore: avoid_print
-        print('[ProfileBloc] Uploaded file, url=$url');
+        if (kDebugMode) {
+          debugPrint('[ProfileBloc] Uploaded file, url=$url');
+        }
       }
 
       final created = await _profileRepository.createProfileHistory(
@@ -119,8 +125,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         setCurrent: event.setCurrent,
       );
 
-      // ignore: avoid_print
-      print('[ProfileBloc] Created history: id=${created.id}, type=${created.type}, url=${created.url}');
+      if (kDebugMode) {
+        debugPrint('[ProfileBloc] Created history: id=${created.id}, type=${created.type}, url=${created.url}');
+      }
 
       // 목록에 새 이력 추가
       final updatedHistories = [created, ...state.histories];
@@ -219,13 +226,13 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       await _profileRepository.deleteProfileHistory(event.userId, event.historyId);
 
       // 삭제된 이력 제거
-      final deletedHistory = state.histories.firstWhere((h) => h.id == event.historyId);
+      final deletedHistory = state.histories.where((h) => h.id == event.historyId).firstOrNull;
       final updatedHistories = state.histories
           .where((h) => h.id != event.historyId)
           .toList();
 
       // 삭제된 것이 current였다면 같은 타입의 첫 번째 이력을 current로 설정
-      final finalHistories = deletedHistory.isCurrent
+      final finalHistories = (deletedHistory != null && deletedHistory.isCurrent)
           ? _promoteNextToCurrent(updatedHistories, deletedHistory.type)
           : updatedHistories;
 
@@ -257,7 +264,8 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       await _profileRepository.setCurrentProfile(event.userId, event.historyId);
 
       // 로컬 상태 업데이트
-      final targetHistory = state.histories.firstWhere((h) => h.id == event.historyId);
+      final targetHistory = state.histories.where((h) => h.id == event.historyId).firstOrNull;
+      if (targetHistory == null) return;
       final updatedHistories = state.histories.map((h) {
         if (h.type == targetHistory.type) {
           return h.copyWith(isCurrent: h.id == event.historyId);
