@@ -45,6 +45,11 @@ env:
   FLUTTER_VERSION: '3.32.2'
   JAVA_VERSION: '17'
 
+# 동일 브랜치에서 같은 워크플로우가 중복 실행되지 않도록, 새 실행 시 이전 실행 취소
+concurrency:
+  group: build-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ===========================================
   # 1단계: 테스트
@@ -102,17 +107,25 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Android 서명 키 설정
+      # Android 서명 키 설정 (Secret이 설정된 경우에만)
       - name: Set up Android signing
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
-          echo "$ANDROID_KEY_PROPERTIES" > android/key.properties
+          mkdir -p android/keystore
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/keystore/co-talk-release.jks
+          cat <<'EOF' > android/key.properties
+          storePassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=co-talk
+          storeFile=../keystore/co-talk-release.jks
+          EOF
+          sed -i 's/^ *//' android/key.properties
 
       # Firebase google-services.json 설정
       - name: Set up Firebase
+        if: env.GOOGLE_SERVICES_JSON != ''
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
@@ -188,7 +201,7 @@ jobs:
         if: inputs.skip_upload != true && steps.config.outputs.build_type == 'appbundle'
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.1'
           bundler-cache: true
 
       - name: Set up Google Play credentials
