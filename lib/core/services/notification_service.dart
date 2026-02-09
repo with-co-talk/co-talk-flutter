@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:injectable/injectable.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// 로컬 알림 서비스
 ///
@@ -136,20 +138,30 @@ class NotificationService {
   /// [payload] 알림 클릭 시 전달할 데이터
   /// [soundEnabled] 알림 소리 (설정에서 토글한 값 즉시 반영)
   /// [vibrationEnabled] 알림 진동 (설정에서 토글한 값 즉시 반영)
+  /// [avatarUrl] 발신자 프로필 이미지 URL (없으면 null, 다운로드 실패 시 기본 알림)
   Future<void> showNotification({
     required String title,
     required String body,
     String? payload,
     bool soundEnabled = true,
     bool vibrationEnabled = true,
+    String? avatarUrl,
   }) async {
     final notificationId = _generateNotificationId();
 
+    // 아바타 이미지 다운로드 (3초 타임아웃, 실패 시 null)
+    Uint8List? avatarBytes;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      avatarBytes = await _downloadImage(avatarUrl);
+    }
+
+    // Android: largeIcon으로 아바타 표시
     final androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
       channelDescription: _channelDescription,
       icon: '@mipmap/ic_launcher',
+      largeIcon: avatarBytes != null ? ByteArrayAndroidBitmap(avatarBytes) : null,
       importance: Importance.high,
       priority: Priority.high,
       showWhen: true,
@@ -158,10 +170,20 @@ class NotificationService {
       enableVibration: vibrationEnabled,
     );
 
+    // iOS: attachment로 아바타 표시
+    List<DarwinNotificationAttachment>? iosAttachments;
+    if (!kIsWeb && (Platform.isIOS || Platform.isMacOS) && avatarBytes != null) {
+      final filePath = await _saveToTempFile(avatarBytes, 'avatar_$notificationId.jpg');
+      if (filePath != null) {
+        iosAttachments = [DarwinNotificationAttachment(filePath)];
+      }
+    }
+
     final darwinDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: soundEnabled,
+      attachments: iosAttachments,
     );
 
     const linuxDetails = LinuxNotificationDetails();
@@ -180,6 +202,46 @@ class NotificationService {
       notificationDetails,
       payload: payload,
     );
+  }
+
+  /// URL에서 이미지를 다운로드한다 (3초 타임아웃).
+  ///
+  /// 다운로드 실패 시 null을 반환하여 graceful degradation을 보장한다.
+  Future<Uint8List?> _downloadImage(String url) async {
+    try {
+      final dio = Dio();
+      final response = await dio.get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 3),
+          sendTimeout: const Duration(seconds: 3),
+        ),
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        return Uint8List.fromList(response.data!);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotificationService] Failed to download avatar: $e');
+      }
+    }
+    return null;
+  }
+
+  /// 바이트 데이터를 임시 파일로 저장한다 (iOS attachment용).
+  Future<String?> _saveToTempFile(Uint8List bytes, String fileName) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(bytes);
+      return file.path;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotificationService] Failed to save temp file: $e');
+      }
+      return null;
+    }
   }
 
   /// 특정 알림 취소
