@@ -36,13 +36,15 @@ class LinkPreviewRepositoryImpl implements LinkPreviewRepository {
       final model = await _remoteDataSource.getLinkPreview(url);
       final preview = model.toEntity();
 
-      // 캐시 저장
-      _cache[url] = preview;
-      _cacheTimestamps[url] = DateTime.now();
+      // 유효한 결과만 캐시 (제목이나 이미지가 있는 경우)
+      if (preview.isValid) {
+        _cache[url] = preview;
+        _cacheTimestamps[url] = DateTime.now();
+      }
 
       return preview;
     } catch (e) {
-      // 오류 발생 시 빈 미리보기 반환
+      // 오류 발생 시 빈 미리보기 반환 (캐시하지 않음 → 재시도 가능)
       return LinkPreview.empty(url);
     }
   }

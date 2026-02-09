@@ -33,30 +33,49 @@ class _LinkPreviewLoaderState extends State<LinkPreviewLoader> {
   bool _isLoading = true;
   bool _hasError = false;
 
+  /// 최대 재시도 횟수
+  static const _maxRetries = 2;
+
+  /// 재시도 간격
+  static const _retryDelay = Duration(seconds: 3);
+
   @override
   void initState() {
     super.initState();
-    _loadPreview();
+    _loadPreviewWithRetry();
   }
 
-  Future<void> _loadPreview() async {
-    try {
-      final repository = getIt<LinkPreviewRepository>();
-      final preview = await repository.getLinkPreview(widget.url);
+  Future<void> _loadPreviewWithRetry() async {
+    for (int attempt = 0; attempt <= _maxRetries; attempt++) {
+      if (!mounted) return;
 
-      if (mounted) {
-        setState(() {
-          _preview = preview;
-          _isLoading = false;
-        });
+      if (attempt > 0) {
+        await Future.delayed(_retryDelay);
+        if (!mounted) return;
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-          _isLoading = false;
-        });
+
+      try {
+        final repository = getIt<LinkPreviewRepository>();
+        final preview = await repository.getLinkPreview(widget.url);
+
+        if (mounted && preview.isValid) {
+          setState(() {
+            _preview = preview;
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (_) {
+        // 재시도 가능하면 계속
       }
+    }
+
+    // 모든 시도 실패
+    if (mounted) {
+      setState(() {
+        _hasError = true;
+        _isLoading = false;
+      });
     }
   }
 
