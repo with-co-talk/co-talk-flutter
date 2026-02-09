@@ -975,10 +975,17 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       ));
     } catch (e) {
       _log('File attachment failed: $e');
+      final raw = e.toString().toLowerCase();
+      final isSignatureError = raw.contains('signature') ||
+          raw.contains('content type') ||
+          raw.contains('content-type');
+      final errorMessage = isSignatureError
+          ? '이미지/파일 형식이 올바르지 않습니다. 다른 사진으로 시도해 주세요.'
+          : '파일 전송에 실패했습니다: ${e.toString()}';
       emit(state.copyWith(
         isUploadingFile: false,
         uploadProgress: 0.0,
-        errorMessage: '파일 전송에 실패했습니다: ${e.toString()}',
+        errorMessage: errorMessage,
       ));
     }
   }

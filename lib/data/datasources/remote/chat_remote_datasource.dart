@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart' as http_parser;
 import 'package:injectable/injectable.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/utils/date_parser.dart';
+import '../../../core/utils/file_mime_resolver.dart';
 import '../../models/chat_room_model.dart';
 import '../../models/message_model.dart';
 import '../../models/media_gallery_model.dart';
@@ -402,10 +404,13 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
   Future<FileUploadResponse> uploadFile(File file) async {
     try {
       final fileName = file.path.split('/').last;
+      final mime = await FileMimeResolver.resolveFromFile(file);
+      final contentType = http_parser.MediaType.parse(mime);
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(
           file.path,
           filename: fileName,
+          contentType: contentType,
         ),
       });
 

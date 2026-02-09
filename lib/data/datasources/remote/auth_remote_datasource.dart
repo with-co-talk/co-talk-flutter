@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart' as http_parser;
 import 'package:injectable/injectable.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/utils/file_mime_resolver.dart';
 import '../../models/auth_models.dart';
 import '../../models/user_model.dart';
 import '../base_remote_datasource.dart';
@@ -102,10 +104,14 @@ class AuthRemoteDataSourceImpl extends BaseRemoteDataSource
   @override
   Future<String> uploadFile(File file) async {
     try {
+      final fileName = file.path.split('/').last;
+      final mime = await FileMimeResolver.resolveFromFile(file);
+      final contentType = http_parser.MediaType.parse(mime);
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(
           file.path,
-          filename: file.path.split('/').last,
+          filename: fileName,
+          contentType: contentType,
         ),
       });
 
