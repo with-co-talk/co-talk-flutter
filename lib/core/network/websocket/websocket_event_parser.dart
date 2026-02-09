@@ -34,6 +34,11 @@ final class ParsedMessageDeletedPayload extends ParsedRoomPayload {
   const ParsedMessageDeletedPayload(this.event);
 }
 
+final class ParsedMessageUpdatedPayload extends ParsedRoomPayload {
+  final WebSocketMessageUpdatedEvent event;
+  const ParsedMessageUpdatedPayload(this.event);
+}
+
 final class ParsedUnknownPayload extends ParsedRoomPayload {
   final Map<String, dynamic> raw;
   const ParsedUnknownPayload(this.raw);
@@ -87,6 +92,10 @@ class WebSocketPayloadParser {
 
     if (eventType == 'MESSAGE_DELETED') {
       return ParsedMessageDeletedPayload(WebSocketMessageDeletedEvent.fromJson(json));
+    }
+
+    if (eventType == 'MESSAGE_UPDATED') {
+      return ParsedMessageUpdatedPayload(WebSocketMessageUpdatedEvent.fromJson(json));
     }
 
     return ParsedUnknownPayload(json);

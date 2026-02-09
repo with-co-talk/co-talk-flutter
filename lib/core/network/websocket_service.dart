@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 
+import 'package:dio/dio.dart';
 import '../../data/datasources/local/auth_local_datasource.dart';
+import '../constants/api_constants.dart';
 import 'event_dedupe_cache.dart';
 import 'websocket/websocket.dart';
 
@@ -17,6 +20,7 @@ export 'websocket/websocket_event_parser.dart'
         ParsedReactionPayload,
         ParsedTypingPayload,
         ParsedMessageDeletedPayload,
+        ParsedMessageUpdatedPayload,
         ParsedUnknownPayload,
         WebSocketPayloadParser;
 export 'websocket/websocket_events.dart';
@@ -40,6 +44,12 @@ class WebSocketService {
   final WebSocketMessageSender _messageSender;
   final EventDedupeCache _dedupeCache;
 
+  // Subscription restore timer
+  Timer? _subscriptionRestoreTimer;
+
+  // Reconnection tracking
+  bool _hasConnectedBefore = false;
+
   // Event stream controllers
   final _messageController = StreamController<WebSocketChatMessage>.broadcast();
   final _reactionController = StreamController<WebSocketReactionEvent>.broadcast();
@@ -48,7 +58,10 @@ class WebSocketService {
   final _typingController = StreamController<WebSocketTypingEvent>.broadcast();
   final _onlineStatusController = StreamController<WebSocketOnlineStatusEvent>.broadcast();
   final _messageDeletedController = StreamController<WebSocketMessageDeletedEvent>.broadcast();
+  final _messageUpdatedController = StreamController<WebSocketMessageUpdatedEvent>.broadcast();
   final _profileUpdateController = StreamController<WebSocketProfileUpdateEvent>.broadcast();
+  final _reconnectedController = StreamController<void>.broadcast();
+  final _errorController = StreamController<WebSocketErrorEvent>.broadcast();
 
   WebSocketService(
     this._authLocalDataSource, {
@@ -67,6 +80,7 @@ class WebSocketService {
   void _setupConnectionCallbacks() {
     _connectionManager.onConnected = _onConnected;
     _connectionManager.onDisconnected = _onDisconnected;
+    _connectionManager.onTokenRefreshNeeded = _refreshTokenForReconnect;
   }
 
   // ============================================================
@@ -112,9 +126,20 @@ class WebSocketService {
   Stream<WebSocketMessageDeletedEvent> get messageDeletedEvents =>
       _messageDeletedController.stream;
 
+  /// Stream of message updated events.
+  Stream<WebSocketMessageUpdatedEvent> get messageUpdatedEvents =>
+      _messageUpdatedController.stream;
+
   /// Stream of profile update events.
   Stream<WebSocketProfileUpdateEvent> get profileUpdateEvents =>
       _profileUpdateController.stream;
+
+  /// Stream of server-side application errors (from @SendToUser("/queue/errors")).
+  Stream<WebSocketErrorEvent> get errors => _errorController.stream;
+
+  /// Stream that emits when WebSocket reconnects after a disconnect.
+  /// Used by BLoCs to trigger gap recovery (fetch missed messages).
+  Stream<void> get reconnected => _reconnectedController.stream;
 
   // ============================================================
   // Connection Management
@@ -133,8 +158,21 @@ class WebSocketService {
   ///
   /// Returns true if connected, false if connection failed or timed out.
   /// Uses stream-based waiting instead of busy-polling for efficiency.
+  ///
+  /// Detects stale connection state: if our cached state says "connected"
+  /// but the STOMP client is actually dead, forces a disconnect and reconnect.
   Future<bool> ensureConnected({Duration timeout = const Duration(seconds: 5)}) async {
     if (isConnected) return true;
+
+    // Stale state detection: our cached state may say "connected" but the
+    // STOMP client is actually dead (half-open connection). Force a clean
+    // disconnect so connect() can start fresh.
+    if (_connectionManager.currentConnectionState == WebSocketConnectionState.connected) {
+      if (kDebugMode) {
+        debugPrint('[WebSocket] Stale connection detected: state=connected but STOMP disconnected, forcing reset');
+      }
+      _connectionManager.disconnect();
+    }
 
     await connect();
 
@@ -166,6 +204,7 @@ class WebSocketService {
   /// for automatic user channel restoration on reconnect, while clearing
   /// stale room subscriptions so the BLoC can subscribe fresh.
   void disconnect() {
+    _subscriptionRestoreTimer?.cancel();
     _subscriptionManager.clearAll();
     _connectionManager.disconnect();
   }
@@ -197,6 +236,7 @@ class WebSocketService {
       onReadReceiptMessage: _handleReadReceiptMessage,
       onOnlineStatusMessage: _handleOnlineStatusMessage,
       onProfileUpdateMessage: _handleProfileUpdateMessage,
+      onErrorMessage: _handleErrorMessage,
     );
   }
 
@@ -224,7 +264,9 @@ class WebSocketService {
   }
 
   /// Sends a file message.
-  void sendFileMessage({
+  ///
+  /// Returns true if the message was sent successfully, false if not connected.
+  bool sendFileMessage({
     required int roomId,
     required String fileUrl,
     required String fileName,
@@ -232,7 +274,7 @@ class WebSocketService {
     required String contentType,
     String? thumbnailUrl,
   }) {
-    _messageSender.sendFileMessage(
+    return _messageSender.sendFileMessage(
       stompClient: _connectionManager.stompClient,
       roomId: roomId,
       fileUrl: fileUrl,
@@ -299,23 +341,16 @@ class WebSocketService {
     );
   }
 
-  /// Sends mark as read notification.
-  void sendMarkAsRead({
-    required int roomId,
-  }) {
-    _messageSender.sendMarkAsRead(
-      stompClient: _connectionManager.stompClient,
-      roomId: roomId,
-    );
-  }
-
   // ============================================================
   // Private: Connection Callbacks
   // ============================================================
 
   void _onConnected() {
+    final isReconnect = _hasConnectedBefore;
+    _hasConnectedBefore = true;
+
     // Delay subscription restore to prevent StompBadStateException
-    Future.delayed(WebSocketConfig.subscriptionDelay, () {
+    _subscriptionRestoreTimer = Timer(WebSocketConfig.subscriptionDelay, () {
       final stompClient = _connectionManager.stompClient;
       if (stompClient == null || !stompClient.connected) {
         if (kDebugMode) {
@@ -331,7 +366,16 @@ class WebSocketService {
         onReadReceiptMessage: _handleReadReceiptMessage,
         onOnlineStatusMessage: _handleOnlineStatusMessage,
         onProfileUpdateMessage: _handleProfileUpdateMessage,
+        onErrorMessage: _handleErrorMessage,
       );
+
+      // Notify BLoCs that connection was restored so they can fetch missed messages
+      if (isReconnect) {
+        if (kDebugMode) {
+          debugPrint('[WebSocket] Reconnection detected, notifying listeners for gap recovery');
+        }
+        _reconnectedController.add(null);
+      }
     });
   }
 
@@ -376,6 +420,12 @@ class WebSocketService {
             debugPrint('[WebSocket] Message deleted event: messageId=${event.messageId}, roomId=${event.chatRoomId}');
           }
           _messageDeletedController.add(event);
+        case ParsedMessageUpdatedPayload(:final event):
+          if (_dedupeCache.isDuplicate(event.eventId)) return;
+          if (kDebugMode) {
+            debugPrint('[WebSocket] Message updated event: messageId=${event.messageId}, roomId=${event.chatRoomId}');
+          }
+          _messageUpdatedController.add(event);
         case ParsedUnknownPayload(:final raw):
           if (kDebugMode) {
             debugPrint('[WebSocket] Unknown message type: ${raw['eventType']}');
@@ -481,12 +531,79 @@ class WebSocketService {
     }
   }
 
+  void _handleErrorMessage(StompFrame frame) {
+    if (frame.body == null) return;
+
+    try {
+      final json = jsonDecode(frame.body!) as Map<String, dynamic>;
+      final event = WebSocketErrorEvent.fromJson(json);
+      if (kDebugMode) {
+        debugPrint('[WebSocket] Server error received: code=${event.code}, message=${event.message}');
+      }
+      _errorController.add(event);
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('[WebSocket] Error parsing error message: $e');
+        debugPrint('[WebSocket] Stack trace: $stackTrace');
+      }
+    }
+  }
+
+  // ============================================================
+  // Private: Token Refresh
+  // ============================================================
+
+  /// Attempts to refresh the access token when WebSocket auth error occurs.
+  /// Called by [WebSocketConnectionManager] before reconnection.
+  Future<void> _refreshTokenForReconnect() async {
+    try {
+      final refreshToken = await _authLocalDataSource.getRefreshToken();
+      if (refreshToken == null) {
+        if (kDebugMode) {
+          debugPrint('[WebSocket] No refresh token available, skipping token refresh');
+        }
+        return;
+      }
+
+      final dio = Dio(BaseOptions(
+        baseUrl: ApiConstants.apiBaseUrl,
+        connectTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ));
+
+      final response = await dio.post(
+        ApiConstants.refresh,
+        data: {'refreshToken': refreshToken},
+      );
+
+      if (response.data != null) {
+        await _authLocalDataSource.saveTokens(
+          accessToken: response.data['accessToken'] as String,
+          refreshToken: response.data['refreshToken'] as String,
+        );
+        if (kDebugMode) {
+          debugPrint('[WebSocket] Token refreshed successfully for reconnection');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[WebSocket] Token refresh failed: $e');
+      }
+    }
+  }
+
   // ============================================================
   // Dispose
   // ============================================================
 
   /// Releases all resources.
+  @disposeMethod
   void dispose() {
+    _subscriptionRestoreTimer?.cancel();
     disconnect();
     _connectionManager.dispose();
     _messageController.close();
@@ -496,6 +613,9 @@ class WebSocketService {
     _typingController.close();
     _onlineStatusController.close();
     _messageDeletedController.close();
+    _messageUpdatedController.close();
     _profileUpdateController.close();
+    _errorController.close();
+    _reconnectedController.close();
   }
 }

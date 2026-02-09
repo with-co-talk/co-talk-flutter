@@ -70,7 +70,7 @@ class ApiConstants {
 
   // Settings Endpoints
   static const String notificationSettings = '/notifications/settings';
-  static String accountDeletion(int userId) => '/account/$userId';
+  static const String accountDeletion = '/account';
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);

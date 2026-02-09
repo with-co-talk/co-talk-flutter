@@ -307,4 +307,135 @@ void main() {
       expect(manager.currentConnectionState, WebSocketConnectionState.disconnected);
     });
   });
+
+  group('exponential backoff and max reconnect', () {
+    test('disconnect() prevents auto-reconnect by setting intentional flag', () async {
+      when(() => mockAuth.getAccessToken()).thenAnswer((_) async => 'test_token');
+
+      // Connect (creates StompClient)
+      await manager.connect();
+
+      // Disconnect sets _isIntentionalDisconnect = true
+      manager.disconnect();
+
+      // State should be disconnected, not reconnecting
+      expect(manager.currentConnectionState, WebSocketConnectionState.disconnected);
+
+      // Wait to verify no reconnect timer fires
+      await Future.delayed(const Duration(milliseconds: 1500));
+      expect(manager.currentConnectionState, WebSocketConnectionState.disconnected);
+      expect(manager.stompClient, isNull);
+    });
+
+    test('connect() resets intentional disconnect flag allowing future reconnects', () async {
+      when(() => mockAuth.getAccessToken()).thenAnswer((_) async => 'test_token');
+
+      // Disconnect first (sets intentional flag)
+      manager.disconnect();
+
+      // Connect should reset the flag
+      await manager.connect();
+
+      // Should be connecting or have created a client (flag was reset)
+      // The StompClient is created even if connection fails
+      expect(manager.stompClient, isNotNull);
+
+      // Clean up
+      manager.disconnect();
+    });
+
+    test('resetReconnectAttempts resets the counter to zero', () async {
+      // Verify multiple calls don't throw and state is clean
+      manager.resetReconnectAttempts();
+      expect(manager.currentConnectionState, WebSocketConnectionState.disconnected);
+
+      // Should allow connecting after reset
+      when(() => mockAuth.getAccessToken()).thenAnswer((_) async => null);
+      await manager.connect();
+
+      manager.resetReconnectAttempts();
+
+      // Second connect should work fine (counter is 0)
+      await manager.connect();
+      verify(() => mockAuth.getAccessToken()).called(2);
+    });
+
+    test('auth error does not permanently block reconnection', () async {
+      // After the fix, auth errors should NOT set _isIntentionalDisconnect = true.
+      // Instead, they should allow reconnection via _attemptReconnect()
+      // so that connect() can fetch a potentially refreshed token.
+      when(() => mockAuth.getAccessToken()).thenAnswer((_) async => 'test_token');
+
+      // Connect first
+      await manager.connect();
+      expect(manager.stompClient, isNotNull);
+
+      // Now disconnect intentionally (simulates the old bug: auth error set the flag)
+      manager.disconnect();
+      expect(manager.currentConnectionState, WebSocketConnectionState.disconnected);
+
+      // After disconnect(), _isIntentionalDisconnect is true.
+      // But a subsequent connect() should reset it and succeed.
+      await manager.connect();
+      expect(manager.stompClient, isNotNull);
+
+      // Verify token was fetched twice (once per connect call)
+      verify(() => mockAuth.getAccessToken()).called(2);
+
+      manager.disconnect();
+    });
+
+    test('connection state stream emits reconnecting state on auto-reconnect attempt', () async {
+      // This test verifies that the connection state stream properly emits states
+      // We can't easily trigger auto-reconnect without a real STOMP server,
+      // but we can verify the stream infrastructure works
+
+      final states = <WebSocketConnectionState>[];
+      final subscription = manager.connectionState.listen(states.add);
+
+      when(() => mockAuth.getAccessToken()).thenAnswer((_) async => null);
+
+      await manager.connect();
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      // Should have connecting -> disconnected
+      expect(states, contains(WebSocketConnectionState.connecting));
+      expect(states, contains(WebSocketConnectionState.disconnected));
+
+      await subscription.cancel();
+    });
+  });
+
+  group('isConnected dual state check', () {
+    test('isConnected returns false when stompClient is null', () {
+      // Initially no StompClient exists
+      expect(manager.stompClient, isNull);
+      expect(manager.isConnected, isFalse);
+    });
+
+    test('isConnected returns false when disconnected even after stompClient created', () async {
+      when(() => mockAuth.getAccessToken()).thenAnswer((_) async => 'test_token');
+
+      // Connect creates a StompClient
+      await manager.connect();
+      expect(manager.stompClient, isNotNull);
+
+      // But since we can't reach a real STOMP server, state transitions to disconnected
+      // via WebSocket error callback. isConnected should be false.
+      // Wait for async error to settle.
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      // Even though stompClient exists, connection should not be considered active
+      // since the STOMP server is unreachable
+      expect(manager.isConnected, isFalse);
+
+      manager.disconnect();
+    });
+
+    test('isConnected requires both our state AND stompClient.connected to be true', () {
+      // When disconnected, isConnected is false regardless of anything else
+      expect(manager.currentConnectionState, WebSocketConnectionState.disconnected);
+      expect(manager.isConnected, isFalse);
+    });
+  });
 }

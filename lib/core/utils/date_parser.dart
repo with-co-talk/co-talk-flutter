@@ -40,7 +40,7 @@ class DateParser {
         final millisecond = nano ~/ 1000000;
         final microsecond = (nano ~/ 1000) % 1000;
 
-        return DateTime(year, month, day, hour, minute, second, millisecond, microsecond);
+        return DateTime.utc(year, month, day, hour, minute, second, millisecond, microsecond);
       } catch (e) {
         return DateTime.now();
       }

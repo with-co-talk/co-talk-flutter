@@ -294,7 +294,7 @@ void main() {
         searchQuery: 'test',
       );
 
-      expect(state.props.length, 13);
+      expect(state.props.length, 14);
     });
 
     test('can update hasSearched', () {

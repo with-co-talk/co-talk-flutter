@@ -29,6 +29,10 @@ on:
 env:
   FLUTTER_VERSION: '3.32.2'
 
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ===========================================
   # 1단계: Flutter 분석 + 테스트
@@ -107,6 +111,7 @@ jobs:
         if: inputs.certificate_sign == true
         run: >
           dart run msix:create
+          --install-certificate false
           --certificate-path "${{ github.workspace }}\certificate.pfx"
           --certificate-password "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}"
           --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }}"
@@ -116,6 +121,7 @@ jobs:
         if: inputs.certificate_sign != true
         run: >
           dart run msix:create
+          --install-certificate false
           --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }}"
 
       - name: Get version

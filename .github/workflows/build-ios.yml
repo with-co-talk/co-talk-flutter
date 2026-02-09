@@ -26,6 +26,10 @@ on:
 env:
   FLUTTER_VERSION: '3.32.2'
 
+concurrency:
+  group: build-ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ===========================================
   # 1단계: 테스트
@@ -77,14 +81,18 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.1'
           bundler-cache: true
+
+      - name: Add Bundler platforms
+        run: bundle lock --add-platform arm64-darwin x86_64-linux
 
       - name: Install dependencies
         run: flutter pub get
 
-      # App Store Connect API Key 설정
+      # App Store Connect API Key 설정 (Secret이 설정된 경우에만)
       - name: Set up App Store Connect API Key
+        if: env.APP_STORE_CONNECT_API_KEY_BASE64 != ''
         env:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
         run: |
@@ -135,9 +143,9 @@ jobs:
           path: build/ios/ipa/*.ipa
           retention-days: 30
 
-      # TestFlight 업로드 (Fastlane)
+      # TestFlight 업로드 (Fastlane) - Secret 설정 + skip_upload 아닌 경우만
       - name: Upload to TestFlight
-        if: inputs.skip_upload != true
+        if: inputs.skip_upload != true && secrets.APP_STORE_CONNECT_API_KEY_KEY_ID != ''
         env:
           APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
           APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}

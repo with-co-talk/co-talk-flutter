@@ -219,7 +219,10 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
       final updatedFriends = state.friends
           .where((f) => f.user.id != event.friendId)
           .toList();
-      emit(state.copyWith(friends: updatedFriends));
+      emit(state.copyWith(
+        friends: updatedFriends,
+        successMessage: '친구를 삭제했습니다',
+      ));
     } catch (e) {
       emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
     }

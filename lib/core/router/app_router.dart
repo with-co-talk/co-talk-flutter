@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -388,15 +389,21 @@ class AppRouter {
 }
 
 class GoRouterRefreshStream extends ChangeNotifier {
+  late final StreamSubscription<AuthState> _subscription;
   AuthStatus? _lastStatus;
 
   GoRouterRefreshStream(Stream<AuthState> stream) {
-    stream.listen((state) {
-      // Only notify when auth status actually changes to prevent duplicate page keys
+    _subscription = stream.listen((state) {
       if (_lastStatus != state.status) {
         _lastStatus = state.status;
         notifyListeners();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
   }
 }

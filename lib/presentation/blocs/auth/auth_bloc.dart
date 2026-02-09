@@ -63,9 +63,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(const AuthState.unauthenticated());
       }
     } catch (e) {
-      // 인증 확인 실패 시 사용자 친화적인 메시지 제공
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
-      emit(AuthState.failure(message));
+      emit(AuthState.failure(message, user: state.user));
     }
   }
 

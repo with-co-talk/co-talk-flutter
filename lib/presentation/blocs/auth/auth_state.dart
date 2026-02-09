@@ -29,8 +29,8 @@ class AuthState extends Equatable {
 
   const AuthState.unauthenticated() : this(status: AuthStatus.unauthenticated);
 
-  const AuthState.failure(String message)
-      : this(status: AuthStatus.failure, errorMessage: message);
+  const AuthState.failure(String message, {User? user})
+      : this(status: AuthStatus.failure, errorMessage: message, user: user);
 
   AuthState copyWith({
     AuthStatus? status,

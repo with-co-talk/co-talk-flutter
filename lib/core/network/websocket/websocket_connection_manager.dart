@@ -41,6 +41,12 @@ class WebSocketConnectionManager {
   /// Callback invoked when connection is lost.
   VoidCallback? onDisconnected;
 
+  /// Callback invoked to refresh the access token before reconnection.
+  /// Called when a STOMP auth error is detected, giving the app a chance
+  /// to refresh the token before the next connect attempt.
+  Future<void> Function()? onTokenRefreshNeeded;
+  bool _needsTokenRefresh = false;
+
   WebSocketConnectionManager(this._authLocalDataSource);
 
   /// Stream of connection state changes.
@@ -50,7 +56,15 @@ class WebSocketConnectionManager {
   WebSocketConnectionState get currentConnectionState => _connectionState;
 
   /// Whether currently connected.
-  bool get isConnected => _connectionState == WebSocketConnectionState.connected;
+  ///
+  /// Checks BOTH our cached state AND the STOMP client's actual connected state.
+  /// This prevents sending messages to a half-open (dead) WebSocket connection
+  /// when the STOMP library has detected the disconnect but our callback hasn't
+  /// fired yet.
+  bool get isConnected =>
+      _connectionState == WebSocketConnectionState.connected &&
+      _stompClient != null &&
+      _stompClient!.connected;
 
   /// The underlying STOMP client (if connected).
   StompClient? get stompClient => _stompClient;
@@ -113,6 +127,9 @@ class WebSocketConnectionManager {
     if (kDebugMode) {
       debugPrint('[WebSocket] Connecting to: $wsUrl');
     }
+
+    // Clean up any existing client before creating a new one
+    _stompClient?.deactivate();
 
     _stompClient = StompClient(
       config: StompConfig(
@@ -196,7 +213,21 @@ class WebSocketConnectionManager {
     if (kDebugMode) {
       debugPrint('[WebSocket] STOMP Error: ${frame.body}');
     }
+
+    final body = frame.body ?? '';
+    final isAuthError = body.contains('401') ||
+                        body.toLowerCase().contains('unauthorized') ||
+                        body.toLowerCase().contains('authentication') ||
+                        body.toLowerCase().contains('access denied');
+
     _updateConnectionState(WebSocketConnectionState.disconnected);
+    onDisconnected?.call();
+
+    if (isAuthError) {
+      if (kDebugMode) debugPrint('[WebSocket] Auth error detected: $body');
+      // Mark that a token refresh is needed before the next reconnection.
+      _needsTokenRefresh = true;
+    }
     _attemptReconnect();
   }
 
@@ -205,6 +236,7 @@ class WebSocketConnectionManager {
       debugPrint('[WebSocket] WebSocket Error: $error');
     }
     _updateConnectionState(WebSocketConnectionState.disconnected);
+    onDisconnected?.call();
     _attemptReconnect();
   }
 
@@ -215,6 +247,7 @@ class WebSocketConnectionManager {
       if (kDebugMode) {
         debugPrint('[WebSocket] Max reconnect attempts reached');
       }
+      _updateConnectionState(WebSocketConnectionState.failed);
       return;
     }
 
@@ -238,8 +271,26 @@ class WebSocketConnectionManager {
         debugPrint('[WebSocket] Reconnect attempt $_reconnectAttempts/${WebSocketConfig.maxReconnectAttempts}');
       }
       _updateConnectionState(WebSocketConnectionState.reconnecting);
-      connect();
+      _doReconnect();
     });
+  }
+
+  /// Performs reconnection, refreshing the token first if needed.
+  Future<void> _doReconnect() async {
+    if (_needsTokenRefresh && onTokenRefreshNeeded != null) {
+      if (kDebugMode) {
+        debugPrint('[WebSocket] Refreshing token before reconnect...');
+      }
+      try {
+        await onTokenRefreshNeeded!();
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[WebSocket] Token refresh failed during reconnect: $e');
+        }
+      }
+      _needsTokenRefresh = false;
+    }
+    connect();
   }
 
   void _updateConnectionState(WebSocketConnectionState state) {

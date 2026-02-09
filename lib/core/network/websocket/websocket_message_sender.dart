@@ -188,30 +188,4 @@ class WebSocketMessageSender {
     return true;
   }
 
-  /// Sends mark as read.
-  ///
-  /// Returns false if not connected.
-  bool sendMarkAsRead({
-    required StompClient? stompClient,
-    required int roomId,
-  }) {
-    if (stompClient == null || !stompClient.connected) {
-      if (kDebugMode) {
-        debugPrint('[WebSocket] sendMarkAsRead: Not connected');
-      }
-      return false;
-    }
-
-    if (kDebugMode) {
-      debugPrint('[WebSocket] Sending markAsRead for room $roomId');
-    }
-
-    stompClient.send(
-      destination: WebSocketConfig.sendMarkAsReadDestination,
-      body: jsonEncode({
-        'roomId': roomId,
-      }),
-    );
-    return true;
-  }
 }

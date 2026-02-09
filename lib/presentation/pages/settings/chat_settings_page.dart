@@ -43,21 +43,32 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
         title: const Text('채팅 설정'),
       ),
       body: BlocConsumer<ChatSettingsCubit, ChatSettingsState>(
+        listenWhen: (previous, current) =>
+            previous.status != current.status &&
+            (current.status == ChatSettingsStatus.clearing ||
+                (previous.status == ChatSettingsStatus.clearing &&
+                    (current.status == ChatSettingsStatus.loaded ||
+                        current.status == ChatSettingsStatus.error))),
         listener: (context, state) {
           if (state.status == ChatSettingsStatus.clearing) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('캐시를 삭제하는 중...')),
             );
-          } else if (state.status == ChatSettingsStatus.loaded &&
-              state.errorMessage == null) {
-            // 캐시 삭제 완료 후
+          } else if (state.status == ChatSettingsStatus.loaded) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(content: Text('캐시가 삭제되었습니다')),
+              );
           } else if (state.status == ChatSettingsStatus.error) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage ?? '오류가 발생했습니다'),
-                backgroundColor: AppColors.error,
-              ),
-            );
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage ?? '오류가 발생했습니다'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
           }
         },
         builder: (context, state) {
@@ -317,9 +328,6 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
             onPressed: () {
               Navigator.pop(dialogContext);
               context.read<ChatSettingsCubit>().clearCache();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('캐시가 삭제되었습니다')),
-              );
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('삭제'),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -74,8 +75,9 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
         }
       },
       builder: (context, state) {
-        // ignore: avoid_print
-        print('[ProfileHistoryPage] Build: status=${state.status}, historiesCount=${state.histories.length}');
+        if (kDebugMode) {
+          debugPrint('[ProfileHistoryPage] Build: status=${state.status}, historiesCount=${state.histories.length}');
+        }
 
         // 로딩 중일 때 로딩 인디케이터 표시
         if (state.status == ProfileStatus.loading) {
@@ -89,8 +91,9 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
 
         final histories = state.getHistoriesByType(widget.type);
 
-        // ignore: avoid_print
-        print('[ProfileHistoryPage] Filtered histories for ${widget.type}: ${histories.length}');
+        if (kDebugMode) {
+          debugPrint('[ProfileHistoryPage] Filtered histories for ${widget.type}: ${histories.length}');
+        }
 
         if (histories.isEmpty) {
           return Scaffold(

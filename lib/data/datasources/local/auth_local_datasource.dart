@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:injectable/injectable.dart';
@@ -46,8 +47,9 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
           await _secureStorage.write(key: key, value: value);
         } on PlatformException {
           // 그래도 실패 시 전체 키체인 초기화 후 재시도
-          // ignore: avoid_print
-          print('[AuthLocalDataSource] Keychain error - clearing all and retrying');
+          if (kDebugMode) {
+            debugPrint('[AuthLocalDataSource] Keychain error - clearing all and retrying');
+          }
           await _secureStorage.deleteAll();
           await _secureStorage.write(key: key, value: value);
         }

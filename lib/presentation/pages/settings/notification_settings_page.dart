@@ -42,7 +42,18 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         ),
         title: const Text('알림 설정'),
       ),
-      body: BlocBuilder<NotificationSettingsCubit, NotificationSettingsState>(
+      body: BlocConsumer<NotificationSettingsCubit, NotificationSettingsState>(
+        listenWhen: (previous, current) =>
+            current.status == NotificationSettingsStatus.error &&
+            current.errorMessage != null,
+        listener: (context, state) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.errorMessage!),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        },
         builder: (context, state) {
           if (state.status == NotificationSettingsStatus.loading) {
             return const Center(child: CircularProgressIndicator());

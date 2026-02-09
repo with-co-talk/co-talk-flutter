@@ -170,7 +170,10 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
 
     final updatedChatRooms = state.chatRooms.map((room) {
       if (room.id == event.chatRoomId) {
-        final newUnreadCount = event.unreadCount ?? room.unreadCount;
+        // Override unreadCount to 0 if user is currently in this room
+        final newUnreadCount = (_currentlyOpenRoomId == event.chatRoomId)
+            ? 0
+            : (event.unreadCount ?? room.unreadCount);
         _log('Updating room ${event.chatRoomId}: unreadCount ${room.unreadCount} -> $newUnreadCount');
 
         return room.copyWith(
@@ -208,9 +211,13 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
       try {
         await _webSocketService.connect();
         await _waitForWebSocketConnection(timeout: const Duration(seconds: 5));
+        emit(state.copyWith(isWebSocketDegraded: false));
       } catch (e) {
         _log('Failed to connect WebSocket: $e');
+        emit(state.copyWith(isWebSocketDegraded: true));
       }
+    } else {
+      emit(state.copyWith(isWebSocketDegraded: false));
     }
 
     _webSocketService.subscribeToUserChannel(event.userId);

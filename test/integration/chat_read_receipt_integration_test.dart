@@ -65,8 +65,14 @@ void main() {
       when(() => mockWebSocketService.messageDeletedEvents).thenAnswer(
         (_) => const Stream<WebSocketMessageDeletedEvent>.empty(),
       );
+      when(() => mockWebSocketService.messageUpdatedEvents).thenAnswer(
+        (_) => const Stream<WebSocketMessageUpdatedEvent>.empty(),
+      );
       when(() => mockWebSocketService.reactions).thenAnswer(
         (_) => const Stream<WebSocketReactionEvent>.empty(),
+      );
+      when(() => mockWebSocketService.reconnected).thenAnswer(
+        (_) => const Stream<void>.empty(),
       );
       when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
       when(() => mockWebSocketService.ensureConnected(
@@ -163,7 +169,7 @@ void main() {
       );
 
       blocTest<ChatListBloc, ChatListState>(
-        '🔴 RED: 서버가 chatRoomUpdates로 unreadCount를 보내면 ChatListBloc이 정확히 업데이트함',
+        '🟢 GREEN: 서버가 chatRoomUpdates로 unreadCount를 보내면 ChatListBloc이 정확히 업데이트함',
         build: () {
           when(() => mockChatRepository.getChatRooms()).thenAnswer(
             (_) async => [FakeEntities.directChatRoom.copyWith(unreadCount: 5)],
@@ -194,6 +200,8 @@ void main() {
         },
         wait: const Duration(milliseconds: 800),
         expect: () => [
+          // ChatListSubscriptionStarted emits initial state change
+          const ChatListState(status: ChatListStatus.initial, cachedTotalUnreadCount: 0),
           const ChatListState(status: ChatListStatus.loading, cachedTotalUnreadCount: 0),
           ChatListState(
             status: ChatListStatus.success,
@@ -281,7 +289,7 @@ void main() {
       );
 
       blocTest<ChatListBloc, ChatListState>(
-        '🔴 RED: 여러 채팅방이 있을 때 특정 채팅방의 unreadCount만 업데이트됨',
+        '🟢 GREEN: 여러 채팅방이 있을 때 특정 채팅방의 unreadCount만 업데이트됨',
         build: () {
           when(() => mockChatRepository.getChatRooms()).thenAnswer(
             (_) async => [
@@ -314,6 +322,8 @@ void main() {
         },
         wait: const Duration(milliseconds: 800),
         expect: () => [
+          // ChatListSubscriptionStarted emits initial state change
+          const ChatListState(status: ChatListStatus.initial, cachedTotalUnreadCount: 0),
           const ChatListState(status: ChatListStatus.loading, cachedTotalUnreadCount: 0),
           ChatListState(
             status: ChatListStatus.success,

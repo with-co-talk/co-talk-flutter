@@ -18,6 +18,7 @@ class FriendState extends Equatable {
   final List<User> blockedUsers;
   final bool isHiddenFriendsLoading;
   final bool isBlockedUsersLoading;
+  final String? successMessage;
 
   const FriendState({
     this.status = FriendStatus.initial,
@@ -33,6 +34,7 @@ class FriendState extends Equatable {
     this.blockedUsers = const [],
     this.isHiddenFriendsLoading = false,
     this.isBlockedUsersLoading = false,
+    this.successMessage,
   });
 
   FriendState copyWith({
@@ -51,6 +53,8 @@ class FriendState extends Equatable {
     List<User>? blockedUsers,
     bool? isHiddenFriendsLoading,
     bool? isBlockedUsersLoading,
+    String? successMessage,
+    bool clearSuccessMessage = false,
   }) {
     return FriendState(
       status: status ?? this.status,
@@ -66,6 +70,7 @@ class FriendState extends Equatable {
       blockedUsers: blockedUsers ?? this.blockedUsers,
       isHiddenFriendsLoading: isHiddenFriendsLoading ?? this.isHiddenFriendsLoading,
       isBlockedUsersLoading: isBlockedUsersLoading ?? this.isBlockedUsersLoading,
+      successMessage: clearSuccessMessage ? null : (successMessage ?? this.successMessage),
     );
   }
 
@@ -84,5 +89,6 @@ class FriendState extends Equatable {
         blockedUsers,
         isHiddenFriendsLoading,
         isBlockedUsersLoading,
+        successMessage,
       ];
 }
