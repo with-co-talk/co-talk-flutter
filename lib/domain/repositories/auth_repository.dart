@@ -19,4 +19,5 @@ abstract class AuthRepository {
   Future<int?> getCurrentUserId();
   Future<void> updateProfile({required int userId, String? nickname, String? statusMessage, String? avatarUrl});
   Future<String> uploadAvatar(File file);
+  Future<void> resendVerification({required String email});
 }

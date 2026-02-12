@@ -136,4 +136,9 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<String> uploadAvatar(File file) async {
     return await _remoteDataSource.uploadFile(file);
   }
+
+  @override
+  Future<void> resendVerification({required String email}) async {
+    await _remoteDataSource.resendVerification(email);
+  }
 }

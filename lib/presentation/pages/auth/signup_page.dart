@@ -77,7 +77,12 @@ class _SignUpPageState extends State<SignUpPage> {
       ),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state.status == AuthStatus.authenticated) {
+          if (state.status == AuthStatus.signUpSuccess) {
+            // 이메일 인증 페이지로 이동
+            context.go(
+              '${AppRoutes.emailVerification}?email=${Uri.encodeComponent(state.signupEmail ?? '')}',
+            );
+          } else if (state.status == AuthStatus.authenticated) {
             // 회원가입 성공 후 메인 페이지로 이동
             context.go(AppRoutes.friends);
           } else if (state.status == AuthStatus.failure) {

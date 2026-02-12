@@ -126,34 +126,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         nickname: event.nickname,
       );
 
-      // Auto login after sign up
-      await _authRepository.login(
-        email: event.email,
-        password: event.password,
-      );
-
-      final user = await _authRepository.getCurrentUser();
-      // WebSocket 연결 (백그라운드에서 실행, 실패해도 계속 진행)
-      unawaited(_webSocketService.connect());
-      // FCM 토큰 등록 (모바일만)
-      await _registerFcmTokenIfMobile();
-      if (user != null) {
-        // 데스크톱 알림에 현재 사용자 ID 설정
-        _desktopNotificationBridge.setCurrentUserId(user.id);
-        emit(AuthState.authenticated(user));
-      } else {
-        // 회원가입 후 사용자 정보를 가져올 수 없는 경우
-        // 임시 사용자 정보로 authenticated 상태 전환
-        final userId = await _authRepository.getCurrentUserId();
-        final placeholderUser = User(
-          id: userId ?? 0,
-          email: event.email,
-          nickname: event.nickname,
-        );
-        // 데스크톱 알림에 현재 사용자 ID 설정
-        _desktopNotificationBridge.setCurrentUserId(placeholderUser.id);
-        emit(AuthState.authenticated(placeholderUser));
-      }
+      // 이메일 인증이 필요하므로 자동 로그인하지 않음
+      emit(AuthState.signUpSuccess(event.email));
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('[AuthBloc] SignUp error: $e');
