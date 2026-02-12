@@ -21,6 +21,7 @@ export 'websocket/websocket_event_parser.dart'
         ParsedTypingPayload,
         ParsedMessageDeletedPayload,
         ParsedMessageUpdatedPayload,
+        ParsedLinkPreviewUpdatedPayload,
         ParsedUnknownPayload,
         WebSocketPayloadParser;
 export 'websocket/websocket_events.dart';
@@ -59,6 +60,7 @@ class WebSocketService {
   final _onlineStatusController = StreamController<WebSocketOnlineStatusEvent>.broadcast();
   final _messageDeletedController = StreamController<WebSocketMessageDeletedEvent>.broadcast();
   final _messageUpdatedController = StreamController<WebSocketMessageUpdatedEvent>.broadcast();
+  final _linkPreviewUpdatedController = StreamController<WebSocketLinkPreviewUpdatedEvent>.broadcast();
   final _profileUpdateController = StreamController<WebSocketProfileUpdateEvent>.broadcast();
   final _reconnectedController = StreamController<void>.broadcast();
   final _errorController = StreamController<WebSocketErrorEvent>.broadcast();
@@ -129,6 +131,10 @@ class WebSocketService {
   /// Stream of message updated events.
   Stream<WebSocketMessageUpdatedEvent> get messageUpdatedEvents =>
       _messageUpdatedController.stream;
+
+  /// Stream of link preview updated events.
+  Stream<WebSocketLinkPreviewUpdatedEvent> get linkPreviewUpdatedEvents =>
+      _linkPreviewUpdatedController.stream;
 
   /// Stream of profile update events.
   Stream<WebSocketProfileUpdateEvent> get profileUpdateEvents =>
@@ -426,6 +432,12 @@ class WebSocketService {
             debugPrint('[WebSocket] Message updated event: messageId=${event.messageId}, roomId=${event.chatRoomId}');
           }
           _messageUpdatedController.add(event);
+        case ParsedLinkPreviewUpdatedPayload(:final event):
+          if (_dedupeCache.isDuplicate(event.eventId)) return;
+          if (kDebugMode) {
+            debugPrint('[WebSocket] Link preview updated event: messageId=${event.messageId}, roomId=${event.chatRoomId}');
+          }
+          _linkPreviewUpdatedController.add(event);
         case ParsedUnknownPayload(:final raw):
           if (kDebugMode) {
             debugPrint('[WebSocket] Unknown message type: ${raw['eventType']}');
@@ -556,6 +568,7 @@ class WebSocketService {
   /// Attempts to refresh the access token when WebSocket auth error occurs.
   /// Called by [WebSocketConnectionManager] before reconnection.
   Future<void> _refreshTokenForReconnect() async {
+    Dio? dio;
     try {
       final refreshToken = await _authLocalDataSource.getRefreshToken();
       if (refreshToken == null) {
@@ -565,7 +578,7 @@ class WebSocketService {
         return;
       }
 
-      final dio = Dio(BaseOptions(
+      dio = Dio(BaseOptions(
         baseUrl: ApiConstants.apiBaseUrl,
         connectTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 5),
@@ -593,6 +606,9 @@ class WebSocketService {
       if (kDebugMode) {
         debugPrint('[WebSocket] Token refresh failed: $e');
       }
+    } finally {
+      // Close the Dio instance to prevent resource leak
+      dio?.close();
     }
   }
 
@@ -614,6 +630,7 @@ class WebSocketService {
     _onlineStatusController.close();
     _messageDeletedController.close();
     _messageUpdatedController.close();
+    _linkPreviewUpdatedController.close();
     _profileUpdateController.close();
     _errorController.close();
     _reconnectedController.close();
