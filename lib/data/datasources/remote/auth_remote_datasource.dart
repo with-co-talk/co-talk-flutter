@@ -17,6 +17,7 @@ abstract class AuthRemoteDataSource {
   Future<UserModel> getCurrentUser();
   Future<void> updateProfile(int userId, {String? nickname, String? statusMessage, String? avatarUrl});
   Future<String> uploadFile(File file);
+  Future<void> resendVerification(String email);
 }
 
 @LazySingleton(as: AuthRemoteDataSource)
@@ -121,6 +122,18 @@ class AuthRemoteDataSourceImpl extends BaseRemoteDataSource
       );
 
       return response.data['fileUrl'] as String;
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<void> resendVerification(String email) async {
+    try {
+      await _dioClient.post(
+        ApiConstants.resendVerification,
+        data: {'email': email},
+      );
     } on DioException catch (e) {
       throw handleDioError(e);
     }

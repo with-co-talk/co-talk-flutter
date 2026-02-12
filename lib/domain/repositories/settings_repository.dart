@@ -23,4 +23,7 @@ abstract class SettingsRepository {
 
   /// 회원 탈퇴
   Future<void> deleteAccount(int userId, String password);
+
+  /// 비밀번호 변경
+  Future<void> changePassword(String currentPassword, String newPassword);
 }

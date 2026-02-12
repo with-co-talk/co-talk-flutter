@@ -50,6 +50,8 @@ dependencies:
   package_info_plus: ^8.1.2
   super_clipboard: ^0.9.1
   gal: ^2.3.2
+  app_links: ^6.3.2
+  local_auth: ^2.3.0
 
   # Image Editor
   pro_image_editor: ^6.0.8

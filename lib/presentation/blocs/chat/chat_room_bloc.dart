@@ -1161,6 +1161,24 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) {
     _log('_onReactionAddRequested: messageId=${event.messageId}, emoji=${event.emoji}');
 
+    // Sync cache manager with state if out of sync (for tests with seeded state)
+    if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
+      _cacheManager.syncMessages(state.messages);
+    }
+
+    // Optimistic UI update - add reaction immediately
+    final currentUserId = state.currentUserId;
+    if (currentUserId != null) {
+      final optimisticReaction = MessageReaction(
+        id: 0, // temporary ID, will be replaced by server echo
+        messageId: event.messageId,
+        userId: currentUserId,
+        emoji: event.emoji,
+      );
+      _cacheManager.addReaction(event.messageId, optimisticReaction);
+      emit(state.copyWith(messages: _cacheManager.messages));
+    }
+
     _webSocketService.addReaction(
       messageId: event.messageId,
       emoji: event.emoji,
@@ -1173,6 +1191,18 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     _log('_onReactionRemoveRequested: messageId=${event.messageId}, emoji=${event.emoji}');
+
+    // Sync cache manager with state if out of sync (for tests with seeded state)
+    if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
+      _cacheManager.syncMessages(state.messages);
+    }
+
+    // Optimistic UI update - remove reaction immediately
+    final currentUserId = state.currentUserId;
+    if (currentUserId != null) {
+      _cacheManager.removeReaction(event.messageId, currentUserId, event.emoji);
+      emit(state.copyWith(messages: _cacheManager.messages));
+    }
 
     _webSocketService.removeReaction(
       messageId: event.messageId,

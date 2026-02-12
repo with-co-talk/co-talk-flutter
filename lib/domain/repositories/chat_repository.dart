@@ -39,6 +39,9 @@ abstract class ChatRepository {
   Future<Message> replyToMessage(int messageId, String content);
   Future<Message> forwardMessage(int messageId, int targetChatRoomId);
 
+  /// 그룹 채팅방 이미지를 변경합니다.
+  Future<void> updateChatRoomImage(int roomId, String imageUrl);
+
   /// 파일을 서버에 업로드합니다.
   Future<FileUploadResult> uploadFile(File file);
 

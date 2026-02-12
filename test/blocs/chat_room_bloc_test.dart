@@ -2469,7 +2469,14 @@ void main() {
           messageId: 1,
           emoji: '👍',
         )),
-        expect: () => [],
+        expect: () => [
+          // Optimistic UI update: reaction added immediately
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.reactions.length, 'reactions length', 1)
+              .having((s) => s.messages.first.reactions.first.emoji, 'emoji', '👍')
+              .having((s) => s.messages.first.reactions.first.userId, 'userId', 1),
+        ],
         verify: (_) {
           verify(() => mockWebSocketService.addReaction(
                 messageId: 1,
@@ -2498,7 +2505,14 @@ void main() {
           messageId: 1,
           emoji: '👍',
         )),
-        expect: () => [],
+        expect: () => [
+          // Optimistic UI update: reaction added immediately even when disconnected
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.reactions.length, 'reactions length', 1)
+              .having((s) => s.messages.first.reactions.first.emoji, 'emoji', '👍')
+              .having((s) => s.messages.first.reactions.first.userId, 'userId', 1),
+        ],
         verify: (_) {
           // WebSocketService should still be called even if not connected
           // (it handles connection logic internally)
@@ -2541,7 +2555,12 @@ void main() {
           messageId: 1,
           emoji: '👍',
         )),
-        expect: () => [],
+        expect: () => [
+          // Optimistic UI update: reaction removed immediately
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.reactions.length, 'reactions length', 0),
+        ],
         verify: (_) {
           verify(() => mockWebSocketService.removeReaction(
                 messageId: 1,

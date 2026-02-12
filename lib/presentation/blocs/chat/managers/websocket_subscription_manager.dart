@@ -172,6 +172,8 @@ class WebSocketSubscriptionManager {
       fileSize: wsMessage.fileSize,
       fileContentType: wsMessage.fileContentType,
       thumbnailUrl: wsMessage.thumbnailUrl,
+      replyToMessageId: wsMessage.replyToMessageId,
+      forwardedFromMessageId: wsMessage.forwardedFromMessageId,
       unreadCount: wsMessage.unreadCount,
     );
   }

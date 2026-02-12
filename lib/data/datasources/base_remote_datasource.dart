@@ -45,6 +45,13 @@ abstract class BaseRemoteDataSource {
         );
 
       case 403:
+        // 이메일 인증 미완료 응답 감지
+        if (message.contains('이메일 인증') || code == 'EMAIL_NOT_VERIFIED') {
+          return AuthException(
+            message: message,
+            type: AuthErrorType.emailNotVerified,
+          );
+        }
         return AuthException(
           message: message,
           type: AuthErrorType.unauthorized,

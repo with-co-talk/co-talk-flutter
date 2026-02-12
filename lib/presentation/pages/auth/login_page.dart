@@ -64,12 +64,20 @@ class _LoginPageState extends State<LoginPage> {
           if (state.status == AuthStatus.authenticated) {
             context.go(AppRoutes.friends);
           } else if (state.status == AuthStatus.failure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage ?? '로그인에 실패했습니다'),
-                backgroundColor: AppColors.error,
-              ),
-            );
+            if (state.errorMessage != null &&
+                state.errorMessage!.contains('이메일 인증')) {
+              // 이메일 인증 페이지로 이동
+              context.go(
+                '${AppRoutes.emailVerification}?email=${Uri.encodeComponent(_emailController.text.trim())}',
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage ?? '로그인에 실패했습니다'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
           }
         },
         builder: (context, state) {

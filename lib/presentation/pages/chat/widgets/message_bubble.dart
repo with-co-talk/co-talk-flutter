@@ -20,7 +20,6 @@ import '../../../blocs/settings/chat_settings_cubit.dart';
 import '../../../widgets/link_preview_card.dart';
 import '../../../widgets/link_preview_loader.dart';
 import '../../../widgets/reaction_display.dart';
-import '../../../widgets/reaction_picker.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'video_player_page.dart';
 
@@ -45,10 +44,15 @@ class MessageBubble extends StatelessWidget {
   Widget _buildReplyPreview(BuildContext context) {
     if (message.replyToMessageId == null) return const SizedBox.shrink();
 
-    final replyMsg = message.replyToMessage;
+    // Try the embedded replyToMessage first, then look up from BLoC state
+    final replyMsg = message.replyToMessage ??
+        context.read<ChatRoomBloc>().state.messages
+            .where((m) => m.id == message.replyToMessageId)
+            .firstOrNull;
+
     final previewText = replyMsg?.isDeleted == true
         ? '삭제된 메시지'
-        : (replyMsg?.content ?? '원본 메시지');
+        : (replyMsg?.content ?? '원본 메시지를 찾을 수 없습니다');
     final senderName = replyMsg?.senderNickname ?? '알 수 없음';
 
     return Container(
@@ -491,102 +495,24 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
-  /// Shows message options (reply, forward, edit, delete, report)
-  void _showMessageOptions(BuildContext context) {
-    if (message.isDeleted) return;
-
-    final canEdit = isMe && !_isEditTimeExpired;
-    final canDelete = isMe && !_isEditTimeExpired;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (bottomSheetContext) => Container(
-        decoration: BoxDecoration(
-          color: context.surfaceColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: context.dividerColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Reply option (available for all non-deleted messages)
-              ListTile(
-                leading: const Icon(Icons.reply, color: AppColors.primary),
-                title: const Text('답장'),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  context.read<ChatRoomBloc>().add(ReplyToMessageSelected(message));
-                },
-              ),
-              // Forward option
-              ListTile(
-                leading: const Icon(Icons.forward, color: Colors.blue),
-                title: const Text('전달'),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  _showForwardDialog(context);
-                },
-              ),
-              // Edit option (own messages only, within time limit)
-              if (canEdit)
-                ListTile(
-                  leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
-                  title: const Text('수정'),
-                  onTap: () {
-                    Navigator.pop(bottomSheetContext);
-                    _showEditDialog(context);
-                  },
-                ),
-              // Delete option (own messages only, within time limit)
-              if (canDelete)
-                ListTile(
-                  leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
-                  onTap: () {
-                    Navigator.pop(bottomSheetContext);
-                    _showDeleteConfirmDialog(context);
-                  },
-                ),
-              // Report option (other user's messages only)
-              if (!isMe)
-                ListTile(
-                  leading: const Icon(Icons.report_outlined, color: Colors.orange),
-                  title: const Text('신고'),
-                  onTap: () {
-                    Navigator.pop(bottomSheetContext);
-                    context.push('/report?type=MESSAGE&targetId=${message.id}');
-                  },
-                ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   /// Shows room picker dialog for forwarding a message
   void _showForwardDialog(BuildContext context) {
+    final chatListBloc = context.read<ChatListBloc>();
+    final chatRoomBloc = context.read<ChatRoomBloc>();
+
     showDialog(
       context: context,
-      builder: (dialogContext) => _ForwardRoomPickerDialog(
-        onRoomSelected: (roomId) {
-          context.read<ChatRoomBloc>().add(MessageForwardRequested(
-            messageId: message.id,
-            targetRoomId: roomId,
-          ));
-        },
+      builder: (dialogContext) => BlocProvider.value(
+        value: chatListBloc,
+        child: _ForwardRoomPickerDialog(
+          onRoomSelected: (roomId) {
+            chatRoomBloc.add(MessageForwardRequested(
+              messageId: message.id,
+              targetRoomId: roomId,
+            ));
+          },
+        ),
       ),
     );
   }
@@ -656,42 +582,140 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  /// Shows reaction picker on long press
-  void _showReactionPicker(BuildContext context) {
-    final overlay = Overlay.of(context);
-    late OverlayEntry overlayEntry;
+  /// Shows unified emoji + message options bottom sheet
+  void _showUnifiedMessageSheet(BuildContext context) {
+    if (message.isDeleted) return;
 
-    overlayEntry = OverlayEntry(
-      builder: (context) => GestureDetector(
-        onTap: () => overlayEntry.remove(),
-        behavior: HitTestBehavior.opaque,
-        child: Material(
-          color: Colors.transparent,
-          child: Stack(
+    final canEdit = isMe && !_isEditTimeExpired;
+    final canDelete = isMe && !_isEditTimeExpired;
+    final quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) => Container(
+        decoration: BoxDecoration(
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Positioned(
-                // Position near the message
-                top: 100, // You may need to calculate this based on message position
-                left: isMe ? null : 60,
-                right: isMe ? 16 : null,
-                child: ReactionPicker(
-                  onEmojiSelected: (emoji) {
-                    overlayEntry.remove();
-                    _addReaction(context, emoji);
-                  },
-                  onMorePressed: () {
-                    overlayEntry.remove();
-                    _showFullEmojiPicker(context);
-                  },
+              const SizedBox(height: 8),
+              // Drag handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.dividerColor,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
+              const SizedBox(height: 12),
+              // Quick emoji row
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ...quickEmojis.map((emoji) => Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.pop(bottomSheetContext);
+                              _addReaction(context, emoji);
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 24),
+                              ),
+                            ),
+                          ),
+                        )),
+                    // More button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.pop(bottomSheetContext);
+                          _showFullEmojiPicker(context);
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.add,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(),
+              const SizedBox(height: 4),
+              // Message options
+              ListTile(
+                leading: const Icon(Icons.reply, color: AppColors.primary),
+                title: const Text('답장'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  context.read<ChatRoomBloc>().add(ReplyToMessageSelected(message));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.forward, color: Colors.blue),
+                title: const Text('전달'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _showForwardDialog(context);
+                },
+              ),
+              if (canEdit)
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
+                  title: const Text('수정'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    _showEditDialog(context);
+                  },
+                ),
+              if (canDelete)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    _showDeleteConfirmDialog(context);
+                  },
+                ),
+              if (!isMe)
+                ListTile(
+                  leading: const Icon(Icons.report_outlined, color: Colors.orange),
+                  title: const Text('신고'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    context.push('/report?type=MESSAGE&targetId=${message.id}');
+                  },
+                ),
+              const SizedBox(height: 8),
             ],
           ),
         ),
       ),
     );
-
-    overlay.insert(overlayEntry);
   }
 
   /// Adds a reaction to the message
@@ -754,7 +778,7 @@ class MessageBubble extends StatelessWidget {
                 child: EmojiPicker(
                   onEmojiSelected: (category, emoji) {
                     Navigator.pop(sheetContext);
-                    _addReaction(context, emoji.emoji);
+                    _addReaction(context, emoji.emoji); // Uses outer context correctly
                   },
                   config: const Config(
                     height: 400,
@@ -1115,11 +1139,7 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onLongPress: () {
-              // Long press shows reaction picker for everyone
-              _showReactionPicker(context);
-            },
-            onDoubleTap: !message.isDeleted ? () => _showMessageOptions(context) : null,
+            onLongPress: !message.isDeleted ? () => _showUnifiedMessageSheet(context) : null,
             child: Row(
               mainAxisAlignment:
                   isMe ? MainAxisAlignment.end : MainAxisAlignment.start,

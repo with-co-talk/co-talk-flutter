@@ -41,6 +41,8 @@ class ErrorMessageMapper {
     switch (error.type) {
       case AuthErrorType.invalidCredentials:
         return '이메일 또는 비밀번호가 올바르지 않습니다';
+      case AuthErrorType.emailNotVerified:
+        return '이메일 인증이 완료되지 않았습니다. 이메일을 확인해주세요';
       case AuthErrorType.tokenExpired:
         return '세션이 만료되었습니다. 다시 로그인해주세요';
       case AuthErrorType.tokenInvalid:

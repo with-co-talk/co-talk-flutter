@@ -275,4 +275,182 @@ void main() {
       expect(find.byType(CachedNetworkImage), findsNothing);
     });
   });
+
+  group('MessageBubble Unified Sheet Tests', () {
+    testWidgets('long press on text message should show unified sheet with emojis and options',
+        (WidgetTester tester) async {
+      final textMessage = Message(
+        id: 1,
+        chatRoomId: 1,
+        senderId: 2,
+        senderNickname: 'Test User',
+        content: 'Hello!',
+        type: MessageType.text,
+        createdAt: DateTime.now(),
+        reactions: const [],
+        isDeleted: false,
+        unreadCount: 0,
+      );
+
+      await tester.pumpWidget(
+        createTestWidget(
+          message: textMessage,
+          isMe: false,
+          chatSettings: const ChatSettings(autoDownloadImagesOnWifi: true),
+        ),
+      );
+
+      // Find the GestureDetector and long press
+      // We need to long press on the message bubble area
+      // Target the CircleAvatar which is inside the outer GestureDetector
+      // Long press events bubble up to the parent
+      final avatarFinder = find.byType(CircleAvatar);
+      await tester.longPress(avatarFinder.first);
+      await tester.pumpAndSettle();
+
+      // Verify emojis are shown in the bottom sheet
+      expect(find.text('👍'), findsOneWidget);
+      expect(find.text('❤️'), findsOneWidget);
+      expect(find.text('😂'), findsOneWidget);
+      expect(find.text('😮'), findsOneWidget);
+      expect(find.text('😢'), findsOneWidget);
+      expect(find.text('🙏'), findsOneWidget);
+
+      // Verify message options are shown
+      expect(find.text('답장'), findsOneWidget);
+      expect(find.text('전달'), findsOneWidget);
+      // Since isMe is false, 수정 and 삭제 should NOT be shown
+      expect(find.text('수정'), findsNothing);
+      expect(find.text('삭제'), findsNothing);
+      // Report should be shown for other's messages
+      expect(find.text('신고'), findsOneWidget);
+    });
+
+    testWidgets('long press on own message should show edit and delete options',
+        (WidgetTester tester) async {
+      final textMessage = Message(
+        id: 1,
+        chatRoomId: 1,
+        senderId: 1, // own message (currentUserId is 1)
+        senderNickname: 'Me',
+        content: 'My message',
+        type: MessageType.text,
+        createdAt: DateTime.now(), // recent, so within edit time limit
+        reactions: const [],
+        isDeleted: false,
+        unreadCount: 0,
+      );
+
+      await tester.pumpWidget(
+        createTestWidget(
+          message: textMessage,
+          isMe: true,
+          chatSettings: const ChatSettings(autoDownloadImagesOnWifi: true),
+        ),
+      );
+
+      // For own messages (isMe: true), there's no CircleAvatar
+      // Find the RichText containing the message and long press it
+      // Wait for the widget to be built first
+      await tester.pump();
+
+      final richTexts = find.byType(RichText);
+      bool found = false;
+      for (var i = 0; i < tester.widgetList(richTexts).length; i++) {
+        final richText = tester.widget<RichText>(richTexts.at(i));
+        if (richText.text.toPlainText().contains('My message')) {
+          await tester.longPress(richTexts.at(i));
+          found = true;
+          break;
+        }
+      }
+      expect(found, isTrue, reason: 'Should find the message RichText');
+
+      // Allow minor overflow in bottom sheet layout (known issue: 4.5px overflow)
+      await tester.pumpAndSettle();
+
+      // Own message options
+      expect(find.text('답장'), findsOneWidget);
+      expect(find.text('전달'), findsOneWidget);
+      expect(find.text('수정'), findsOneWidget);
+      expect(find.text('삭제'), findsOneWidget);
+      // No report for own messages
+      expect(find.text('신고'), findsNothing);
+    });
+
+    testWidgets('long press on deleted message should not show sheet',
+        (WidgetTester tester) async {
+      final deletedMessage = Message(
+        id: 1,
+        chatRoomId: 1,
+        senderId: 2,
+        senderNickname: 'Test User',
+        content: '삭제된 메시지입니다',
+        type: MessageType.text,
+        createdAt: DateTime.now(),
+        reactions: const [],
+        isDeleted: true,
+        unreadCount: 0,
+      );
+
+      await tester.pumpWidget(
+        createTestWidget(
+          message: deletedMessage,
+          isMe: false,
+          chatSettings: const ChatSettings(autoDownloadImagesOnWifi: true),
+        ),
+      );
+
+      // Deleted message should have no GestureDetector with onLongPress
+      final gesture = find.byWidgetPredicate(
+        (widget) => widget is GestureDetector && widget.onLongPress != null,
+      );
+      expect(gesture, findsNothing);
+
+      // No bottom sheet should appear
+      expect(find.text('답장'), findsNothing);
+      expect(find.text('전달'), findsNothing);
+      expect(find.text('👍'), findsNothing);
+    });
+
+    testWidgets('selecting emoji in unified sheet should close the sheet',
+        (WidgetTester tester) async {
+      final textMessage = Message(
+        id: 42,
+        chatRoomId: 1,
+        senderId: 2,
+        senderNickname: 'Test User',
+        content: 'React to me!',
+        type: MessageType.text,
+        createdAt: DateTime.now(),
+        reactions: const [],
+        isDeleted: false,
+        unreadCount: 0,
+      );
+
+      await tester.pumpWidget(
+        createTestWidget(
+          message: textMessage,
+          isMe: false,
+          chatSettings: const ChatSettings(autoDownloadImagesOnWifi: true),
+        ),
+      );
+
+      // Open unified sheet
+      // Target the CircleAvatar which is inside the outer GestureDetector
+      final avatarFinder = find.byType(CircleAvatar);
+      await tester.longPress(avatarFinder.first);
+      await tester.pumpAndSettle();
+
+      // Verify sheet is open
+      expect(find.text('👍'), findsOneWidget);
+
+      // Tap the thumbs up emoji
+      await tester.tap(find.text('👍'));
+      await tester.pumpAndSettle();
+
+      // Verify the sheet is closed
+      expect(find.text('답장'), findsNothing);
+    });
+  });
 }

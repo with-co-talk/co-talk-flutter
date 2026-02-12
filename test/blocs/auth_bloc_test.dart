@@ -213,19 +213,13 @@ void main() {
 
     group('AuthSignUpRequested', () {
       blocTest<AuthBloc, AuthState>(
-        'emits [loading, authenticated] when sign up and auto-login succeed',
+        'emits [loading, signUpSuccess] when sign up succeeds',
         build: () {
           when(() => mockAuthRepository.signUp(
                 email: any(named: 'email'),
                 password: any(named: 'password'),
                 nickname: any(named: 'nickname'),
               )).thenAnswer((_) async => 1);
-          when(() => mockAuthRepository.login(
-                email: any(named: 'email'),
-                password: any(named: 'password'),
-              )).thenAnswer((_) async => FakeEntities.authToken);
-          when(() => mockAuthRepository.getCurrentUser())
-              .thenAnswer((_) async => FakeEntities.user);
           return createBloc();
         },
         act: (bloc) => bloc.add(const AuthSignUpRequested(
@@ -235,7 +229,7 @@ void main() {
         )),
         expect: () => [
           const AuthState.loading(),
-          AuthState.authenticated(FakeEntities.user),
+          const AuthState.signUpSuccess('test@example.com'),
         ],
         verify: (_) {
           verify(() => mockAuthRepository.signUp(
@@ -243,11 +237,11 @@ void main() {
                 password: 'password123',
                 nickname: 'TestUser',
               )).called(1);
-          verify(() => mockAuthRepository.login(
-                email: 'test@example.com',
-                password: 'password123',
-              )).called(1);
-          verify(() => mockWebSocketService.connect()).called(1);
+          verifyNever(() => mockAuthRepository.login(
+                email: any(named: 'email'),
+                password: any(named: 'password'),
+              ));
+          verifyNever(() => mockWebSocketService.connect());
         },
       );
 
@@ -277,21 +271,13 @@ void main() {
       );
 
       blocTest<AuthBloc, AuthState>(
-        'emits [loading, authenticated] with placeholder user when getCurrentUser returns null after signup',
+        'emits [loading, signUpSuccess] with email when sign up succeeds (no auto-login)',
         build: () {
           when(() => mockAuthRepository.signUp(
                 email: any(named: 'email'),
                 password: any(named: 'password'),
                 nickname: any(named: 'nickname'),
               )).thenAnswer((_) async => 1);
-          when(() => mockAuthRepository.login(
-                email: any(named: 'email'),
-                password: any(named: 'password'),
-              )).thenAnswer((_) async => FakeEntities.authToken);
-          when(() => mockAuthRepository.getCurrentUser())
-              .thenAnswer((_) async => null);
-          when(() => mockAuthRepository.getCurrentUserId())
-              .thenAnswer((_) async => 1);
           return createBloc();
         },
         act: (bloc) => bloc.add(const AuthSignUpRequested(
@@ -301,11 +287,9 @@ void main() {
         )),
         expect: () => [
           const AuthState.loading(),
-          isA<AuthState>().having(
-            (s) => s.status,
-            'status',
-            AuthStatus.authenticated,
-          ),
+          isA<AuthState>()
+              .having((s) => s.status, 'status', AuthStatus.signUpSuccess)
+              .having((s) => s.signupEmail, 'signupEmail', 'test@example.com'),
         ],
       );
     });

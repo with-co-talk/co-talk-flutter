@@ -9,6 +9,7 @@ part 'chat_room_model.g.dart';
 class ChatRoomModel {
   final int id;
   final String? name;
+  final String? imageUrl;
   final String? type;
   @JsonKey(fromJson: DateParser.parse, toJson: _dateTimeToJson)
   final DateTime createdAt;
@@ -31,6 +32,7 @@ class ChatRoomModel {
   const ChatRoomModel({
     required this.id,
     this.name,
+    this.imageUrl,
     this.type,
     required this.createdAt,
     this.lastMessage,
@@ -54,6 +56,7 @@ class ChatRoomModel {
     return ChatRoom(
       id: id,
       name: name,
+      imageUrl: imageUrl,
       type: _parseChatRoomType(type),
       createdAt: createdAt,
       lastMessage: lastMessage,

@@ -5,6 +5,7 @@ enum ChatRoomType { direct, group, self }
 class ChatRoom extends Equatable {
   final int id;
   final String? name;
+  final String? imageUrl;
   final ChatRoomType type;
   final DateTime createdAt;
   final String? lastMessage;
@@ -24,6 +25,7 @@ class ChatRoom extends Equatable {
   const ChatRoom({
     required this.id,
     this.name,
+    this.imageUrl,
     required this.type,
     required this.createdAt,
     this.lastMessage,
@@ -73,6 +75,7 @@ class ChatRoom extends Equatable {
   ChatRoom copyWith({
     int? id,
     String? name,
+    String? imageUrl,
     ChatRoomType? type,
     DateTime? createdAt,
     String? lastMessage,
@@ -89,6 +92,7 @@ class ChatRoom extends Equatable {
     return ChatRoom(
       id: id ?? this.id,
       name: name ?? this.name,
+      imageUrl: imageUrl ?? this.imageUrl,
       type: type ?? this.type,
       createdAt: createdAt ?? this.createdAt,
       lastMessage: lastMessage ?? this.lastMessage,
@@ -108,6 +112,7 @@ class ChatRoom extends Equatable {
   List<Object?> get props => [
         id,
         name,
+        imageUrl,
         type,
         createdAt,
         lastMessage,
