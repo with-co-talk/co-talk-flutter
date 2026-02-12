@@ -9,6 +9,9 @@ import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/theme/theme_cubit.dart';
 import 'presentation/blocs/settings/chat_settings_cubit.dart';
 import 'presentation/blocs/settings/chat_settings_state.dart';
+import 'presentation/blocs/app/app_lock_cubit.dart';
+import 'presentation/blocs/app/app_lock_state.dart';
+import 'presentation/pages/app/app_lock_page.dart';
 
 class CoTalkApp extends StatelessWidget {
   const CoTalkApp({super.key});
@@ -37,6 +40,9 @@ class CoTalkApp extends StatelessWidget {
         BlocProvider(
           create: (_) => getIt<ChatSettingsCubit>()..loadSettings(),
         ),
+        BlocProvider(
+          create: (_) => getIt<AppLockCubit>(),
+        ),
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
@@ -57,7 +63,21 @@ class CoTalkApp extends StatelessWidget {
                     data: MediaQuery.of(context).copyWith(
                       textScaler: TextScaler.linear(chatSettingsState.settings.fontSize),
                     ),
-                    child: child ?? const SizedBox.shrink(),
+                    child: _AppLifecycleHandler(
+                      child: Stack(
+                        children: [
+                          child ?? const SizedBox.shrink(),
+                          BlocBuilder<AppLockCubit, AppLockState>(
+                            builder: (context, lockState) {
+                              if (lockState.status == AppLockStatus.unlocked) {
+                                return const SizedBox.shrink();
+                              }
+                              return const AppLockPage();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   );
                 },
               );
@@ -67,4 +87,36 @@ class CoTalkApp extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AppLifecycleHandler extends StatefulWidget {
+  final Widget child;
+  const _AppLifecycleHandler({required this.child});
+
+  @override
+  State<_AppLifecycleHandler> createState() => _AppLifecycleHandlerState();
+}
+
+class _AppLifecycleHandlerState extends State<_AppLifecycleHandler> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<AppLockCubit>().checkLockOnResume();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

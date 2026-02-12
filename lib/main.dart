@@ -10,6 +10,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'core/constants/app_constants.dart';
+import 'core/services/deep_link_service.dart';
 import 'core/services/desktop_notification_bridge.dart';
 import 'core/services/fcm_service.dart';
 import 'core/services/notification_click_handler.dart';
@@ -119,6 +120,12 @@ Future<void> _initializeNotifications() async {
   // 알림 클릭 시 해당 채팅방으로 네비게이션
   final notificationClickHandler = getIt<NotificationClickHandler>();
   notificationClickHandler.startListening();
+
+  // 딥링크 서비스 초기화 (모바일에서만 - 데스크톱은 딥링크 불필요)
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    final deepLinkService = getIt<DeepLinkService>();
+    await deepLinkService.init();
+  }
 
   // FCM 서비스 초기화 (Android 및 iOS)
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
