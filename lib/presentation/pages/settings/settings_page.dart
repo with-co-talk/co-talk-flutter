@@ -135,6 +135,18 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
+          // 보안 섹션
+          _SettingsSection(
+            title: '보안',
+            children: [
+              _SettingsTile(
+                icon: Icons.fingerprint,
+                title: '생체 인증',
+                subtitle: '앱 잠금 해제 시 생체 인증 사용',
+                onTap: () => context.push(AppRoutes.securitySettings),
+              ),
+            ],
+          ),
           // 계정 섹션
           _SettingsSection(
             title: '계정',
@@ -142,7 +154,7 @@ class _SettingsPageState extends State<SettingsPage> {
               _SettingsTile(
                 icon: Icons.lock_outline,
                 title: '비밀번호 변경',
-                subtitle: '준비 중',
+                onTap: () => context.push(AppRoutes.changePassword),
               ),
               _SettingsTile(
                 icon: Icons.person_remove_outlined,

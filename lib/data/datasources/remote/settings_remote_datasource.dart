@@ -15,6 +15,9 @@ abstract class SettingsRemoteDataSource {
 
   /// 회원 탈퇴
   Future<void> deleteAccount(int userId, String password);
+
+  /// 비밀번호 변경
+  Future<void> changePassword(String currentPassword, String newPassword);
 }
 
 /// 설정 관련 원격 데이터소스 구현체
@@ -53,6 +56,21 @@ class SettingsRemoteDataSourceImpl extends BaseRemoteDataSource
       await _dioClient.delete(
         ApiConstants.accountDeletion,
         data: {'password': password},
+      );
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    try {
+      await _dioClient.put(
+        ApiConstants.changePassword,
+        data: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
       );
     } on DioException catch (e) {
       throw handleDioError(e);

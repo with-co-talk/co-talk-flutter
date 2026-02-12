@@ -61,4 +61,9 @@ class SettingsRepositoryImpl implements SettingsRepository {
   Future<void> deleteAccount(int userId, String password) async {
     await _remoteDataSource.deleteAccount(userId, password);
   }
+
+  @override
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    await _remoteDataSource.changePassword(currentPassword, newPassword);
+  }
 }
