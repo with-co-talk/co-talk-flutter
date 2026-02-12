@@ -2752,6 +2752,7 @@ void main() {
           roomId: 1,
         ),
         act: (bloc) => bloc.add(const FileAttachmentRequested('/nonexistent/path.jpg')),
+        wait: const Duration(milliseconds: 300),
         expect: () => [
           // 1st emit: upload starts
           isA<ChatRoomState>()
