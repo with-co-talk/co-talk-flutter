@@ -222,12 +222,16 @@ class FcmServiceImpl implements FcmService {
       payload = jsonEncode(message.data);
     }
 
+    // FCM data에서 발신자 아바타 URL 추출
+    final avatarUrl = message.data['avatarUrl'];
+
     await _notificationService.showNotification(
       title: notification.title ?? '새 메시지',
       body: body,
       payload: payload,
       soundEnabled: soundEnabled,
       vibrationEnabled: vibrationEnabled,
+      avatarUrl: avatarUrl,
     );
   }
 

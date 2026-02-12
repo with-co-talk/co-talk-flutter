@@ -839,8 +839,14 @@ class _MyProfileActions extends StatelessWidget {
         _ActionButton(
           icon: Icons.edit_outlined,
           label: '프로필 편집',
-          onTap: () {
-            context.push('/profile/edit');
+          onTap: () async {
+            await context.push('/profile/edit');
+            if (context.mounted) {
+              // 편집 후 돌아오면 최신 프로필 데이터 다시 로드
+              final profileBloc = context.read<ProfileBloc>();
+              profileBloc.add(ProfileUserLoadRequested(userId: user.id));
+              profileBloc.add(ProfileHistoryLoadRequested(userId: user.id));
+            }
           },
         ),
       ],

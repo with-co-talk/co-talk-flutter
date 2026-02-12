@@ -146,16 +146,23 @@ class ImageEditorPage extends StatelessWidget {
           final editedFile = File('${tempDir.path}/$fileName');
           await editedFile.writeAsBytes(bytes);
 
-          if (context.mounted) {
-            if (onSend != null) {
-              // Direct send mode: call callback and close editor
-              onSend!(editedFile);
-            }
-            Navigator.of(context).pop(editedFile);
+          if (context.mounted && onSend != null) {
+            onSend!(editedFile);
           }
+          // Do NOT pop here — ProImageEditor auto-closes after this callback
+          // and triggers onCloseEditor, which handles the navigation pop.
         },
         onCloseEditor: () {
-          Navigator.of(context).pop(null);
+          // ProImageEditor가 자체 pop을 수행한 뒤에도 이 콜백이 호출될 수 있다.
+          // 이미 pop된 상태에서 추가 pop을 하면 채팅방까지 pop되므로,
+          // 현재 route가 editor route인지 확인 후 pop한다.
+          if (context.mounted) {
+            // ModalRoute가 아직 현재 route인 경우에만 pop
+            final route = ModalRoute.of(context);
+            if (route != null && route.isCurrent) {
+              Navigator.of(context).pop();
+            }
+          }
         },
       ),
     );
