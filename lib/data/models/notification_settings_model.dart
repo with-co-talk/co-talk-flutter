@@ -9,8 +9,8 @@ class NotificationSettingsModel {
   final bool messageNotification;
   final bool friendRequestNotification;
   final bool groupInviteNotification;
-  @JsonKey(name: 'showMessageContentInNotification')
-  final bool showMessageContentInNotification;
+  @JsonKey(name: 'notificationPreviewMode')
+  final String notificationPreviewMode;
   final bool soundEnabled;
   final bool vibrationEnabled;
   final bool doNotDisturbEnabled;
@@ -21,7 +21,7 @@ class NotificationSettingsModel {
     this.messageNotification = true,
     this.friendRequestNotification = true,
     this.groupInviteNotification = true,
-    this.showMessageContentInNotification = true,
+    this.notificationPreviewMode = 'NAME_AND_MESSAGE',
     this.soundEnabled = true,
     this.vibrationEnabled = true,
     this.doNotDisturbEnabled = false,
@@ -39,7 +39,7 @@ class NotificationSettingsModel {
       messageNotification: messageNotification,
       friendRequestNotification: friendRequestNotification,
       groupInviteNotification: groupInviteNotification,
-      showMessageContentInNotification: showMessageContentInNotification,
+      notificationPreviewMode: _parsePreviewMode(notificationPreviewMode),
       soundEnabled: soundEnabled,
       vibrationEnabled: vibrationEnabled,
       doNotDisturbEnabled: doNotDisturbEnabled,
@@ -53,12 +53,34 @@ class NotificationSettingsModel {
       messageNotification: entity.messageNotification,
       friendRequestNotification: entity.friendRequestNotification,
       groupInviteNotification: entity.groupInviteNotification,
-      showMessageContentInNotification: entity.showMessageContentInNotification,
+      notificationPreviewMode: _previewModeToString(entity.notificationPreviewMode),
       soundEnabled: entity.soundEnabled,
       vibrationEnabled: entity.vibrationEnabled,
       doNotDisturbEnabled: entity.doNotDisturbEnabled,
       doNotDisturbStart: entity.doNotDisturbStart,
       doNotDisturbEnd: entity.doNotDisturbEnd,
     );
+  }
+
+  static NotificationPreviewMode _parsePreviewMode(String mode) {
+    switch (mode) {
+      case 'NAME_ONLY':
+        return NotificationPreviewMode.nameOnly;
+      case 'NOTHING':
+        return NotificationPreviewMode.nothing;
+      default:
+        return NotificationPreviewMode.nameAndMessage;
+    }
+  }
+
+  static String _previewModeToString(NotificationPreviewMode mode) {
+    switch (mode) {
+      case NotificationPreviewMode.nameOnly:
+        return 'NAME_ONLY';
+      case NotificationPreviewMode.nothing:
+        return 'NOTHING';
+      case NotificationPreviewMode.nameAndMessage:
+        return 'NAME_AND_MESSAGE';
+    }
   }
 }

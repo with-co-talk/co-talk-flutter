@@ -42,9 +42,9 @@ class NotificationSettingsCubit extends Cubit<NotificationSettingsState> {
     await _updateSetting(state.settings.copyWith(groupInviteNotification: value));
   }
 
-  /// 푸시 알림에 메시지 내용 노출 여부 변경
-  Future<void> setShowMessageContentInNotification(bool value) async {
-    await _updateSetting(state.settings.copyWith(showMessageContentInNotification: value));
+  /// 알림 미리보기 모드 변경
+  Future<void> setNotificationPreviewMode(NotificationPreviewMode mode) async {
+    await _updateSetting(state.settings.copyWith(notificationPreviewMode: mode));
   }
 
   /// 소리 설정 변경

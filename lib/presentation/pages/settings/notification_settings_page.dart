@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../domain/entities/notification_settings.dart';
 import '../../blocs/settings/notification_settings_cubit.dart';
 import '../../blocs/settings/notification_settings_state.dart';
 
@@ -123,17 +124,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               _buildSection(
                 title: '알림 방식',
                 children: [
-                  _buildSwitchTile(
-                    icon: Icons.notifications_active_outlined,
-                    title: '푸시 메시지 내용 표시',
-                    subtitle: '알림에 메시지 내용 노출 (끄면 "새 메시지"만 표시)',
-                    value: state.settings.showMessageContentInNotification,
-                    onChanged: (value) {
-                      context
-                          .read<NotificationSettingsCubit>()
-                          .setShowMessageContentInNotification(value);
-                    },
-                  ),
+                  _buildPreviewModeSelector(state),
                   _buildSwitchTile(
                     icon: Icons.volume_up_outlined,
                     title: '소리',
@@ -217,6 +208,76 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         ),
         ...children,
       ],
+    );
+  }
+
+  Widget _buildPreviewModeSelector(NotificationSettingsState state) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.notifications_active_outlined),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  '알림 미리보기',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '알림에 표시할 내용을 선택합니다',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 12),
+          _buildRadioOption(
+            title: '이름 + 메시지',
+            subtitle: '보낸 사람 이름과 메시지 내용을 표시',
+            value: NotificationPreviewMode.nameAndMessage,
+            groupValue: state.settings.notificationPreviewMode,
+          ),
+          _buildRadioOption(
+            title: '이름만',
+            subtitle: '보낸 사람 이름만 표시',
+            value: NotificationPreviewMode.nameOnly,
+            groupValue: state.settings.notificationPreviewMode,
+          ),
+          _buildRadioOption(
+            title: '표시 안함',
+            subtitle: '이름과 메시지 내용 모두 숨김',
+            value: NotificationPreviewMode.nothing,
+            groupValue: state.settings.notificationPreviewMode,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRadioOption({
+    required String title,
+    required String subtitle,
+    required NotificationPreviewMode value,
+    required NotificationPreviewMode groupValue,
+  }) {
+    return RadioListTile<NotificationPreviewMode>(
+      title: Text(title),
+      subtitle: Text(subtitle),
+      value: value,
+      groupValue: groupValue,
+      onChanged: (newValue) {
+        if (newValue != null) {
+          context.read<NotificationSettingsCubit>().setNotificationPreviewMode(newValue);
+        }
+      },
+      contentPadding: EdgeInsets.zero,
+      dense: true,
     );
   }
 

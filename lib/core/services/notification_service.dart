@@ -208,8 +208,9 @@ class NotificationService {
   ///
   /// 다운로드 실패 시 null을 반환하여 graceful degradation을 보장한다.
   Future<Uint8List?> _downloadImage(String url) async {
+    Dio? dio;
     try {
-      final dio = Dio();
+      dio = Dio();
       final response = await dio.get<List<int>>(
         url,
         options: Options(
@@ -225,6 +226,9 @@ class NotificationService {
       if (kDebugMode) {
         debugPrint('[NotificationService] Failed to download avatar: $e');
       }
+    } finally {
+      // Close the Dio instance to prevent resource leak
+      dio?.close();
     }
     return null;
   }

@@ -1,12 +1,22 @@
 import 'package:equatable/equatable.dart';
 
+/// 알림 미리보기 모드
+enum NotificationPreviewMode {
+  /// 이름과 메시지 내용 모두 표시
+  nameAndMessage,
+  /// 이름만 표시
+  nameOnly,
+  /// 이름과 메시지 모두 숨김
+  nothing,
+}
+
 /// 알림 설정 엔티티
 class NotificationSettings extends Equatable {
   final bool messageNotification;
   final bool friendRequestNotification;
   final bool groupInviteNotification;
-  /// 푸시 알림에 메시지 내용 노출 여부 (false면 "새 메시지"만 표시)
-  final bool showMessageContentInNotification;
+  /// 알림 미리보기 모드 (이름+메시지, 이름만, 표시 안함)
+  final NotificationPreviewMode notificationPreviewMode;
   final bool soundEnabled;
   final bool vibrationEnabled;
   final bool doNotDisturbEnabled;
@@ -17,7 +27,7 @@ class NotificationSettings extends Equatable {
     this.messageNotification = true,
     this.friendRequestNotification = true,
     this.groupInviteNotification = true,
-    this.showMessageContentInNotification = true,
+    this.notificationPreviewMode = NotificationPreviewMode.nameAndMessage,
     this.soundEnabled = true,
     this.vibrationEnabled = true,
     this.doNotDisturbEnabled = false,
@@ -29,7 +39,7 @@ class NotificationSettings extends Equatable {
     bool? messageNotification,
     bool? friendRequestNotification,
     bool? groupInviteNotification,
-    bool? showMessageContentInNotification,
+    NotificationPreviewMode? notificationPreviewMode,
     bool? soundEnabled,
     bool? vibrationEnabled,
     bool? doNotDisturbEnabled,
@@ -40,7 +50,7 @@ class NotificationSettings extends Equatable {
       messageNotification: messageNotification ?? this.messageNotification,
       friendRequestNotification: friendRequestNotification ?? this.friendRequestNotification,
       groupInviteNotification: groupInviteNotification ?? this.groupInviteNotification,
-      showMessageContentInNotification: showMessageContentInNotification ?? this.showMessageContentInNotification,
+      notificationPreviewMode: notificationPreviewMode ?? this.notificationPreviewMode,
       soundEnabled: soundEnabled ?? this.soundEnabled,
       vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
       doNotDisturbEnabled: doNotDisturbEnabled ?? this.doNotDisturbEnabled,
@@ -54,7 +64,7 @@ class NotificationSettings extends Equatable {
         messageNotification,
         friendRequestNotification,
         groupInviteNotification,
-        showMessageContentInNotification,
+        notificationPreviewMode,
         soundEnabled,
         vibrationEnabled,
         doNotDisturbEnabled,
