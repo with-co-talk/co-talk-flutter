@@ -183,18 +183,19 @@ void main() {
         errorMessage: 'Error',
       );
 
-      expect(state.props.length, 3);
+      expect(state.props.length, 4);
     });
   });
 
   group('AuthStatus', () {
     test('has all expected values', () {
-      expect(AuthStatus.values.length, 5);
+      expect(AuthStatus.values.length, 6);
       expect(AuthStatus.values, contains(AuthStatus.initial));
       expect(AuthStatus.values, contains(AuthStatus.loading));
       expect(AuthStatus.values, contains(AuthStatus.authenticated));
       expect(AuthStatus.values, contains(AuthStatus.unauthenticated));
       expect(AuthStatus.values, contains(AuthStatus.failure));
+      expect(AuthStatus.values, contains(AuthStatus.signUpSuccess));
     });
   });
 }

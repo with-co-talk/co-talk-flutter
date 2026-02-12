@@ -84,12 +84,13 @@ void main() {
 
   group('AuthErrorType', () {
     test('has all expected values', () {
-      expect(AuthErrorType.values.length, 5);
+      expect(AuthErrorType.values.length, 6);
       expect(AuthErrorType.values, contains(AuthErrorType.invalidCredentials));
       expect(AuthErrorType.values, contains(AuthErrorType.tokenExpired));
       expect(AuthErrorType.values, contains(AuthErrorType.tokenInvalid));
       expect(AuthErrorType.values, contains(AuthErrorType.unauthorized));
       expect(AuthErrorType.values, contains(AuthErrorType.unknown));
+      expect(AuthErrorType.values, contains(AuthErrorType.emailNotVerified));
     });
   });
 
