@@ -810,6 +810,12 @@ class _ProfileActions extends StatelessWidget {
           label: '1:1 채팅',
           onTap: () => _startDirectChat(context, userId),
         ),
+        const SizedBox(width: 40),
+        _ActionButton(
+          icon: Icons.report_outlined,
+          label: '신고',
+          onTap: () => context.push('/report?type=USER&targetId=$userId'),
+        ),
       ],
     );
   }

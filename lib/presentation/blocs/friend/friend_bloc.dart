@@ -181,10 +181,12 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     try {
       await _friendRepository.acceptFriendRequest(event.requestId);
       final friends = await _friendRepository.getFriends();
+      // 숨긴 친구는 목록에서 제외
+      final visibleFriends = friends.where((f) => !f.isHidden).toList();
       final receivedRequests = await _friendRepository.getReceivedFriendRequests();
       emit(state.copyWith(
         status: FriendStatus.success,
-        friends: friends,
+        friends: visibleFriends,
         receivedRequests: receivedRequests,
         clearErrorMessage: true,
       ));
@@ -304,16 +306,21 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     HideFriendRequested event,
     Emitter<FriendState> emit,
   ) async {
-    emit(state.copyWith(clearErrorMessage: true));
+    // 낙관적 UI: 즉시 목록에서 제거
+    final previousFriends = state.friends;
+    final optimisticFriends = state.friends
+        .where((f) => f.user.id != event.friendId)
+        .toList();
+    emit(state.copyWith(friends: optimisticFriends, clearErrorMessage: true));
+
     try {
       await _friendRepository.hideFriend(event.friendId);
-      final friends = await _friendRepository.getFriends();
-      emit(state.copyWith(
-        friends: friends,
-        clearErrorMessage: true,
-      ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      // 실패 시 이전 목록 복원
+      emit(state.copyWith(
+        friends: previousFriends,
+        errorMessage: _extractErrorMessage(e),
+      ));
     }
   }
 
@@ -361,16 +368,21 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     BlockUserRequested event,
     Emitter<FriendState> emit,
   ) async {
-    emit(state.copyWith(clearErrorMessage: true));
+    // 낙관적 UI: 즉시 목록에서 제거
+    final previousFriends = state.friends;
+    final optimisticFriends = state.friends
+        .where((f) => f.user.id != event.userId)
+        .toList();
+    emit(state.copyWith(friends: optimisticFriends, clearErrorMessage: true));
+
     try {
       await _friendRepository.blockUser(event.userId);
-      final friends = await _friendRepository.getFriends();
-      emit(state.copyWith(
-        friends: friends,
-        clearErrorMessage: true,
-      ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      // 실패 시 이전 목록 복원
+      emit(state.copyWith(
+        friends: previousFriends,
+        errorMessage: _extractErrorMessage(e),
+      ));
     }
   }
 

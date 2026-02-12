@@ -23,6 +23,13 @@ class FriendListPage extends StatefulWidget {
 
 class _FriendListPageState extends State<FriendListPage> {
   Timer? _debounceTimer;
+  late FriendBloc _friendBloc;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _friendBloc = context.read<FriendBloc>();
+  }
 
   @override
   void initState() {
@@ -36,6 +43,8 @@ class _FriendListPageState extends State<FriendListPage> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    // WebSocket 구독 해제
+    _friendBloc.add(const FriendListSubscriptionStopped());
     super.dispose();
   }
 
@@ -86,7 +95,14 @@ class _FriendListPageState extends State<FriendListPage> {
             IconButton(
               icon: const Icon(Icons.settings),
               tooltip: '친구 관리',
-              onPressed: () => context.push(AppRoutes.friendSettings),
+              onPressed: () async {
+                // Navigate to friend settings and refresh list on return
+                await context.push(AppRoutes.friendSettings);
+                // After returning, refresh friend list to show any changes
+                if (context.mounted) {
+                  context.read<FriendBloc>().add(const FriendListLoadRequested());
+                }
+              },
             ),
           ],
           elevation: 0,
@@ -772,16 +788,21 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                               CircleAvatar(
                                 radius: 28,
                                 backgroundColor: AppColors.primaryLight,
-                                child: Text(
-                                  user.nickname.isNotEmpty
-                                      ? user.nickname[0].toUpperCase()
-                                      : '?',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                backgroundImage: user.avatarUrl != null
+                                    ? NetworkImage(user.avatarUrl!)
+                                    : null,
+                                child: user.avatarUrl == null
+                                    ? Text(
+                                        user.nickname.isNotEmpty
+                                            ? user.nickname[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      )
+                                    : null,
                               ),
                               const SizedBox(width: 16),
                               Expanded(
