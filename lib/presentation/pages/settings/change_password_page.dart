@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../blocs/settings/change_password_bloc.dart';
+import '../../blocs/settings/change_password_event.dart';
+import '../../blocs/settings/change_password_state.dart';
 
 /// 비밀번호 변경 페이지
 class ChangePasswordPage extends StatefulWidget {
@@ -20,7 +24,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
-  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -46,97 +49,122 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         ),
         title: const Text('비밀번호 변경'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 16),
-              _buildPasswordField(
-                controller: _currentPasswordController,
-                label: '현재 비밀번호',
-                obscure: _obscureCurrentPassword,
-                onToggleObscure: () {
-                  setState(() {
-                    _obscureCurrentPassword = !_obscureCurrentPassword;
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '현재 비밀번호를 입력해주세요';
-                  }
-                  return null;
-                },
+      body: BlocConsumer<ChangePasswordBloc, ChangePasswordState>(
+        listener: (context, state) {
+          if (state.status == ChangePasswordStatus.success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('비밀번호가 성공적으로 변경되었습니다.'),
+                backgroundColor: Colors.green,
               ),
-              const SizedBox(height: 24),
-              _buildPasswordField(
-                controller: _newPasswordController,
-                label: '새 비밀번호',
-                obscure: _obscureNewPassword,
-                onToggleObscure: () {
-                  setState(() {
-                    _obscureNewPassword = !_obscureNewPassword;
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '새 비밀번호를 입력해주세요';
-                  }
-                  if (value.length < 8) {
-                    return '비밀번호는 8자 이상이어야 합니다';
-                  }
-                  if (!RegExp(r'^(?=.*[A-Za-z])(?=.*\d)').hasMatch(value)) {
-                    return '영문과 숫자를 포함해야 합니다';
-                  }
-                  return null;
-                },
+            );
+            if (context.canPop()) {
+              context.pop();
+            }
+          } else if (state.status == ChangePasswordStatus.error) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.errorMessage ?? '오류가 발생했습니다'),
+                backgroundColor: AppColors.error,
               ),
-              const SizedBox(height: 16),
-              _buildPasswordField(
-                controller: _confirmPasswordController,
-                label: '새 비밀번호 확인',
-                obscure: _obscureConfirmPassword,
-                onToggleObscure: () {
-                  setState(() {
-                    _obscureConfirmPassword = !_obscureConfirmPassword;
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '새 비밀번호를 다시 입력해주세요';
-                  }
-                  if (value != _newPasswordController.text) {
-                    return '비밀번호가 일치하지 않습니다';
-                  }
-                  return null;
-                },
+            );
+          }
+        },
+        builder: (context, state) {
+          final isLoading = state.status == ChangePasswordStatus.loading;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 16),
+                  _buildPasswordField(
+                    controller: _currentPasswordController,
+                    label: '현재 비밀번호',
+                    obscure: _obscureCurrentPassword,
+                    onToggleObscure: () {
+                      setState(() {
+                        _obscureCurrentPassword = !_obscureCurrentPassword;
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '현재 비밀번호를 입력해주세요';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _buildPasswordField(
+                    controller: _newPasswordController,
+                    label: '새 비밀번호',
+                    obscure: _obscureNewPassword,
+                    onToggleObscure: () {
+                      setState(() {
+                        _obscureNewPassword = !_obscureNewPassword;
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '새 비밀번호를 입력해주세요';
+                      }
+                      if (value.length < 8) {
+                        return '비밀번호는 8자 이상이어야 합니다';
+                      }
+                      if (!RegExp(r'^(?=.*[A-Za-z])(?=.*\d)').hasMatch(value)) {
+                        return '영문과 숫자를 포함해야 합니다';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _buildPasswordField(
+                    controller: _confirmPasswordController,
+                    label: '새 비밀번호 확인',
+                    obscure: _obscureConfirmPassword,
+                    onToggleObscure: () {
+                      setState(() {
+                        _obscureConfirmPassword = !_obscureConfirmPassword;
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '새 비밀번호를 다시 입력해주세요';
+                      }
+                      if (value != _newPasswordController.text) {
+                        return '비밀번호가 일치하지 않습니다';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _buildPasswordRequirements(),
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: isLoading ? null : _handleChangePassword,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('비밀번호 변경'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              _buildPasswordRequirements(),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleChangePassword,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('비밀번호 변경'),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -181,8 +209,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           ),
           const SizedBox(height: 8),
           _buildRequirement('최소 8자 이상'),
-          _buildRequirement('영문 포함'),
+          _buildRequirement('영문 대/소문자 포함'),
           _buildRequirement('숫자 포함'),
+          _buildRequirement('특수문자 포함'),
         ],
       ),
     );
@@ -210,65 +239,16 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     );
   }
 
-  Future<void> _handleChangePassword() async {
+  void _handleChangePassword() {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // TODO: 백엔드 API 구현 필요
-      // Backend API implementation required:
-      // 1. Add endpoint in backend: PUT /api/v1/auth/password
-      //    Request body: { "currentPassword": string, "newPassword": string }
-      //    Response: 200 OK or 400/401 error
-      //
-      // 2. Add to ApiConstants: static const String changePassword = '/auth/password';
-      //
-      // 3. Add to AuthRemoteDataSource:
-      //    Future<void> changePassword(String currentPassword, String newPassword);
-      //
-      // 4. Add to AuthRepository:
-      //    Future<void> changePassword({required String currentPassword, required String newPassword});
-      //
-      // 5. Implement in AuthRepositoryImpl:
-      //    await _remoteDataSource.changePassword(currentPassword, newPassword);
-      //
-      // 6. Inject AuthRepository into this page and call:
-      //    await _authRepository.changePassword(
-      //      currentPassword: _currentPasswordController.text,
-      //      newPassword: _newPasswordController.text,
-      //    );
-
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('비밀번호 변경 기능은 현재 준비 중입니다.\n서버 API 구현 후 사용 가능합니다.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
+    context.read<ChangePasswordBloc>().add(
+          ChangePasswordSubmitted(
+            currentPassword: _currentPasswordController.text,
+            newPassword: _newPasswordController.text,
           ),
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('오류가 발생했습니다: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 }
