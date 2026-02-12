@@ -192,6 +192,11 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
+  Future<void> updateChatRoomImage(int roomId, String imageUrl) async {
+    await _remoteDataSource.updateChatRoomImage(roomId, imageUrl);
+  }
+
+  @override
   Future<FileUploadResult> uploadFile(File file) async {
     final response = await _remoteDataSource.uploadFile(file);
     return FileUploadResult(

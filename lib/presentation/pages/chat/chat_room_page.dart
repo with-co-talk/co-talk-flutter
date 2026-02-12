@@ -9,6 +9,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/services/notification_click_handler.dart';
 import '../../../core/window/window_focus_tracker.dart';
 import '../../../core/network/websocket_service.dart';
+import '../../../domain/repositories/chat_repository.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_room_bloc.dart';
@@ -18,6 +19,7 @@ import '../../blocs/chat/message_search/message_search_bloc.dart';
 import '../../blocs/chat/message_search/message_search_event.dart';
 import '../../widgets/message_search_widget.dart';
 import '../../widgets/connection_status_banner.dart';
+import '../profile/handlers/image_picker_handler.dart';
 import 'media_gallery_page.dart';
 import 'widgets/widgets.dart';
 
@@ -337,6 +339,36 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     }
   }
 
+  Future<void> _pickAndUpdateGroupImage(BuildContext context) async {
+    final imagePicker = ImagePickerHandler();
+    final file = await imagePicker.pickFromGallery();
+    if (file == null) return;
+
+    if (!context.mounted) return;
+
+    try {
+      final chatRepository = GetIt.instance<ChatRepository>();
+      final uploadResult = await chatRepository.uploadFile(file);
+      await chatRepository.updateChatRoomImage(widget.roomId, uploadResult.fileUrl);
+
+      if (!context.mounted) return;
+
+      _chatListBloc.add(const ChatListRefreshRequested());
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('채팅방 이미지가 변경되었습니다.')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('이미지 변경에 실패했습니다.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _showChatRoomOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -360,6 +392,14 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 ),
               ),
               const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('채팅방 이미지 변경'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _pickAndUpdateGroupImage(context);
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined),
                 title: const Text('미디어 모아보기'),

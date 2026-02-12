@@ -328,11 +328,18 @@ class MessageCacheManager {
     final localMessage = _messages[localIndex];
 
     _log('Replacing local message (localId=${localMessage.localId}) with real message (id=${realMessage.id})');
+    // Preserve reply/forward metadata from local message if server didn't return it
+    final mergedMessage = realMessage.copyWith(
+      sendStatus: MessageSendStatus.sent,
+      replyToMessage: realMessage.replyToMessage ?? localMessage.replyToMessage,
+      replyToMessageId: realMessage.replyToMessageId ?? localMessage.replyToMessageId,
+      forwardedFromMessageId: realMessage.forwardedFromMessageId ?? localMessage.forwardedFromMessageId,
+    );
     // Create new list for Equatable compatibility
     _messages = [
       for (int i = 0; i < _messages.length; i++)
         if (i == localIndex)
-          realMessage.copyWith(sendStatus: MessageSendStatus.sent)
+          mergedMessage
         else
           _messages[i],
     ];

@@ -10,6 +10,7 @@ ChatRoomModel _$ChatRoomModelFromJson(Map<String, dynamic> json) =>
     ChatRoomModel(
       id: (json['id'] as num).toInt(),
       name: json['name'] as String?,
+      imageUrl: json['imageUrl'] as String?,
       type: json['type'] as String?,
       createdAt: DateParser.parse(json['createdAt']),
       lastMessage: json['lastMessage'] as String?,
@@ -32,6 +33,7 @@ Map<String, dynamic> _$ChatRoomModelToJson(ChatRoomModel instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
+      'imageUrl': instance.imageUrl,
       'type': instance.type,
       'createdAt': ChatRoomModel._dateTimeToJson(instance.createdAt),
       'lastMessage': instance.lastMessage,

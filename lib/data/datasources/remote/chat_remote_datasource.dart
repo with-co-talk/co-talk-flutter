@@ -50,6 +50,9 @@ abstract class ChatRemoteDataSource {
 
   /// 메시지를 다른 채팅방으로 전달합니다.
   Future<MessageModel> forwardMessage(int messageId, int targetChatRoomId);
+
+  /// 그룹 채팅방 이미지를 변경합니다.
+  Future<void> updateChatRoomImage(int roomId, String imageUrl);
 }
 
 @LazySingleton(as: ChatRemoteDataSource)
@@ -646,6 +649,18 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
         message: '메시지 전달 중 오류가 발생했습니다: ${e.toString()}',
         statusCode: null,
       );
+    }
+  }
+
+  @override
+  Future<void> updateChatRoomImage(int roomId, String imageUrl) async {
+    try {
+      await _dioClient.put(
+        ApiConstants.chatRoomImage(roomId),
+        data: {'imageUrl': imageUrl},
+      );
+    } on DioException catch (e) {
+      throw handleDioError(e);
     }
   }
 }

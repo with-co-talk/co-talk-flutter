@@ -268,6 +268,38 @@ class _ChatRoomTile extends StatelessWidget {
 
   const _ChatRoomTile({required this.chatRoom, required this.displayName});
 
+  ImageProvider? _getAvatarImage(ChatRoom chatRoom) {
+    // 1:1 채팅 - 상대방 아바타
+    if (chatRoom.type == ChatRoomType.direct && chatRoom.otherUserAvatarUrl != null) {
+      return NetworkImage(chatRoom.otherUserAvatarUrl!);
+    }
+    // 그룹 채팅 - 그룹 이미지
+    if (chatRoom.type == ChatRoomType.group && chatRoom.imageUrl != null) {
+      return NetworkImage(chatRoom.imageUrl!);
+    }
+    return null;
+  }
+
+  Widget? _getAvatarChild(ChatRoom chatRoom, String displayName) {
+    // 1:1 채팅 - 아바타 없으면 이니셜
+    if (chatRoom.type == ChatRoomType.direct && chatRoom.otherUserAvatarUrl == null) {
+      return Text(
+        displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    }
+    // 그룹 채팅 - 이미지 없으면 그룹 아이콘
+    if (chatRoom.type == ChatRoomType.group && chatRoom.imageUrl == null) {
+      return const Icon(Icons.group, color: Colors.white, size: 28);
+    }
+    // 아바타/이미지가 있으면 child 불필요
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -282,24 +314,8 @@ class _ChatRoomTile extends StatelessWidget {
                 CircleAvatar(
                   radius: 28,
                   backgroundColor: AppColors.primaryLight,
-                  backgroundImage: chatRoom.type == ChatRoomType.direct &&
-                          chatRoom.otherUserAvatarUrl != null
-                      ? NetworkImage(chatRoom.otherUserAvatarUrl!)
-                      : null,
-                  child: chatRoom.type == ChatRoomType.group
-                      ? const Icon(Icons.group, color: Colors.white, size: 28)
-                      : (chatRoom.otherUserAvatarUrl == null
-                          ? Text(
-                              displayName.isNotEmpty
-                                  ? displayName[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                          : null),
+                  backgroundImage: _getAvatarImage(chatRoom),
+                  child: _getAvatarChild(chatRoom, displayName),
                 ),
                 // 온라인 상태 표시 (1:1 채팅방만)
                 if (chatRoom.type == ChatRoomType.direct && chatRoom.isOtherUserOnline)
