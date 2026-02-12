@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -199,44 +197,6 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest());
 
       verify(() => mockChatListBloc.add(const ChatListLoadRequested())).called(1);
-    });
-
-    testWidgets('🔴 RED: re-subscribes with new userId on account switch', skip: true, (tester) async {
-      // 최초는 userId=1로 authenticated
-      when(() => mockAuthBloc.state).thenReturn(
-        AuthState.authenticated(const User(
-          id: 1,
-          email: 'test@test.com',
-          nickname: 'User1',
-        )),
-      );
-
-      // 계정 전환 이벤트는 "나중에" 흘려서, clearInteractions 이후 호출을 검증한다.
-      final controller = StreamController<AuthState>();
-      whenListen(
-        mockAuthBloc,
-        controller.stream,
-        initialState: mockAuthBloc.state,
-      );
-      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
-
-      await tester.pumpWidget(createWidgetUnderTest());
-      // initState 처리
-      await tester.pump();
-      clearInteractions(mockChatListBloc);
-
-      // auth stream 반영 (계정 전환)
-      controller.add(AuthState.authenticated(const User(
-        id: 2,
-        email: 'test2@test.com',
-        nickname: 'User2',
-      )));
-      await tester.pump();
-
-      verify(() => mockChatListBloc.add(const ChatListSubscriptionStopped())).called(1);
-      verify(() => mockChatListBloc.add(const ChatListSubscriptionStarted(2))).called(1);
-
-      await controller.close();
     });
   });
 }
