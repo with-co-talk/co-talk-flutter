@@ -23,7 +23,7 @@
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<string>52</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
@@ -34,6 +34,8 @@
 	<string>프로필 사진을 선택하기 위해 사진 라이브러리 접근 권한이 필요합니다.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>채팅 사진을 갤러리에 저장하기 위해 사진 추가 권한이 필요합니다.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>앱 잠금 해제를 위해 Face ID 또는 Touch ID를 사용합니다.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
