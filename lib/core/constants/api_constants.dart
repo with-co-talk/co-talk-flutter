@@ -36,6 +36,7 @@ class ApiConstants {
   static const String login = '/auth/login';
   static const String refresh = '/auth/refresh';
   static const String logout = '/auth/logout';
+  static const String resendVerification = '/auth/resend-verification';
 
   // User Endpoints
   static const String users = '/users';
@@ -60,6 +61,7 @@ class ApiConstants {
   // Chat Endpoints
   static const String chatRooms = '/chat/rooms';
   static String chatRoom(int roomId) => '/chat/rooms/$roomId';
+  static String chatRoomImage(int roomId) => '/chat/rooms/$roomId/image';
   static const String chatMessages = '/chat/messages';
   static const String chatReactions = '/chat/reactions';
   static String messageReply(int messageId) => '/chat/messages/$messageId/reply';
@@ -73,6 +75,7 @@ class ApiConstants {
   // Settings Endpoints
   static const String notificationSettings = '/notifications/settings';
   static const String accountDeletion = '/account';
+  static const String changePassword = '/password/change';
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);
