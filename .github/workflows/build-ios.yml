@@ -145,7 +145,7 @@ jobs:
 
       # TestFlight 업로드 (Fastlane) - Secret 설정 + skip_upload 아닌 경우만
       - name: Upload to TestFlight
-        if: inputs.skip_upload != true && secrets.APP_STORE_CONNECT_API_KEY_KEY_ID != ''
+        if: inputs.skip_upload != true && env.APP_STORE_CONNECT_API_KEY_KEY_ID != ''
         env:
           APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
           APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
