@@ -38,6 +38,8 @@ import '../../presentation/blocs/settings/chat_settings_cubit.dart';
 import '../../presentation/blocs/settings/account_deletion_bloc.dart';
 import '../../presentation/pages/splash/splash_page.dart';
 import '../../presentation/pages/error/error_page.dart';
+import '../../domain/entities/report.dart';
+import '../../presentation/pages/report/report_page.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -63,6 +65,7 @@ class AppRoutes {
   static const String accountDeletion = '/settings/account/delete';
   static const String terms = '/settings/terms';
   static const String privacyPolicy = '/settings/privacy';
+  static const String report = '/report';
 
   static String chatRoomPath(int roomId) => '/chat/room/$roomId';
   static String profileViewPath(int userId) => '/profile/view/$userId';
@@ -381,6 +384,20 @@ class AppRouter {
               targetUserId: userId,
               isSelfChat: true,
             ),
+          );
+        },
+      ),
+      // 신고
+      GoRoute(
+        path: AppRoutes.report,
+        pageBuilder: (context, state) {
+          final typeStr = state.uri.queryParameters['type'] ?? 'USER';
+          final targetIdStr = state.uri.queryParameters['targetId'];
+          final targetId = int.tryParse(targetIdStr ?? '') ?? 0;
+          final type = typeStr == 'MESSAGE' ? ReportType.message : ReportType.user;
+          return MaterialPage(
+            key: state.pageKey,
+            child: ReportPage(type: type, targetId: targetId),
           );
         },
       ),

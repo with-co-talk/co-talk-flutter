@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/media_gallery_model.dart';
 import '../../../di/injection.dart';
 import '../../blocs/chat/media_gallery_bloc.dart';
+import 'widgets/video_player_page.dart';
 
 /// Media gallery page showing photos, files, and links from a chat room.
 class MediaGalleryPage extends StatefulWidget {
@@ -208,6 +209,19 @@ class _MediaTabContent extends StatelessWidget {
   }
 
   void _showFullScreenImage(BuildContext context, MediaGalleryItem item) {
+    // Check if it's a video
+    if (item.contentType?.startsWith('video/') == true) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => VideoPlayerPage(
+            videoUrl: item.fileUrl ?? '',
+            title: item.fileName,
+          ),
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(

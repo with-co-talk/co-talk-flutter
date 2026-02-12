@@ -176,6 +176,22 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
+  Future<Message> replyToMessage(int messageId, String content) async {
+    final messageModel = await _remoteDataSource.replyToMessage(messageId, content);
+    final message = messageModel.toEntity();
+    await _localDataSource.saveMessage(message);
+    return message;
+  }
+
+  @override
+  Future<Message> forwardMessage(int messageId, int targetChatRoomId) async {
+    final messageModel = await _remoteDataSource.forwardMessage(messageId, targetChatRoomId);
+    final message = messageModel.toEntity();
+    await _localDataSource.saveMessage(message);
+    return message;
+  }
+
+  @override
   Future<FileUploadResult> uploadFile(File file) async {
     final response = await _remoteDataSource.uploadFile(file);
     return FileUploadResult(

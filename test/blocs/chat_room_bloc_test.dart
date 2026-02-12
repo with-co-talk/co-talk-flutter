@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
+import 'package:co_talk_flutter/core/network/websocket/websocket_events.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/domain/repositories/chat_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +22,7 @@ void main() {
   late MockAuthLocalDataSource mockAuthLocalDataSource;
   late MockDesktopNotificationBridge mockDesktopNotificationBridge;
   late MockActiveRoomTracker mockActiveRoomTracker;
+  late MockFriendRepository mockFriendRepository;
 
   setUpAll(() {
     // Register fallback values for mocktail
@@ -35,9 +37,13 @@ void main() {
     mockAuthLocalDataSource = MockAuthLocalDataSource();
     mockDesktopNotificationBridge = MockDesktopNotificationBridge();
     mockActiveRoomTracker = MockActiveRoomTracker();
+    mockFriendRepository = MockFriendRepository();
 
     // AuthLocalDataSource mock 기본 설정
     when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+
+    // FriendRepository mock 기본 설정 (빈 리스트 반환)
+    when(() => mockFriendRepository.getBlockedUsers()).thenAnswer((_) async => []);
 
     // ChatRepository mock 기본 설정
     // 기존 테스트 호환성을 위해 otherUserNickname 없는 ChatRoom 사용
@@ -52,6 +58,12 @@ void main() {
     )).thenAnswer((_) async => <Message>[]);
     when(() => mockChatRepository.saveMessageLocally(any()))
         .thenAnswer((_) async {});
+
+    // Reply and Forward mock 기본 설정
+    when(() => mockChatRepository.replyToMessage(any(), any()))
+        .thenAnswer((_) async => FakeEntities.textMessage);
+    when(() => mockChatRepository.forwardMessage(any(), any()))
+        .thenAnswer((_) async => FakeEntities.textMessage);
 
     // WebSocketService mock 기본 설정
     when(() => mockWebSocketService.isConnected).thenReturn(true);
@@ -71,6 +83,9 @@ void main() {
     );
     when(() => mockWebSocketService.messageUpdatedEvents).thenAnswer(
       (_) => const Stream<WebSocketMessageUpdatedEvent>.empty(),
+    );
+    when(() => mockWebSocketService.linkPreviewUpdatedEvents).thenAnswer(
+      (_) => const Stream<WebSocketLinkPreviewUpdatedEvent>.empty(),
     );
     when(() => mockWebSocketService.reactions).thenAnswer(
       (_) => const Stream<WebSocketReactionEvent>.empty(),
@@ -113,6 +128,7 @@ void main() {
         mockAuthLocalDataSource,
         mockDesktopNotificationBridge,
         mockActiveRoomTracker,
+        mockFriendRepository,
       );
 
   group('ChatRoomBloc', () {
@@ -294,7 +310,16 @@ void main() {
                 timeout: any(named: 'timeout'),
               )).thenAnswer((_) async => true);
           when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
-          when(() => mockWebSocketService.disconnect()).thenReturn(null);
+          // Simulate real disconnect/reconnect cycle
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(
+                timeout: any(named: 'timeout'),
+              )).thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            return true;
+          });
           return createBloc();
         },
         act: (bloc) async {
@@ -480,6 +505,47 @@ void main() {
             status: ChatRoomStatus.success,
             roomId: 1,
             messages: [FakeEntities.imageMessage, FakeEntities.textMessage],
+          ),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'filters messages from blocked users',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          messages: [],
+          blockedUserIds: {999}, // User 999 is blocked
+        ),
+        act: (bloc) => bloc.add(MessageReceived(
+          Message(
+            id: 10,
+            chatRoomId: 1,
+            senderId: 999, // Blocked user
+            content: 'This message should be filtered',
+            createdAt: DateTime(2024, 1, 1),
+          ),
+        )),
+        expect: () => [], // No state change - message is filtered
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'allows messages from non-blocked users',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          messages: [],
+          blockedUserIds: {999}, // User 999 is blocked, but sender is 2
+        ),
+        act: (bloc) => bloc.add(MessageReceived(FakeEntities.imageMessage)), // senderId: 2
+        expect: () => [
+          ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            messages: [FakeEntities.imageMessage],
+            blockedUserIds: const {999},
           ),
         ],
       );
@@ -3361,6 +3427,272 @@ void main() {
         verify: (_) {
           verify(() => mockChatRepository.getMessages(1, size: any(named: 'size'))).called(1);
         },
+      );
+    });
+
+    group('markAsRead debounce behavior', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'should markAsRead when viewing room and message received from other user',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any()))
+              .thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')))
+              .thenReturn(null);
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: FakeEntities.messages,
+        ),
+        act: (bloc) async {
+          // 1. Open room
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // 2. Foreground: marks as viewing
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // 3. Receive a message from another user while viewing (stay focused)
+          bloc.add(MessageReceived(Message(
+            id: 99,
+            chatRoomId: 1,
+            senderId: 2,
+            senderNickname: 'OtherUser',
+            content: 'Hello!',
+            type: MessageType.text,
+            createdAt: DateTime.now(),
+          )));
+
+          // 4. Wait for debounce timer to fire (500ms) while staying focused
+          await Future.delayed(const Duration(milliseconds: 600));
+        },
+        wait: const Duration(milliseconds: 1000),
+        verify: (_) {
+          // markAsRead should be called at least twice:
+          // 1. During ChatRoomForegrounded (initial markAsRead)
+          // 2. After debounce timer fires for the new message
+          final calls = verify(() => mockChatRepository.markAsRead(1)).callCount;
+          expect(calls, greaterThanOrEqualTo(2),
+            reason: 'markAsRead should be called by debounce timer when still viewing room');
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'should NOT markAsRead when window blurs before debounce timer fires',
+        build: () {
+          final messageController = StreamController<WebSocketChatMessage>.broadcast();
+          when(() => mockWebSocketService.messages).thenAnswer((_) => messageController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any()))
+              .thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')))
+              .thenReturn(null);
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: FakeEntities.messages,
+        ),
+        act: (bloc) async {
+          // 1. Open room to initialize and subscribe
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // 2. Foreground: marks as viewing
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // 3. Receive a message from another user while viewing
+          bloc.add(MessageReceived(Message(
+            id: 99,
+            chatRoomId: 1,
+            senderId: 2,
+            senderNickname: 'OtherUser',
+            content: 'Hello!',
+            type: MessageType.text,
+            createdAt: DateTime.now(),
+          )));
+          // debounce timer starts (500ms)
+
+          // 4. Blur window BEFORE debounce fires (200ms < 500ms)
+          await Future.delayed(const Duration(milliseconds: 200));
+          bloc.add(const ChatRoomBackgrounded());
+
+          // 5. Wait for debounce timer to fire (500ms total from message)
+          await Future.delayed(const Duration(milliseconds: 400));
+        },
+        wait: const Duration(milliseconds: 1000),
+        verify: (_) {
+          // markAsRead should NOT have been called after the message was received,
+          // because the window was blurred before the debounce timer fired.
+          // markAsRead might be called during ChatRoomOpened, so we check specifically.
+          // The call during _onOpened is expected, but the debounced one after MessageReceived should NOT happen.
+          final calls = verify(() => mockChatRepository.markAsRead(1)).callCount;
+          // Only the initial markAsRead from ChatRoomOpened should be called (1 time max)
+          expect(calls, lessThanOrEqualTo(1),
+            reason: 'markAsRead should not be called by debounce timer after window blur');
+        },
+      );
+    });
+
+    group('Reply', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'ReplyToMessageSelected sets replyToMessage in state',
+        build: createBloc,
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: FakeEntities.messages,
+        ),
+        act: (bloc) => bloc.add(ReplyToMessageSelected(FakeEntities.textMessage)),
+        expect: () => [
+          isA<ChatRoomState>().having(
+            (s) => s.replyToMessage,
+            'replyToMessage',
+            FakeEntities.textMessage,
+          ),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'ReplyCancelled clears replyToMessage from state',
+        build: createBloc,
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: FakeEntities.messages,
+          replyToMessage: FakeEntities.textMessage,
+        ),
+        act: (bloc) => bloc.add(const ReplyCancelled()),
+        expect: () => [
+          isA<ChatRoomState>().having(
+            (s) => s.replyToMessage,
+            'replyToMessage',
+            isNull,
+          ),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'MessageSent with replyToMessage calls replyToMessage API and clears reply state',
+        build: () {
+          when(() => mockChatRepository.replyToMessage(any(), any()))
+              .thenAnswer((_) async => FakeEntities.textMessage);
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: const [], // Empty messages to match MessageHandler behavior
+          replyToMessage: FakeEntities.textMessage,
+        ),
+        act: (bloc) => bloc.add(const MessageSent('답장 내용')),
+        wait: const Duration(milliseconds: 500),
+        expect: () => [
+          // First emit: pending message added + reply cleared
+          isA<ChatRoomState>()
+              .having((s) => s.replyToMessage, 'replyToMessage', isNull)
+              .having((s) => s.messages.length, 'messages.length', 1)
+              .having((s) => s.messages.first.content, 'content', '답장 내용')
+              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.pending),
+          // Second emit: message send completed (success)
+          isA<ChatRoomState>()
+              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sent),
+        ],
+        verify: (_) {
+          verify(() => mockChatRepository.replyToMessage(1, '답장 내용')).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'MessageSent without replyToMessage uses standard send',
+        build: () {
+          when(() => mockChatRepository.sendMessage(any(), any()))
+              .thenAnswer((_) async => FakeEntities.textMessage);
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: FakeEntities.messages,
+        ),
+        act: (bloc) => bloc.add(const MessageSent('일반 메시지')),
+        wait: const Duration(milliseconds: 500),
+        expect: () => [
+          // pending message
+          isA<ChatRoomState>()
+              .having((s) => s.replyToMessage, 'replyToMessage', isNull),
+          // sent completed
+          isA<ChatRoomState>(),
+        ],
+        verify: (_) {
+          verifyNever(() => mockChatRepository.replyToMessage(any(), any()));
+        },
+      );
+    });
+
+    group('Forward', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'MessageForwardRequested emits forwarding state and success on completion',
+        build: () {
+          when(() => mockChatRepository.forwardMessage(any(), any()))
+              .thenAnswer((_) async => FakeEntities.textMessage);
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: FakeEntities.messages,
+        ),
+        act: (bloc) => bloc.add(const MessageForwardRequested(messageId: 1, targetRoomId: 2)),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.isForwarding, 'isForwarding', true)
+              .having((s) => s.forwardSuccess, 'forwardSuccess', false),
+          isA<ChatRoomState>()
+              .having((s) => s.isForwarding, 'isForwarding', false)
+              .having((s) => s.forwardSuccess, 'forwardSuccess', true),
+        ],
+        verify: (_) {
+          verify(() => mockChatRepository.forwardMessage(1, 2)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'MessageForwardRequested emits error state on failure',
+        build: () {
+          when(() => mockChatRepository.forwardMessage(any(), any()))
+              .thenThrow(Exception('Forward failed'));
+          return createBloc();
+        },
+        seed: () => ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: FakeEntities.messages,
+        ),
+        act: (bloc) => bloc.add(const MessageForwardRequested(messageId: 1, targetRoomId: 2)),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.isForwarding, 'isForwarding', true),
+          isA<ChatRoomState>()
+              .having((s) => s.isForwarding, 'isForwarding', false)
+              .having((s) => s.forwardSuccess, 'forwardSuccess', false)
+              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+        ],
       );
     });
   });

@@ -86,6 +86,26 @@ class MessageUpdatedByOther extends ChatRoomEvent {
   List<Object?> get props => [messageId, newContent];
 }
 
+/// 링크 미리보기 업데이트됨 (WebSocket 수신)
+class LinkPreviewUpdated extends ChatRoomEvent {
+  final int messageId;
+  final String? linkPreviewUrl;
+  final String? linkPreviewTitle;
+  final String? linkPreviewDescription;
+  final String? linkPreviewImageUrl;
+
+  const LinkPreviewUpdated({
+    required this.messageId,
+    this.linkPreviewUrl,
+    this.linkPreviewTitle,
+    this.linkPreviewDescription,
+    this.linkPreviewImageUrl,
+  });
+
+  @override
+  List<Object?> get props => [messageId, linkPreviewUrl, linkPreviewTitle, linkPreviewDescription, linkPreviewImageUrl];
+}
+
 /// 읽음 상태 업데이트 이벤트
 class MessagesReadUpdated extends ChatRoomEvent {
   final int userId;
@@ -273,4 +293,28 @@ class ReactionEventReceived extends ChatRoomEvent {
 
   @override
   List<Object?> get props => [messageId, userId, userNickname, emoji, isAdd, reactionId];
+}
+
+/// 답장 대상 메시지 선택
+class ReplyToMessageSelected extends ChatRoomEvent {
+  final Message message;
+  const ReplyToMessageSelected(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
+/// 답장 취소
+class ReplyCancelled extends ChatRoomEvent {
+  const ReplyCancelled();
+}
+
+/// 메시지 전달 요청
+class MessageForwardRequested extends ChatRoomEvent {
+  final int messageId;
+  final int targetRoomId;
+  const MessageForwardRequested({required this.messageId, required this.targetRoomId});
+
+  @override
+  List<Object?> get props => [messageId, targetRoomId];
 }

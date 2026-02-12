@@ -11,13 +11,18 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/save_image_to_gallery.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../../domain/entities/link_preview.dart';
+import '../../../../domain/entities/chat_room.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_event.dart';
+import '../../../blocs/chat/chat_list_bloc.dart';
+import '../../../blocs/chat/chat_list_state.dart';
+import '../../../blocs/settings/chat_settings_cubit.dart';
 import '../../../widgets/link_preview_card.dart';
 import '../../../widgets/link_preview_loader.dart';
 import '../../../widgets/reaction_display.dart';
 import '../../../widgets/reaction_picker.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'video_player_page.dart';
 
 /// A message bubble widget that displays different types of messages.
 /// Handles text, image, and file messages with appropriate styling.
@@ -34,6 +39,90 @@ class MessageBubble extends StatelessWidget {
   /// Check if edit time (5 minutes) has expired
   bool get _isEditTimeExpired {
     return DateTime.now().difference(message.createdAt).inMinutes >= 5;
+  }
+
+  /// Builds a reply preview shown above the message content
+  Widget _buildReplyPreview(BuildContext context) {
+    if (message.replyToMessageId == null) return const SizedBox.shrink();
+
+    final replyMsg = message.replyToMessage;
+    final previewText = replyMsg?.isDeleted == true
+        ? '삭제된 메시지'
+        : (replyMsg?.content ?? '원본 메시지');
+    final senderName = replyMsg?.senderNickname ?? '알 수 없음';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.55,
+      ),
+      decoration: BoxDecoration(
+        color: isMe
+            ? Colors.white.withValues(alpha: 0.15)
+            : AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(
+            color: isMe ? Colors.white.withValues(alpha: 0.5) : AppColors.primary,
+            width: 2,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            senderName,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isMe ? Colors.white.withValues(alpha: 0.9) : AppColors.primary,
+            ),
+          ),
+          Text(
+            previewText,
+            style: TextStyle(
+              fontSize: 12,
+              color: isMe
+                  ? Colors.white.withValues(alpha: 0.7)
+                  : context.textSecondaryColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a "forwarded" indicator shown above the message
+  Widget _buildForwardedIndicator(BuildContext context) {
+    if (message.forwardedFromMessageId == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.forward,
+            size: 12,
+            color: isMe ? Colors.white.withValues(alpha: 0.6) : context.textSecondaryColor,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '전달됨',
+            style: TextStyle(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: isMe ? Colors.white.withValues(alpha: 0.6) : context.textSecondaryColor,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Builds failed status widget with retry and delete buttons
@@ -402,11 +491,12 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
-  /// Shows message options (edit, delete) for own messages
+  /// Shows message options (reply, forward, edit, delete, report)
   void _showMessageOptions(BuildContext context) {
     if (message.isDeleted) return;
-    if (!isMe) return;
-    if (_isEditTimeExpired) return;
+
+    final canEdit = isMe && !_isEditTimeExpired;
+    final canDelete = isMe && !_isEditTimeExpired;
 
     showModalBottomSheet(
       context: context,
@@ -430,26 +520,73 @@ class MessageBubble extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              // Reply option (available for all non-deleted messages)
               ListTile(
-                leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
-                title: const Text('수정'),
+                leading: const Icon(Icons.reply, color: AppColors.primary),
+                title: const Text('답장'),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
-                  _showEditDialog(context);
+                  context.read<ChatRoomBloc>().add(ReplyToMessageSelected(message));
                 },
               ),
+              // Forward option
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                leading: const Icon(Icons.forward, color: Colors.blue),
+                title: const Text('전달'),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
-                  _showDeleteConfirmDialog(context);
+                  _showForwardDialog(context);
                 },
               ),
+              // Edit option (own messages only, within time limit)
+              if (canEdit)
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
+                  title: const Text('수정'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    _showEditDialog(context);
+                  },
+                ),
+              // Delete option (own messages only, within time limit)
+              if (canDelete)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    _showDeleteConfirmDialog(context);
+                  },
+                ),
+              // Report option (other user's messages only)
+              if (!isMe)
+                ListTile(
+                  leading: const Icon(Icons.report_outlined, color: Colors.orange),
+                  title: const Text('신고'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    context.push('/report?type=MESSAGE&targetId=${message.id}');
+                  },
+                ),
               const SizedBox(height: 8),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Shows room picker dialog for forwarding a message
+  void _showForwardDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => _ForwardRoomPickerDialog(
+        onRoomSelected: (roomId) {
+          context.read<ChatRoomBloc>().add(MessageForwardRequested(
+            messageId: message.id,
+            targetRoomId: roomId,
+          ));
+        },
       ),
     );
   }
@@ -713,9 +850,30 @@ class MessageBubble extends StatelessWidget {
     // Image message
     if (message.type == MessageType.image && message.fileUrl != null) {
       final imageUrl = message.fileUrl!;
+      final chatSettings = context.read<ChatSettingsCubit>().state.settings;
+      final autoDownload = chatSettings.autoDownloadImagesOnWifi; // Use wifi setting as the general toggle
+
+      bubbleWidget = _AutoDownloadImageWidget(
+        imageUrl: imageUrl,
+        isMe: isMe,
+        autoDownloadEnabled: autoDownload,
+        onTapFullScreen: () => _showFullScreenImage(context, imageUrl),
+        onLongPress: _showImageOptions,
+      );
+    }
+    // Video message
+    else if (message.fileUrl != null && message.fileContentType?.startsWith('video/') == true) {
       bubbleWidget = GestureDetector(
-        onTap: () => _showFullScreenImage(context, imageUrl),
-        onLongPress: () => _showImageOptions(context, imageUrl),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => VideoPlayerPage(
+                videoUrl: message.fileUrl!,
+                title: message.fileName,
+              ),
+            ),
+          );
+        },
         child: ClipRRect(
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
@@ -726,37 +884,57 @@ class MessageBubble extends StatelessWidget {
           child: Container(
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.65,
-              maxHeight: 250,
             ),
-            child: CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                width: 200,
-                height: 150,
-                color: context.dividerColor,
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
+            width: 200,
+            height: 150,
+            color: Colors.black87,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (message.thumbnailUrl != null)
+                  Image.network(
+                    message.thumbnailUrl!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: const Icon(
+                    Icons.play_arrow,
+                    color: Colors.white,
+                    size: 32,
                   ),
                 ),
-              ),
-              errorWidget: (context, url, error) => Container(
-                width: 200,
-                height: 150,
-                color: context.dividerColor,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.broken_image, color: context.textSecondaryColor, size: 40),
-                    const SizedBox(height: 8),
-                    Text(
-                      '이미지를 불러올 수 없습니다',
-                      style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
-                    ),
-                  ],
+                // File name and size at the bottom
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  right: 8,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.videocam, color: Colors.white70, size: 14),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          message.fileName ?? '동영상',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -901,6 +1079,8 @@ class MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            _buildForwardedIndicator(context),
+            _buildReplyPreview(context),
             RichText(
               text: TextSpan(
                 children: _buildTextSpans(context, message.displayContent, textColor),
@@ -939,9 +1119,7 @@ class MessageBubble extends StatelessWidget {
               // Long press shows reaction picker for everyone
               _showReactionPicker(context);
             },
-            onDoubleTap: isMe && !message.isDeleted && !_isEditTimeExpired
-                ? () => _showMessageOptions(context)
-                : null,
+            onDoubleTap: !message.isDeleted ? () => _showMessageOptions(context) : null,
             child: Row(
               mainAxisAlignment:
                   isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -1022,6 +1200,127 @@ class MessageBubble extends StatelessWidget {
             onReactionTap: (emoji) => _toggleReaction(context, emoji),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 자동 다운로드 설정에 따라 이미지를 로드하는 위젯
+class _AutoDownloadImageWidget extends StatefulWidget {
+  final String imageUrl;
+  final bool isMe;
+  final bool autoDownloadEnabled;
+  final VoidCallback onTapFullScreen;
+  final Function(BuildContext, String) onLongPress;
+
+  const _AutoDownloadImageWidget({
+    required this.imageUrl,
+    required this.isMe,
+    required this.autoDownloadEnabled,
+    required this.onTapFullScreen,
+    required this.onLongPress,
+  });
+
+  @override
+  State<_AutoDownloadImageWidget> createState() => _AutoDownloadImageWidgetState();
+}
+
+class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
+  late bool _shouldLoad;
+
+  @override
+  void initState() {
+    super.initState();
+    _shouldLoad = widget.autoDownloadEnabled;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_shouldLoad) {
+      return GestureDetector(
+        onTap: () {
+          setState(() {
+            _shouldLoad = true;
+          });
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(widget.isMe ? 18 : 4),
+            bottomRight: Radius.circular(widget.isMe ? 4 : 18),
+          ),
+          child: Container(
+            width: 200,
+            height: 150,
+            color: context.dividerColor,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.image_outlined,
+                  color: context.textSecondaryColor,
+                  size: 40,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '탭하여 이미지 보기',
+                  style: TextStyle(
+                    color: context.textSecondaryColor,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: widget.onTapFullScreen,
+      onLongPress: () => widget.onLongPress(context, widget.imageUrl),
+      child: ClipRRect(
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(18),
+          topRight: const Radius.circular(18),
+          bottomLeft: Radius.circular(widget.isMe ? 18 : 4),
+          bottomRight: Radius.circular(widget.isMe ? 4 : 18),
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.65,
+            maxHeight: 250,
+          ),
+          child: CachedNetworkImage(
+            imageUrl: widget.imageUrl,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
+              width: 200,
+              height: 150,
+              color: context.dividerColor,
+              child: const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            errorWidget: (context, url, error) => Container(
+              width: 200,
+              height: 150,
+              color: context.dividerColor,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.broken_image, color: context.textSecondaryColor, size: 40),
+                  const SizedBox(height: 8),
+                  Text(
+                    '이미지를 불러올 수 없습니다',
+                    style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1152,6 +1451,96 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Dialog for selecting a chat room to forward a message to.
+class _ForwardRoomPickerDialog extends StatefulWidget {
+  final ValueChanged<int> onRoomSelected;
+
+  const _ForwardRoomPickerDialog({required this.onRoomSelected});
+
+  @override
+  State<_ForwardRoomPickerDialog> createState() => _ForwardRoomPickerDialogState();
+}
+
+class _ForwardRoomPickerDialogState extends State<_ForwardRoomPickerDialog> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('채팅방 선택'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          children: [
+            TextField(
+              decoration: InputDecoration(
+                hintText: '채팅방 검색',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: BlocBuilder<ChatListBloc, ChatListState>(
+                builder: (context, state) {
+                  final rooms = state.chatRooms.where((room) {
+                    if (_searchQuery.isEmpty) return true;
+                    final name = room.displayName.toLowerCase();
+                    return name.contains(_searchQuery);
+                  }).toList();
+
+                  if (rooms.isEmpty) {
+                    return const Center(child: Text('채팅방이 없습니다'));
+                  }
+
+                  return ListView.builder(
+                    itemCount: rooms.length,
+                    itemBuilder: (context, index) {
+                      final room = rooms[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: AppColors.primaryLight,
+                          child: Icon(
+                            room.type == ChatRoomType.group
+                                ? Icons.group
+                                : Icons.person,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          room.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          widget.onRoomSelected(room.id);
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('취소'),
+        ),
+      ],
     );
   }
 }

@@ -1,15 +1,21 @@
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import '../config/app_config.dart';
+import '../config/security_config.dart';
 import '../constants/api_constants.dart';
 import 'auth_interceptor.dart';
+import 'certificate_pinning_interceptor.dart';
 
 @lazySingleton
 class DioClient {
   late final Dio _dio;
   final AuthInterceptor _authInterceptor;
+  final CertificatePinningInterceptor _certificatePinningInterceptor;
 
-  DioClient(this._authInterceptor) {
+  DioClient(
+    this._authInterceptor,
+    this._certificatePinningInterceptor,
+  ) {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.apiBaseUrl,
@@ -22,6 +28,11 @@ class DioClient {
         },
       ),
     );
+
+    // Add certificate pinning interceptor first for security
+    if (SecurityConfig.certificatePinningEnabled) {
+      _dio.interceptors.add(_certificatePinningInterceptor);
+    }
 
     _dio.interceptors.add(_authInterceptor);
 

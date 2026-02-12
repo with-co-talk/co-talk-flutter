@@ -112,10 +112,11 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsSection(
             title: '일반',
             children: [
+              // 언어 설정: 현재 한국어만 지원하므로 설정 변경 불가
               _SettingsTile(
                 icon: Icons.language,
                 title: '언어',
-                subtitle: '한국어',
+                subtitle: '한국어 (기본)',
               ),
               BlocBuilder<ThemeCubit, ThemeMode>(
                 builder: (context, themeMode) {
@@ -141,8 +142,7 @@ class _SettingsPageState extends State<SettingsPage> {
               _SettingsTile(
                 icon: Icons.lock_outline,
                 title: '비밀번호 변경',
-                subtitle: '준비 중 (서버 API 구현 필요)',
-                onTap: () => context.push(AppRoutes.changePassword),
+                subtitle: '준비 중',
               ),
               _SettingsTile(
                 icon: Icons.person_remove_outlined,

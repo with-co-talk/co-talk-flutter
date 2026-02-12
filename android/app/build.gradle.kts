@@ -59,10 +59,9 @@ android {
                 signingConfigs.getByName("debug")
             }
 
-            // 코드 축소 및 난독화 (선택사항 - 필요시 활성화)
-            // isMinifyEnabled = true
-            // isShrinkResources = true
-            // proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }

@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_messaging/firebase_messaging.dart' hide NotificationSettings;
+import 'package:firebase_messaging/firebase_messaging.dart' as fcm show NotificationSettings;
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
+import '../../domain/entities/notification_settings.dart';
 import '../../domain/repositories/settings_repository.dart';
 import 'active_room_tracker.dart';
 import 'notification_service.dart';
@@ -111,7 +113,7 @@ class FcmServiceImpl implements FcmService {
   }
 
   /// 알림 권한 요청
-  Future<NotificationSettings> _requestPermission() async {
+  Future<fcm.NotificationSettings> _requestPermission() async {
     final settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
@@ -201,17 +203,29 @@ class FcmServiceImpl implements FcmService {
       return;
     }
 
-    bool showContent = true;
+    NotificationPreviewMode previewMode = NotificationPreviewMode.nameAndMessage;
     bool soundEnabled = true;
     bool vibrationEnabled = true;
     try {
       final settings = await _settingsRepository.getNotificationSettingsCached();
-      showContent = settings.showMessageContentInNotification;
+      previewMode = settings.notificationPreviewMode;
       soundEnabled = settings.soundEnabled;
       vibrationEnabled = settings.vibrationEnabled;
     } catch (_) {}
 
-    final body = showContent ? (notification.body ?? '') : '새 메시지';
+    String title;
+    String body;
+    switch (previewMode) {
+      case NotificationPreviewMode.nameAndMessage:
+        title = notification.title ?? '새 메시지';
+        body = notification.body ?? '';
+      case NotificationPreviewMode.nameOnly:
+        title = notification.title ?? '새 메시지';
+        body = '새 메시지';
+      case NotificationPreviewMode.nothing:
+        title = '새 메시지';
+        body = '새 메시지가 도착했습니다';
+    }
 
     // 알림 탭 시 해당 채팅방으로 이동할 수 있도록 payload 형식: 'chatRoom:roomId'
     String? payload;
@@ -226,7 +240,7 @@ class FcmServiceImpl implements FcmService {
     final avatarUrl = message.data['avatarUrl'];
 
     await _notificationService.showNotification(
-      title: notification.title ?? '새 메시지',
+      title: title,
       body: body,
       payload: payload,
       soundEnabled: soundEnabled,

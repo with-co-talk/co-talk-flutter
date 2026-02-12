@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:bloc_test/bloc_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_state.dart';
@@ -20,7 +21,9 @@ import 'package:co_talk_flutter/presentation/pages/chat/chat_room_page.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:co_talk_flutter/core/window/window_focus_tracker.dart';
+import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import '../mocks/mock_repositories.dart';
 
 class MockChatRoomBloc extends MockBloc<ChatRoomEvent, ChatRoomState>
     implements ChatRoomBloc {}
@@ -116,11 +119,30 @@ void main() {
       mockAuthBloc = MockAuthBloc();
       chatRoomStreamController = StreamController<ChatRoomState>.broadcast();
       chatListStreamController = StreamController<ChatListState>.broadcast();
+
+      // Register mock WebSocketService in GetIt for ConnectionStatusBanner
+      final mockWebSocketService = MockWebSocketService();
+      when(() => mockWebSocketService.connectionState).thenAnswer(
+        (_) => Stream<WebSocketConnectionState>.value(WebSocketConnectionState.connected),
+      );
+      when(() => mockWebSocketService.currentConnectionState)
+          .thenReturn(WebSocketConnectionState.connected);
+      when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+      when(() => mockWebSocketService.connect()).thenAnswer((_) async {});
+
+      if (GetIt.instance.isRegistered<WebSocketService>()) {
+        GetIt.instance.unregister<WebSocketService>();
+      }
+      GetIt.instance.registerSingleton<WebSocketService>(mockWebSocketService);
     });
 
     tearDown(() {
       chatRoomStreamController.close();
       chatListStreamController.close();
+
+      if (GetIt.instance.isRegistered<WebSocketService>()) {
+        GetIt.instance.unregister<WebSocketService>();
+      }
     });
 
     Widget createWidgetUnderTest({
@@ -988,7 +1010,7 @@ void main() {
         errorMessage: 'Error',
       );
 
-      expect(state.props.length, 23);
+      expect(state.props.length, 27);
     });
 
     test('equality works', () {
@@ -1094,13 +1116,32 @@ void main() {
           StreamController<MessageSearchState>.broadcast();
       windowFocusTracker = TestWindowFocusTracker();
       windowFocusTracker.setCurrentFocus(true);
+
+      // Register mock WebSocketService in GetIt for ConnectionStatusBanner
+      final mockWebSocketService = MockWebSocketService();
+      when(() => mockWebSocketService.connectionState).thenAnswer(
+        (_) => Stream<WebSocketConnectionState>.value(WebSocketConnectionState.connected),
+      );
+      when(() => mockWebSocketService.currentConnectionState)
+          .thenReturn(WebSocketConnectionState.connected);
+      when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+      when(() => mockWebSocketService.connect()).thenAnswer((_) async {});
+
+      if (GetIt.instance.isRegistered<WebSocketService>()) {
+        GetIt.instance.unregister<WebSocketService>();
+      }
+      GetIt.instance.registerSingleton<WebSocketService>(mockWebSocketService);
     });
 
-    tearDown(() {
-      chatRoomStreamController.close();
-      chatListStreamController.close();
-      messageSearchStreamController.close();
+    tearDown(() async {
+      await chatRoomStreamController.close();
+      await chatListStreamController.close();
+      await messageSearchStreamController.close();
       windowFocusTracker.dispose();
+
+      if (GetIt.instance.isRegistered<WebSocketService>()) {
+        GetIt.instance.unregister<WebSocketService>();
+      }
     });
 
     Widget createWidgetUnderTest({

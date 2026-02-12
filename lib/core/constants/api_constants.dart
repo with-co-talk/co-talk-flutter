@@ -62,6 +62,8 @@ class ApiConstants {
   static String chatRoom(int roomId) => '/chat/rooms/$roomId';
   static const String chatMessages = '/chat/messages';
   static const String chatReactions = '/chat/reactions';
+  static String messageReply(int messageId) => '/chat/messages/$messageId/reply';
+  static String messageForward(int messageId) => '/chat/messages/$messageId/forward';
 
   // Block & Report
   static const String blocks = '/blocks';

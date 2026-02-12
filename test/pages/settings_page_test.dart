@@ -99,7 +99,7 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest());
 
       expect(find.text('언어'), findsOneWidget);
-      expect(find.text('한국어'), findsOneWidget);
+      expect(find.text('한국어 (기본)'), findsOneWidget);
       expect(find.text('다크 모드'), findsOneWidget);
     });
 

@@ -10,6 +10,7 @@ import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
 import '../../../domain/entities/message.dart';
 import '../../../domain/repositories/chat_repository.dart';
+import '../../../domain/repositories/friend_repository.dart';
 import 'chat_room_event.dart';
 import 'chat_room_state.dart';
 import 'managers/managers.dart';
@@ -23,6 +24,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   final AuthLocalDataSource _authLocalDataSource;
   final DesktopNotificationBridge _desktopNotificationBridge;
   final ActiveRoomTracker _activeRoomTracker;
+  final FriendRepository _friendRepository;
 
   // Managers
   late final WebSocketSubscriptionManager _subscriptionManager;
@@ -53,6 +55,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     this._authLocalDataSource,
     this._desktopNotificationBridge,
     this._activeRoomTracker,
+    this._friendRepository,
   ) : super(const ChatRoomState()) {
     // Initialize managers
     _subscriptionManager = WebSocketSubscriptionManager(_webSocketService);
@@ -75,6 +78,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<MessageDeleted>(_onMessageDeleted);
     on<MessageDeletedByOther>(_onMessageDeletedByOther);
     on<MessageUpdatedByOther>(_onMessageUpdatedByOther);
+    on<LinkPreviewUpdated>(_onLinkPreviewUpdated);
     on<MessagesReadUpdated>(_onMessagesReadUpdated);
     on<TypingStatusChanged>(_onTypingStatusChanged);
     on<UserStartedTyping>(_onUserStartedTyping);
@@ -92,6 +96,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<ReactionAddRequested>(_onReactionAddRequested);
     on<ReactionRemoveRequested>(_onReactionRemoveRequested);
     on<ReactionEventReceived>(_onReactionEventReceived);
+    on<ReplyToMessageSelected>(_onReplyToMessageSelected);
+    on<ReplyCancelled>(_onReplyCancelled);
+    on<MessageForwardRequested>(_onMessageForwardRequested);
   }
 
   void _log(String message) {
@@ -115,6 +122,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     final currentUserId = await _authLocalDataSource.getUserId();
 
+    // Fetch blocked user IDs for message filtering
+    Set<int> blockedUserIds = {};
+    try {
+      final blockedUsers = await _friendRepository.getBlockedUsers();
+      blockedUserIds = blockedUsers.map((u) => u.id).toSet();
+    } catch (e) {
+      _log('Failed to fetch blocked users: $e');
+    }
+
     // Set active room for notification suppression
     _desktopNotificationBridge.setActiveRoomId(event.roomId);
     _activeRoomTracker.activeRoomId = event.roomId;
@@ -125,6 +141,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       currentUserId: currentUserId,
       messages: [],
       isOfflineData: false,
+      blockedUserIds: blockedUserIds,
     ));
 
     // 1. Load cached messages first (fast initial display)
@@ -299,6 +316,18 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
           ));
         }
       },
+      onLinkPreviewUpdated: (event) {
+        _log('WebSocket link preview updated: messageId=${event.messageId}');
+        if (state.roomId != null && event.chatRoomId == state.roomId) {
+          add(LinkPreviewUpdated(
+            messageId: event.messageId,
+            linkPreviewUrl: event.linkPreviewUrl,
+            linkPreviewTitle: event.linkPreviewTitle,
+            linkPreviewDescription: event.linkPreviewDescription,
+            linkPreviewImageUrl: event.linkPreviewImageUrl,
+          ));
+        }
+      },
       onReactionEvent: (reactionEvent) {
         _log('WebSocket reaction: messageId=${reactionEvent.messageId}, userId=${reactionEvent.userId}, emoji=${reactionEvent.emoji}, type=${reactionEvent.eventType}');
 
@@ -409,6 +438,14 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     _presenceManager.sendPresenceInactive(state.roomId!, state.currentUserId!);
 
+    // Cancel any pending markAsRead timers to prevent race condition
+    // where message arrives while focused, timer starts, then window blurs
+    // before timer fires
+    _markAsReadDebounceTimer?.cancel();
+    _markAsReadDebounceTimer = null;
+    _markAsReadRetryTimer?.cancel();
+    _markAsReadRetryTimer = null;
+
     // Only disconnect WebSocket on mobile (Android/iOS).
     // On desktop, window unfocus triggers this event but we should keep the
     // connection alive — only pause presence pings.
@@ -438,13 +475,13 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     final isMobile = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
 
-    if (isMobile) {
-      // Mobile: full reconnect + gap recovery (WebSocket was disconnected on background)
+    if (isMobile && !_webSocketService.isConnected) {
+      // Mobile: full reconnect + gap recovery (WebSocket was actually disconnected)
       // 1. Reset reconnect attempts for a fresh reconnection sequence
       _webSocketService.resetReconnectAttempts();
 
       // 2. Reconnect WebSocket
-      _log('_onForegrounded: reconnecting WebSocket (mobile)...');
+      _log('_onForegrounded: reconnecting WebSocket (mobile, was disconnected)...');
       final connected = await _webSocketService.ensureConnected(
         timeout: const Duration(seconds: 10),
       );
@@ -470,6 +507,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
       // 5. Resolve pending messages that were actually sent to server
       //    (gap recovery already fetched them, no need to retry)
+    } else if (isMobile) {
+      // Mobile but still connected (brief lifecycle event, debounced background didn't fire)
+      _log('_onForegrounded: WebSocket still connected, skipping reconnect (mobile)');
     } else {
       // Desktop: WebSocket stayed connected, just resume presence
       _log('_onForegrounded: resuming presence (desktop)');
@@ -489,6 +529,57 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       isReadMarked: true,
       isOfflineData: false,
     ));
+  }
+
+  void _onReplyToMessageSelected(
+    ReplyToMessageSelected event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    emit(state.copyWith(replyToMessage: event.message));
+  }
+
+  void _onReplyCancelled(
+    ReplyCancelled event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    emit(state.copyWith(clearReplyToMessage: true));
+  }
+
+  Future<void> _onMessageForwardRequested(
+    MessageForwardRequested event,
+    Emitter<ChatRoomState> emit,
+  ) async {
+    emit(state.copyWith(isForwarding: true, forwardSuccess: false));
+    try {
+      await _chatRepository.forwardMessage(event.messageId, event.targetRoomId);
+      emit(state.copyWith(isForwarding: false, forwardSuccess: true));
+    } catch (e) {
+      emit(state.copyWith(
+        isForwarding: false,
+        forwardSuccess: false,
+        errorMessage: '메시지 전달에 실패했습니다: ${e.toString()}',
+      ));
+    }
+  }
+
+  void _sendReplyInBackground({
+    required String localId,
+    required int replyToMessageId,
+    required String content,
+  }) {
+    _chatRepository.replyToMessage(replyToMessageId, content).then((_) {
+      if (!isClosed) {
+        add(MessageSendCompleted(localId: localId, success: true));
+      }
+    }).catchError((Object e) {
+      if (!isClosed) {
+        add(MessageSendCompleted(
+          localId: localId,
+          success: false,
+          error: e.toString(),
+        ));
+      }
+    });
   }
 
   @override
@@ -553,30 +644,43 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
 
-    // 1. 낙관적 UI: 즉시 pending 메시지를 화면에 추가
     final localId = _uuid.v4();
+    final replyToMessage = state.replyToMessage;
+
     final pendingMessage = Message(
-      id: -DateTime.now().millisecondsSinceEpoch, // 임시 음수 ID
+      id: -DateTime.now().millisecondsSinceEpoch,
       chatRoomId: state.roomId!,
       senderId: state.currentUserId!,
       content: event.content,
       createdAt: DateTime.now(),
       sendStatus: MessageSendStatus.pending,
       localId: localId,
+      replyToMessageId: replyToMessage?.id,
+      replyToMessage: replyToMessage,
     );
 
-    _log('_onMessageSent: Adding pending message (localId=$localId)');
+    _log('_onMessageSent: Adding pending message (localId=$localId${replyToMessage != null ? ', replyTo=${replyToMessage.id}' : ''})');
     _cacheManager.addPendingMessage(pendingMessage);
-    emit(state.copyWith(messages: _cacheManager.messages));
 
-    // 2. Fire-and-forget: 전송을 백그라운드에서 처리.
-    //    BLoC 이벤트 큐를 차단하지 않으므로 다른 이벤트(에코 수신 등) 즉시 처리 가능.
-    _sendMessageInBackground(
-      localId: localId,
-      roomId: state.roomId!,
-      content: event.content,
-      userId: state.currentUserId,
-    );
+    // Clear reply state immediately after creating the pending message
+    emit(state.copyWith(messages: _cacheManager.messages, clearReplyToMessage: true));
+
+    if (replyToMessage != null) {
+      // Reply message: use reply API
+      _sendReplyInBackground(
+        localId: localId,
+        replyToMessageId: replyToMessage.id,
+        content: event.content,
+      );
+    } else {
+      // Normal message: use standard send
+      _sendMessageInBackground(
+        localId: localId,
+        roomId: state.roomId!,
+        content: event.content,
+        userId: state.currentUserId,
+      );
+    }
   }
 
   /// Sends a message in the background without blocking the BLoC event queue.
@@ -645,6 +749,12 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       return;
     }
 
+    // Filter messages from blocked users
+    if (state.blockedUserIds.contains(event.message.senderId)) {
+      _log('_onMessageReceived: FILTERED - message from blocked user ${event.message.senderId}');
+      return;
+    }
+
     // Sync cache manager with state if out of sync (for tests with seeded state)
     if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
       _cacheManager.syncMessages(state.messages);
@@ -693,11 +803,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _markAsReadRetryTimer?.cancel();
       final roomId = state.roomId!;
       _markAsReadDebounceTimer = Timer(const Duration(milliseconds: 500), () {
-        if (!isClosed && state.roomId == roomId) {
+        if (!isClosed && state.roomId == roomId && _presenceManager.isViewingRoom) {
           _messageHandler.markAsRead(roomId).catchError((e) {
             if (kDebugMode) debugPrint('[ChatRoomBloc] markAsRead failed, retrying: $e');
             _markAsReadRetryTimer = Timer(const Duration(seconds: 2), () {
-              if (!isClosed && state.roomId == roomId) {
+              if (!isClosed && state.roomId == roomId && _presenceManager.isViewingRoom) {
                 _messageHandler.markAsRead(roomId).catchError((_) {});
               }
             });
@@ -743,6 +853,23 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _cacheManager.updateMessage(
       event.messageId,
       (m) => m.copyWith(content: event.newContent),
+    );
+    emit(state.copyWith(messages: _cacheManager.messages));
+  }
+
+  void _onLinkPreviewUpdated(
+    LinkPreviewUpdated event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    _log('_onLinkPreviewUpdated: messageId=${event.messageId}');
+    _cacheManager.updateMessage(
+      event.messageId,
+      (m) => m.copyWith(
+        linkPreviewUrl: event.linkPreviewUrl,
+        linkPreviewTitle: event.linkPreviewTitle,
+        linkPreviewDescription: event.linkPreviewDescription,
+        linkPreviewImageUrl: event.linkPreviewImageUrl,
+      ),
     );
     emit(state.copyWith(messages: _cacheManager.messages));
   }

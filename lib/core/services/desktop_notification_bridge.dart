@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
+import '../../domain/entities/notification_settings.dart';
 import '../../domain/repositories/settings_repository.dart';
 import '../network/websocket_service.dart';
 import '../window/window_focus_tracker.dart';
@@ -103,28 +104,38 @@ class DesktopNotificationBridge {
       return;
     }
 
-    // 설정에서 '푸시 메시지 내용 표시'·소리·진동이 토글 직후에도 반영되도록 캐시 우선 조회
-    bool showContent = true;
+    // Settings
+    NotificationPreviewMode previewMode = NotificationPreviewMode.nameAndMessage;
     bool soundEnabled = true;
     bool vibrationEnabled = true;
     try {
       final settings = await _settingsRepository.getNotificationSettingsCached();
-      showContent = settings.showMessageContentInNotification;
+      previewMode = settings.notificationPreviewMode;
       soundEnabled = settings.soundEnabled;
       vibrationEnabled = settings.vibrationEnabled;
     } catch (_) {}
 
+    // Apply preview mode
+    String title;
     String body;
-    if (!showContent) {
-      body = '새 메시지';
-    } else if (event.lastMessageType == 'IMAGE') {
-      body = '사진을 보냈습니다';
-    } else {
-      body = event.lastMessage ?? '';
+    switch (previewMode) {
+      case NotificationPreviewMode.nameAndMessage:
+        title = event.senderNickname ?? '새 메시지';
+        if (event.lastMessageType == 'IMAGE') {
+          body = '사진을 보냈습니다';
+        } else {
+          body = event.lastMessage ?? '';
+        }
+      case NotificationPreviewMode.nameOnly:
+        title = event.senderNickname ?? '새 메시지';
+        body = '새 메시지';
+      case NotificationPreviewMode.nothing:
+        title = '새 메시지';
+        body = '새 메시지가 도착했습니다';
     }
 
     await _notificationService.showNotification(
-      title: event.senderNickname ?? '새 메시지',
+      title: title,
       body: body,
       payload: 'chatRoom:${event.chatRoomId}',
       soundEnabled: soundEnabled,

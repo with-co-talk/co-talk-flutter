@@ -44,6 +44,12 @@ abstract class ChatRemoteDataSource {
     int page = 0,
     int size = 30,
   });
+
+  /// 메시지에 답장합니다.
+  Future<MessageModel> replyToMessage(int messageId, String content);
+
+  /// 메시지를 다른 채팅방으로 전달합니다.
+  Future<MessageModel> forwardMessage(int messageId, int targetChatRoomId);
 }
 
 @LazySingleton(as: ChatRemoteDataSource)
@@ -532,6 +538,112 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
       }
       throw ServerException(
         message: '미디어 갤러리를 불러오는 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
+    }
+  }
+
+  @override
+  Future<MessageModel> replyToMessage(int messageId, String content) async {
+    try {
+      final response = await _dioClient.post(
+        ApiConstants.messageReply(messageId),
+        data: {'content': content},
+      );
+
+      final responseData = response.data;
+      if (responseData is! Map) {
+        throw ServerException(
+          message: '답장 전송 응답 형식이 올바르지 않습니다',
+          statusCode: null,
+        );
+      }
+
+      final currentUserId = await _authLocalDataSource.getUserId() ?? 0;
+
+      final convertedData = <String, dynamic>{
+        'id': responseData['messageId'] ?? responseData['id'],
+        'chatRoomId': responseData['chatRoomId'] ?? 0,
+        'senderId': responseData['senderId'] ?? currentUserId,
+        'content': responseData['content'] ?? content,
+        'type': responseData['type'],
+        'fileUrl': responseData['fileUrl'],
+        'fileName': responseData['fileName'],
+        'fileSize': responseData['fileSize'],
+        'fileContentType': responseData['fileContentType'] ?? responseData['contentType'],
+        'thumbnailUrl': responseData['thumbnailUrl'],
+        'replyToMessageId': responseData['replyToMessageId'] ?? messageId,
+        'forwardedFromMessageId': responseData['forwardedFromMessageId'],
+        'isDeleted': responseData['isDeleted'] ?? false,
+        'createdAt': DateParser.toIso8601String(DateParser.parse(responseData['createdAt'])),
+        'updatedAt': responseData['updatedAt'] != null
+            ? DateParser.toIso8601String(DateParser.parse(responseData['updatedAt']))
+            : null,
+        'senderNickname': responseData['senderNickname'],
+        'senderAvatarUrl': responseData['senderAvatarUrl'],
+        'reactions': responseData['reactions'],
+      };
+
+      return MessageModel.fromJson(convertedData);
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      throw ServerException(
+        message: '답장 전송 중 오류가 발생했습니다: ${e.toString()}',
+        statusCode: null,
+      );
+    }
+  }
+
+  @override
+  Future<MessageModel> forwardMessage(int messageId, int targetChatRoomId) async {
+    try {
+      final response = await _dioClient.post(
+        ApiConstants.messageForward(messageId),
+        data: {'targetChatRoomId': targetChatRoomId},
+      );
+
+      final responseData = response.data;
+      if (responseData is! Map) {
+        throw ServerException(
+          message: '전달 응답 형식이 올바르지 않습니다',
+          statusCode: null,
+        );
+      }
+
+      final currentUserId = await _authLocalDataSource.getUserId() ?? 0;
+
+      final convertedData = <String, dynamic>{
+        'id': responseData['messageId'] ?? responseData['id'],
+        'chatRoomId': responseData['chatRoomId'] ?? targetChatRoomId,
+        'senderId': responseData['senderId'] ?? currentUserId,
+        'content': responseData['content'] ?? '',
+        'type': responseData['type'],
+        'fileUrl': responseData['fileUrl'],
+        'fileName': responseData['fileName'],
+        'fileSize': responseData['fileSize'],
+        'fileContentType': responseData['fileContentType'] ?? responseData['contentType'],
+        'thumbnailUrl': responseData['thumbnailUrl'],
+        'replyToMessageId': responseData['replyToMessageId'],
+        'forwardedFromMessageId': responseData['forwardedFromMessageId'] ?? messageId,
+        'isDeleted': responseData['isDeleted'] ?? false,
+        'createdAt': DateParser.toIso8601String(DateParser.parse(responseData['createdAt'])),
+        'updatedAt': responseData['updatedAt'] != null
+            ? DateParser.toIso8601String(DateParser.parse(responseData['updatedAt']))
+            : null,
+        'senderNickname': responseData['senderNickname'],
+        'senderAvatarUrl': responseData['senderAvatarUrl'],
+        'reactions': responseData['reactions'],
+      };
+
+      return MessageModel.fromJson(convertedData);
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    } catch (e) {
+      if (e is ServerException) rethrow;
+      throw ServerException(
+        message: '메시지 전달 중 오류가 발생했습니다: ${e.toString()}',
         statusCode: null,
       );
     }

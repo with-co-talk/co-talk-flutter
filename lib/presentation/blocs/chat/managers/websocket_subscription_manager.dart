@@ -20,6 +20,7 @@ class WebSocketSubscriptionManager {
   StreamSubscription<WebSocketTypingEvent>? _typingSubscription;
   StreamSubscription<WebSocketMessageDeletedEvent>? _messageDeletedSubscription;
   StreamSubscription<WebSocketMessageUpdatedEvent>? _messageUpdatedSubscription;
+  StreamSubscription<WebSocketLinkPreviewUpdatedEvent>? _linkPreviewUpdatedSubscription;
   StreamSubscription<WebSocketReactionEvent>? _reactionSubscription;
 
   int? _lastKnownMessageId;
@@ -42,6 +43,7 @@ class WebSocketSubscriptionManager {
     required Function(WebSocketTypingEvent) onTypingEvent,
     required Function(WebSocketMessageDeletedEvent) onMessageDeleted,
     required Function(WebSocketMessageUpdatedEvent) onMessageUpdated,
+    required Function(WebSocketLinkPreviewUpdatedEvent) onLinkPreviewUpdated,
     required Function(WebSocketReactionEvent) onReactionEvent,
   }) {
     final isConnected = _webSocketService.isConnected;
@@ -106,6 +108,16 @@ class WebSocketSubscriptionManager {
       },
     );
 
+    _linkPreviewUpdatedSubscription = _webSocketService.linkPreviewUpdatedEvents.listen(
+      (linkPreviewEvent) {
+        _log('WebSocket link preview updated: messageId=${linkPreviewEvent.messageId}, roomId=${linkPreviewEvent.chatRoomId}');
+        onLinkPreviewUpdated(linkPreviewEvent);
+      },
+      onError: (error) {
+        _log('Error in link preview updated stream: $error');
+      },
+    );
+
     _reactionSubscription = _webSocketService.reactions.listen(
       (reactionEvent) {
         _log('WebSocket reaction: messageId=${reactionEvent.messageId}, userId=${reactionEvent.userId}, emoji=${reactionEvent.emoji}, type=${reactionEvent.eventType}');
@@ -138,6 +150,8 @@ class WebSocketSubscriptionManager {
     _messageDeletedSubscription = null;
     _messageUpdatedSubscription?.cancel();
     _messageUpdatedSubscription = null;
+    _linkPreviewUpdatedSubscription?.cancel();
+    _linkPreviewUpdatedSubscription = null;
     _reactionSubscription?.cancel();
     _reactionSubscription = null;
   }
