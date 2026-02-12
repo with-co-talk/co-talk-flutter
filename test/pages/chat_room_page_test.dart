@@ -757,19 +757,31 @@ void main() {
       binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       clearInteractions(mockChatRoomBloc);
+      clearInteractions(mockChatListBloc);
 
-      // 앱이 백그라운드로 전환
+      // 앱이 백그라운드로 전환 (올바른 상태 전환: resumed -> inactive -> hidden -> paused)
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
       binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      // 1.5초 디바운스 대기
+      await tester.pump(const Duration(milliseconds: 1500));
       await tester.pump();
 
       verify(() => mockChatRoomBloc.add(const ChatRoomBackgrounded())).called(1);
+      verify(() => mockChatListBloc.add(const ChatRoomExited())).called(1);
 
-      // 앱이 포그라운드로 전환
+      // 앱이 포그라운드로 전환 (올바른 상태 전환: paused -> hidden -> inactive -> resumed)
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
       binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
 
       verify(() => mockChatRoomBloc.add(const ChatRoomForegrounded())).called(1);
-    }, skip: true); // 미구현 기능
+    });
 
     testWidgets('🔴 RED: isReadMarked가 false -> true로 변경될 때 ChatListBloc에 ChatRoomReadCompleted 알림이 전송됨', (tester) async {
       // 초기 상태 설정 (isReadMarked: false)
