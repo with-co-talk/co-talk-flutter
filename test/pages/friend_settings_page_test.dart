@@ -148,5 +148,19 @@ void main() {
       // All 4 menu items should have chevron_right icon (not 5)
       expect(find.byIcon(Icons.chevron_right), findsNWidgets(4));
     });
+
+    testWidgets('hidden friends navigation should use push (not go)', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+
+      // Verify that the navigation uses context.push() by checking we can navigate
+      await tester.tap(find.text('숨김 친구 관리'));
+      await tester.pumpAndSettle();
+
+      // Should navigate to hidden friends page
+      expect(find.text('Hidden Friends'), findsOneWidget);
+
+      // Should be able to go back (because we used push, not go)
+      expect(router.canPop(), isTrue);
+    });
   });
 }

@@ -8,6 +8,7 @@ import 'package:co_talk_flutter/domain/repositories/chat_repository.dart';
 import 'package:co_talk_flutter/domain/repositories/friend_repository.dart';
 import 'package:co_talk_flutter/domain/repositories/notification_repository.dart';
 import 'package:co_talk_flutter/domain/repositories/profile_repository.dart';
+import 'package:co_talk_flutter/domain/repositories/report_repository.dart';
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -18,6 +19,8 @@ class MockFriendRepository extends Mock implements FriendRepository {}
 class MockProfileRepository extends Mock implements ProfileRepository {}
 
 class MockNotificationRepository extends Mock implements NotificationRepository {}
+
+class MockReportRepository extends Mock implements ReportRepository {}
 
 class MockWebSocketService extends Mock implements WebSocketService {}
 

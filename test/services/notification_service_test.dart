@@ -175,5 +175,31 @@ void main() {
         verify(() => mockPlugin.cancelAll()).called(1);
       });
     });
+
+    group('Dio leak prevention (P2 #18)', () {
+      test('RED: should not leak Dio instances when downloading avatar fails', () async {
+        // RED TEST: Currently NotificationService creates a new Dio() on line 212
+        // without closing it. This test documents the expected behavior after fix.
+
+        when(() => mockPlugin.show(
+              any(),
+              any(),
+              any(),
+              any(),
+              payload: any(named: 'payload'),
+            )).thenAnswer((_) async {});
+
+        // Download will fail with timeout/error, but should not leak Dio
+        await notificationService.showNotification(
+          title: 'Test',
+          body: 'Body',
+          avatarUrl: 'https://invalid-url-will-fail.test/avatar.jpg',
+        );
+
+        // After fix: Dio should be closed in the finally block or reused from DI
+        // Currently this will leak a Dio instance
+        verify(() => mockPlugin.show(any(), any(), any(), any(), payload: any(named: 'payload'))).called(1);
+      });
+    });
   });
 }

@@ -3,6 +3,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
+import 'package:co_talk_flutter/core/network/websocket/websocket_events.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_state.dart';
@@ -20,6 +21,7 @@ void main() {
     late MockAuthLocalDataSource mockAuthLocalDataSource;
     late MockDesktopNotificationBridge mockDesktopNotificationBridge;
     late MockActiveRoomTracker mockActiveRoomTracker;
+    late MockFriendRepository mockFriendRepository;
     late StreamController<WebSocketChatMessage> messageController;
     late StreamController<WebSocketReadEvent> readEventController;
     late StreamController<WebSocketChatRoomUpdateEvent> chatRoomUpdateController;
@@ -30,6 +32,7 @@ void main() {
       mockAuthLocalDataSource = MockAuthLocalDataSource();
       mockDesktopNotificationBridge = MockDesktopNotificationBridge();
       mockActiveRoomTracker = MockActiveRoomTracker();
+      mockFriendRepository = MockFriendRepository();
 
       messageController = StreamController<WebSocketChatMessage>.broadcast();
       readEventController = StreamController<WebSocketReadEvent>.broadcast();
@@ -60,6 +63,7 @@ void main() {
       when(() => mockDesktopNotificationBridge.setActiveRoomId(any())).thenReturn(null);
       when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
       when(() => mockActiveRoomTracker.activeRoomId = any()).thenReturn(null);
+      when(() => mockFriendRepository.getBlockedUsers()).thenAnswer((_) async => []);
 
       // ChatRoomBloc에서 구독하는 추가 WebSocket 스트림 mock
       when(() => mockWebSocketService.messageDeletedEvents).thenAnswer(
@@ -67,6 +71,9 @@ void main() {
       );
       when(() => mockWebSocketService.messageUpdatedEvents).thenAnswer(
         (_) => const Stream<WebSocketMessageUpdatedEvent>.empty(),
+      );
+      when(() => mockWebSocketService.linkPreviewUpdatedEvents).thenAnswer(
+        (_) => const Stream<WebSocketLinkPreviewUpdatedEvent>.empty(),
       );
       when(() => mockWebSocketService.reactions).thenAnswer(
         (_) => const Stream<WebSocketReactionEvent>.empty(),
@@ -110,6 +117,7 @@ void main() {
           mockAuthLocalDataSource,
           mockDesktopNotificationBridge,
           mockActiveRoomTracker,
+          mockFriendRepository,
         );
 
     ChatListBloc createChatListBloc() => ChatListBloc(

@@ -356,6 +356,88 @@ void main() {
       );
     });
 
+    group('ChatRoomExited clears _currentlyOpenRoomId', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'should show unreadCount from server after ChatRoomExited (window blur on desktop)',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(unreadCount: 0),
+          ],
+        ),
+        act: (bloc) async {
+          // 1. Enter room (sets _currentlyOpenRoomId)
+          bloc.add(const ChatRoomEntered(1));
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          // 2. Exit room (clears _currentlyOpenRoomId) - simulates desktop window blur
+          bloc.add(const ChatRoomExited());
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          // 3. New message arrives from server with unreadCount=1
+          bloc.add(ChatRoomUpdated(
+            chatRoomId: 1,
+            eventType: 'NEW_MESSAGE',
+            lastMessage: 'Hello!',
+            lastMessageAt: DateTime.now(),
+            unreadCount: 1,
+            senderId: 2,
+          ));
+        },
+        wait: const Duration(milliseconds: 200),
+        expect: () => [
+          // unreadCount should be 1 (from server), NOT forced to 0
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.first.unreadCount,
+            'unreadCount',
+            1,
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        'should suppress unreadCount to 0 while room is entered (window focused)',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(unreadCount: 0),
+          ],
+        ),
+        act: (bloc) async {
+          // 1. Enter room (sets _currentlyOpenRoomId)
+          bloc.add(const ChatRoomEntered(1));
+          await Future.delayed(const Duration(milliseconds: 50));
+
+          // 2. New message arrives while room is entered - unreadCount forced to 0
+          bloc.add(ChatRoomUpdated(
+            chatRoomId: 1,
+            eventType: 'NEW_MESSAGE',
+            lastMessage: 'Hello!',
+            lastMessageAt: DateTime.now(),
+            unreadCount: 1,
+            senderId: 2,
+          ));
+        },
+        wait: const Duration(milliseconds: 200),
+        expect: () => [
+          // unreadCount should be 0 (forced by _currentlyOpenRoomId)
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.first.unreadCount,
+            'unreadCount',
+            0,
+          ),
+        ],
+      );
+    });
+
     group('ChatRoomReadCompleted', () {
       blocTest<ChatListBloc, ChatListState>(
         '🔴 RED: ChatRoomReadCompleted 이벤트로 unreadCount를 0으로 낙관적 업데이트',

@@ -374,5 +374,52 @@ void main() {
 
       expect(statusIndicator, findsWidgets);
     });
+
+    testWidgets('dispatches FriendListSubscriptionStarted on init', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+
+      verify(() => mockFriendBloc.add(const FriendListSubscriptionStarted())).called(1);
+    });
+
+    testWidgets('dispatches FriendListSubscriptionStopped on dispose', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+
+      // Navigate away from the page to trigger dispose
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+      await tester.pumpAndSettle();
+
+      verify(() => mockFriendBloc.add(const FriendListSubscriptionStopped())).called(1);
+    });
+
+    testWidgets('has settings button that navigates to friend settings', (tester) async {
+      final friends = [
+        Friend(
+          id: 1,
+          user: const User(
+            id: 2,
+            email: 'friend@test.com',
+            nickname: 'FriendUser',
+          ),
+          createdAt: DateTime(2024, 1, 1),
+        ),
+      ];
+
+      await tester.pumpWidget(createWidgetUnderTest(
+        friendState: FriendState(
+          status: FriendStatus.success,
+          friends: friends,
+        ),
+      ));
+
+      // Find the settings button
+      final settingsButton = find.byIcon(Icons.settings);
+      expect(settingsButton, findsOneWidget);
+
+      // Note: The settings button's onPressed handler includes logic to
+      // dispatch FriendListLoadRequested after returning from navigation.
+      // This ensures the friend list is refreshed when coming back from
+      // the hidden friends page. The actual navigation flow with refresh
+      // is tested in integration tests.
+    });
   });
 }

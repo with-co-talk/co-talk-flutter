@@ -22,25 +22,24 @@ void main() {
   group('FriendBloc - Hide/Block Events', () {
     group('HideFriendRequested', () {
       blocTest<FriendBloc, FriendState>(
-        'calls hideFriend and refreshes friends list on success',
+        'calls hideFriend and removes friend optimistically on success',
         build: () {
           when(() => mockFriendRepository.hideFriend(any()))
               .thenAnswer((_) async {});
-          when(() => mockFriendRepository.getFriends())
-              .thenAnswer((_) async => []);
           return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
-        act: (bloc) => bloc.add(const HideFriendRequested(2)),
+        seed: () => FriendState(friends: FakeEntities.friends),
+        act: (bloc) => bloc.add(const HideFriendRequested(2)), // otherUser's id
         expect: () => [
-          // Updated friends list
-          const FriendState(
-            friends: [],
+          // Optimistic removal: only Friend2 (id=3) remains
+          FriendState(
+            friends: [FakeEntities.friends[1]],
             errorMessage: null,
           ),
         ],
         verify: (_) {
           verify(() => mockFriendRepository.hideFriend(2)).called(1);
-          verify(() => mockFriendRepository.getFriends()).called(1);
+          verifyNever(() => mockFriendRepository.getFriends());
         },
       );
 
@@ -65,21 +64,20 @@ void main() {
       );
 
       blocTest<FriendBloc, FriendState>(
-        'emits error message when hideFriend fails',
+        'emits error message and restores friends when hideFriend fails',
         build: () {
           when(() => mockFriendRepository.hideFriend(any()))
               .thenThrow(Exception('Hide friend failed'));
           return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
+        seed: () => FriendState(friends: FakeEntities.friends),
         act: (bloc) => bloc.add(const HideFriendRequested(2)),
-        skip: 1, // Skip clearErrorMessage emission
+        skip: 1, // Skip optimistic removal emission
         expect: () => [
-          // Error state
-          isA<FriendState>().having(
-            (s) => s.errorMessage,
-            'errorMessage',
-            isNotNull,
-          ),
+          // Restored friends + error state
+          isA<FriendState>()
+              .having((s) => s.friends, 'friends', FakeEntities.friends)
+              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
         ],
         verify: (_) {
           verify(() => mockFriendRepository.hideFriend(2)).called(1);
@@ -230,25 +228,24 @@ void main() {
 
     group('BlockUserRequested', () {
       blocTest<FriendBloc, FriendState>(
-        'calls blockUser and refreshes friends list on success',
+        'calls blockUser and removes user optimistically on success',
         build: () {
           when(() => mockFriendRepository.blockUser(any()))
               .thenAnswer((_) async {});
-          when(() => mockFriendRepository.getFriends())
-              .thenAnswer((_) async => []);
           return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
-        act: (bloc) => bloc.add(const BlockUserRequested(2)),
+        seed: () => FriendState(friends: FakeEntities.friends),
+        act: (bloc) => bloc.add(const BlockUserRequested(2)), // otherUser's id
         expect: () => [
-          // Updated friends list
-          const FriendState(
-            friends: [],
+          // Optimistic removal: only Friend2 (id=3) remains
+          FriendState(
+            friends: [FakeEntities.friends[1]],
             errorMessage: null,
           ),
         ],
         verify: (_) {
           verify(() => mockFriendRepository.blockUser(2)).called(1);
-          verify(() => mockFriendRepository.getFriends()).called(1);
+          verifyNever(() => mockFriendRepository.getFriends());
         },
       );
 
@@ -273,21 +270,20 @@ void main() {
       );
 
       blocTest<FriendBloc, FriendState>(
-        'emits error message when blockUser fails',
+        'emits error message and restores friends when blockUser fails',
         build: () {
           when(() => mockFriendRepository.blockUser(any()))
               .thenThrow(Exception('Block user failed'));
           return FriendBloc(mockFriendRepository, mockWebSocketService);
         },
+        seed: () => FriendState(friends: FakeEntities.friends),
         act: (bloc) => bloc.add(const BlockUserRequested(2)),
-        skip: 1, // Skip clearErrorMessage emission
+        skip: 1, // Skip optimistic removal emission
         expect: () => [
-          // Error state
-          isA<FriendState>().having(
-            (s) => s.errorMessage,
-            'errorMessage',
-            isNotNull,
-          ),
+          // Restored friends + error state
+          isA<FriendState>()
+              .having((s) => s.friends, 'friends', FakeEntities.friends)
+              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
         ],
         verify: (_) {
           verify(() => mockFriendRepository.blockUser(2)).called(1);

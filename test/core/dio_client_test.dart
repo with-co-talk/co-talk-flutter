@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/core/network/dio_client.dart';
 import 'package:co_talk_flutter/core/network/auth_interceptor.dart';
+import 'package:co_talk_flutter/core/network/certificate_pinning_interceptor.dart';
 import 'package:co_talk_flutter/core/constants/api_constants.dart';
 import 'package:co_talk_flutter/data/datasources/local/auth_local_datasource.dart';
 
@@ -14,11 +15,13 @@ void main() {
   late DioClient dioClient;
   late MockAuthLocalDataSource mockAuthLocalDataSource;
   late AuthInterceptor authInterceptor;
+  late CertificatePinningInterceptor certificatePinningInterceptor;
 
   setUp(() {
     mockAuthLocalDataSource = MockAuthLocalDataSource();
     authInterceptor = AuthInterceptor(mockAuthLocalDataSource);
-    dioClient = DioClient(authInterceptor);
+    certificatePinningInterceptor = CertificatePinningInterceptor();
+    dioClient = DioClient(authInterceptor, certificatePinningInterceptor);
   });
 
   group('DioClient', () {
