@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/notification_click_handler.dart';
 import '../../../core/window/window_focus_tracker.dart';
+import '../../../core/network/websocket_service.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_room_bloc.dart';
@@ -16,6 +17,7 @@ import '../../blocs/chat/chat_room_state.dart';
 import '../../blocs/chat/message_search/message_search_bloc.dart';
 import '../../blocs/chat/message_search/message_search_event.dart';
 import '../../widgets/message_search_widget.dart';
+import '../../widgets/connection_status_banner.dart';
 import 'media_gallery_page.dart';
 import 'widgets/widgets.dart';
 
@@ -46,6 +48,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
   StreamSubscription<bool>? _windowFocusSubscription;
   bool? _lastWindowFocused;
   Timer? _focusTimer;
+  Timer? _backgroundDebounceTimer;
   bool? _hasFocusTracking;
   bool _isSearchMode = false;
   bool _initialFocusEventSent = false;
@@ -96,6 +99,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
       _chatRoomBloc.add(focused
           ? const ChatRoomForegrounded()
           : const ChatRoomBackgrounded());
+
+      // Sync ChatListBloc: suppress/restore unread count based on window focus
+      if (!_chatListBloc.isClosed) {
+        if (focused) {
+          _chatListBloc.add(ChatRoomEntered(widget.roomId));
+        } else {
+          _chatListBloc.add(const ChatRoomExited());
+        }
+      }
     });
 
     _chatRoomBloc.add(ChatRoomOpened(widget.roomId));
@@ -203,23 +215,51 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
       case AppLifecycleState.inactive:
         if (_hasFocusTracking == true) return;
         if (!_hasResumedOnce) return;
+        // On iOS, inactive fires for notification center, control center, etc.
+        // Don't do anything here - wait for paused if it's a real background.
         break;
       case AppLifecycleState.paused:
         if (!_hasResumedOnce) return;
-        _chatRoomBloc.add(const ChatRoomBackgrounded());
+        // Debounce: only dispatch backgrounded after 1.5 seconds.
+        // iOS fires paused for brief interruptions like notification center.
+        // If the user returns quickly, the timer is cancelled by resumed.
+        _backgroundDebounceTimer?.cancel();
+        _backgroundDebounceTimer = Timer(const Duration(milliseconds: 1500), () {
+          if (!_chatRoomBloc.isClosed) {
+            _chatRoomBloc.add(const ChatRoomBackgrounded());
+          }
+          if (!_chatListBloc.isClosed) {
+            _chatListBloc.add(const ChatRoomExited());
+          }
+        });
         break;
       case AppLifecycleState.resumed:
         _hasResumedOnce = true;
+        // Cancel any pending background timer - user returned quickly
+        _backgroundDebounceTimer?.cancel();
+        _backgroundDebounceTimer = null;
         if (_hasFocusTracking == true) {
           _syncFocusOnce();
           return;
         }
         _chatRoomBloc.add(const ChatRoomForegrounded());
+        if (!_chatListBloc.isClosed) {
+          _chatListBloc.add(ChatRoomEntered(widget.roomId));
+        }
         break;
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         if (!_hasResumedOnce) return;
-        _chatRoomBloc.add(const ChatRoomBackgrounded());
+        // For detached/hidden, also debounce
+        _backgroundDebounceTimer?.cancel();
+        _backgroundDebounceTimer = Timer(const Duration(milliseconds: 1500), () {
+          if (!_chatRoomBloc.isClosed) {
+            _chatRoomBloc.add(const ChatRoomBackgrounded());
+          }
+          if (!_chatListBloc.isClosed) {
+            _chatListBloc.add(const ChatRoomExited());
+          }
+        });
         break;
     }
   }
@@ -229,6 +269,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     WidgetsBinding.instance.removeObserver(this);
     _windowFocusSubscription?.cancel();
     _focusTimer?.cancel();
+    _backgroundDebounceTimer?.cancel();
     _windowFocusTracker.dispose();
     _messageController.dispose();
     _messageFocusNode.dispose();
@@ -523,6 +564,22 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 }
               },
             ),
+            // Forward success feedback
+            BlocListener<ChatRoomBloc, ChatRoomState>(
+              listenWhen: (previous, current) {
+                return previous.isForwarding && !current.isForwarding;
+              },
+              listener: (context, state) {
+                if (state.forwardSuccess) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('메시지가 전달되었습니다'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+            ),
           ],
           child: _isSearchMode
               ? MessageSearchWidget(
@@ -530,42 +587,68 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                   onMessageSelected: _onMessageSelected,
                   onClose: _toggleSearchMode,
                 )
-              : Stack(
-                  children: [
-                    Column(
+              : StreamBuilder<WebSocketConnectionState>(
+                  stream: GetIt.instance<WebSocketService>().connectionState,
+                  builder: (context, snapshot) {
+                    final connectionState = snapshot.data ?? WebSocketConnectionState.connected;
+
+                    return Stack(
                       children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: _dismissKeyboard,
-                            behavior: HitTestBehavior.opaque,
-                            child: MessageList(scrollController: _scrollController),
+                        Column(
+                          children: [
+                            // Connection status banner at the top
+                            ConnectionStatusBanner(
+                              connectionState: connectionState,
+                              onReconnect: () {
+                                final webSocketService = GetIt.instance<WebSocketService>();
+                                webSocketService.resetReconnectAttempts();
+                                webSocketService.connect();
+                              },
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: _dismissKeyboard,
+                                behavior: HitTestBehavior.opaque,
+                                child: MessageList(scrollController: _scrollController),
+                              ),
+                            ),
+                            BlocBuilder<ChatRoomBloc, ChatRoomState>(
+                              buildWhen: (previous, current) =>
+                                  previous.replyToMessage != current.replyToMessage,
+                              builder: (context, state) {
+                                return MessageInput(
+                                  controller: _messageController,
+                                  focusNode: _messageFocusNode,
+                                  onSend: _sendMessage,
+                                  onChanged: () {
+                                    context.read<ChatRoomBloc>().add(const UserStartedTyping());
+                                  },
+                                  replyToMessage: state.replyToMessage,
+                                  onCancelReply: () {
+                                    context.read<ChatRoomBloc>().add(const ReplyCancelled());
+                                  },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        Positioned(
+                          right: 16,
+                          bottom: 80,
+                          child: ScrollToBottomFab(
+                            visible: _showScrollFab,
+                            unreadCount: _unreadWhileScrolled,
+                            onTap: () {
+                              _scrollToBottom();
+                              setState(() {
+                                _unreadWhileScrolled = 0;
+                              });
+                            },
                           ),
                         ),
-                        MessageInput(
-                          controller: _messageController,
-                          focusNode: _messageFocusNode,
-                          onSend: _sendMessage,
-                          onChanged: () {
-                            context.read<ChatRoomBloc>().add(const UserStartedTyping());
-                          },
-                        ),
                       ],
-                    ),
-                    Positioned(
-                      right: 16,
-                      bottom: 80,
-                      child: ScrollToBottomFab(
-                        visible: _showScrollFab,
-                        unreadCount: _unreadWhileScrolled,
-                        onTap: () {
-                          _scrollToBottom();
-                          setState(() {
-                            _unreadWhileScrolled = 0;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
         ),
     );

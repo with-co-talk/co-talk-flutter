@@ -27,6 +27,10 @@ class ChatRoomState extends Equatable {
   final bool isLoadingMore; // 추가 메시지 로딩 중 여부 (중복 요청 방지용)
   final bool showScrollToBottomFab;
   final int unreadWhileScrolled;
+  final Set<int> blockedUserIds; // 차단된 사용자 ID 목록 (메시지 필터링용)
+  final Message? replyToMessage; // 답장 대상 메시지
+  final bool isForwarding; // 메시지 전달 진행 중 여부
+  final bool forwardSuccess; // 메시지 전달 성공 여부
 
   const ChatRoomState({
     this.status = ChatRoomStatus.initial,
@@ -52,6 +56,10 @@ class ChatRoomState extends Equatable {
     this.isLoadingMore = false,
     this.showScrollToBottomFab = false,
     this.unreadWhileScrolled = 0,
+    this.blockedUserIds = const {},
+    this.replyToMessage,
+    this.isForwarding = false,
+    this.forwardSuccess = false,
   });
 
   /// 누군가 타이핑 중인지 여부
@@ -92,6 +100,11 @@ class ChatRoomState extends Equatable {
     bool? isLoadingMore,
     bool? showScrollToBottomFab,
     int? unreadWhileScrolled,
+    Set<int>? blockedUserIds,
+    Message? replyToMessage,
+    bool clearReplyToMessage = false,
+    bool? isForwarding,
+    bool? forwardSuccess,
   }) {
     return ChatRoomState(
       status: status ?? this.status,
@@ -117,6 +130,10 @@ class ChatRoomState extends Equatable {
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       showScrollToBottomFab: showScrollToBottomFab ?? this.showScrollToBottomFab,
       unreadWhileScrolled: unreadWhileScrolled ?? this.unreadWhileScrolled,
+      blockedUserIds: blockedUserIds ?? this.blockedUserIds,
+      replyToMessage: clearReplyToMessage ? null : (replyToMessage ?? this.replyToMessage),
+      isForwarding: isForwarding ?? this.isForwarding,
+      forwardSuccess: forwardSuccess ?? this.forwardSuccess,
     );
   }
 
@@ -145,5 +162,9 @@ class ChatRoomState extends Equatable {
         isLoadingMore,
         showScrollToBottomFab,
         unreadWhileScrolled,
+        blockedUserIds,
+        replyToMessage,
+        isForwarding,
+        forwardSuccess,
       ];
 }

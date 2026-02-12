@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../domain/entities/message.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_event.dart';
 import '../../../blocs/chat/chat_room_state.dart';
@@ -21,6 +22,8 @@ class MessageInput extends StatefulWidget {
   final FocusNode focusNode;
   final VoidCallback onSend;
   final VoidCallback? onChanged;
+  final Message? replyToMessage;
+  final VoidCallback? onCancelReply;
 
   const MessageInput({
     super.key,
@@ -28,6 +31,8 @@ class MessageInput extends StatefulWidget {
     required this.focusNode,
     required this.onSend,
     this.onChanged,
+    this.replyToMessage,
+    this.onCancelReply,
   });
 
   @override
@@ -512,11 +517,66 @@ class _MessageInputState extends State<MessageInput> {
           ),
           child: SafeArea(
             top: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Reply preview bar
+                if (widget.replyToMessage != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      border: Border(
+                        left: BorderSide(color: AppColors.primary, width: 3),
+                        bottom: BorderSide(color: context.dividerColor, width: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.reply, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.replyToMessage!.senderNickname ?? '알 수 없음',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              Text(
+                                widget.replyToMessage!.isDeleted
+                                    ? '삭제된 메시지'
+                                    : widget.replyToMessage!.content,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: context.textSecondaryColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: widget.onCancelReply,
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(Icons.close, size: 18, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
                   IconButton(
                     icon: Icon(
                       Icons.add_circle_outline,
@@ -623,8 +683,10 @@ class _MessageInputState extends State<MessageInput> {
                       );
                     },
                   ),
-                ],
-              ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         );

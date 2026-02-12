@@ -39,6 +39,11 @@ final class ParsedMessageUpdatedPayload extends ParsedRoomPayload {
   const ParsedMessageUpdatedPayload(this.event);
 }
 
+final class ParsedLinkPreviewUpdatedPayload extends ParsedRoomPayload {
+  final WebSocketLinkPreviewUpdatedEvent event;
+  const ParsedLinkPreviewUpdatedPayload(this.event);
+}
+
 final class ParsedUnknownPayload extends ParsedRoomPayload {
   final Map<String, dynamic> raw;
   const ParsedUnknownPayload(this.raw);
@@ -96,6 +101,10 @@ class WebSocketPayloadParser {
 
     if (eventType == 'MESSAGE_UPDATED') {
       return ParsedMessageUpdatedPayload(WebSocketMessageUpdatedEvent.fromJson(json));
+    }
+
+    if (eventType == 'LINK_PREVIEW_UPDATED') {
+      return ParsedLinkPreviewUpdatedPayload(WebSocketLinkPreviewUpdatedEvent.fromJson(json));
     }
 
     return ParsedUnknownPayload(json);

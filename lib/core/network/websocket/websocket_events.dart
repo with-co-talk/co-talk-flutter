@@ -318,6 +318,45 @@ class WebSocketMessageUpdatedEvent {
   }
 }
 
+/// WebSocket link preview updated event.
+class WebSocketLinkPreviewUpdatedEvent {
+  final int? schemaVersion;
+  final String? eventId;
+  final String? eventType;
+  final int chatRoomId;
+  final int messageId;
+  final String? linkPreviewUrl;
+  final String? linkPreviewTitle;
+  final String? linkPreviewDescription;
+  final String? linkPreviewImageUrl;
+
+  WebSocketLinkPreviewUpdatedEvent({
+    this.schemaVersion,
+    this.eventId,
+    this.eventType,
+    required this.chatRoomId,
+    required this.messageId,
+    this.linkPreviewUrl,
+    this.linkPreviewTitle,
+    this.linkPreviewDescription,
+    this.linkPreviewImageUrl,
+  });
+
+  factory WebSocketLinkPreviewUpdatedEvent.fromJson(Map<String, dynamic> json) {
+    return WebSocketLinkPreviewUpdatedEvent(
+      schemaVersion: json['schemaVersion'] as int?,
+      eventId: json['eventId'] as String?,
+      eventType: json['eventType'] as String?,
+      chatRoomId: (json['chatRoomId'] as num).toInt(),
+      messageId: (json['messageId'] as num).toInt(),
+      linkPreviewUrl: json['linkPreviewUrl'] as String?,
+      linkPreviewTitle: json['linkPreviewTitle'] as String?,
+      linkPreviewDescription: json['linkPreviewDescription'] as String?,
+      linkPreviewImageUrl: json['linkPreviewImageUrl'] as String?,
+    );
+  }
+}
+
 /// WebSocket message deleted event.
 class WebSocketMessageDeletedEvent {
   final int? schemaVersion;

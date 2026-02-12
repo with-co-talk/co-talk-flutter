@@ -36,6 +36,8 @@ abstract class ChatRepository {
   Future<Message> updateMessage(int messageId, String content);
   Future<void> deleteMessage(int messageId);
   Future<void> reinviteUser(int roomId, int inviteeId);
+  Future<Message> replyToMessage(int messageId, String content);
+  Future<Message> forwardMessage(int messageId, int targetChatRoomId);
 
   /// 파일을 서버에 업로드합니다.
   Future<FileUploadResult> uploadFile(File file);
