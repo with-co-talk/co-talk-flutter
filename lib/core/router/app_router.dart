@@ -11,6 +11,8 @@ import '../../presentation/blocs/chat/chat_list_bloc.dart';
 import '../../presentation/blocs/chat/chat_room_bloc.dart';
 import '../../presentation/blocs/chat/message_search/message_search_bloc.dart';
 import '../../presentation/blocs/friend/friend_bloc.dart';
+import '../../presentation/blocs/auth/email_verification_bloc.dart';
+import '../../presentation/pages/auth/email_verification_page.dart';
 import '../../presentation/pages/auth/login_page.dart';
 import '../../presentation/pages/auth/signup_page.dart';
 import '../../presentation/pages/chat/chat_list_page.dart';
@@ -36,6 +38,9 @@ import '../../presentation/pages/settings/privacy_policy_page.dart';
 import '../../presentation/blocs/settings/notification_settings_cubit.dart';
 import '../../presentation/blocs/settings/chat_settings_cubit.dart';
 import '../../presentation/blocs/settings/account_deletion_bloc.dart';
+import '../../presentation/blocs/settings/change_password_bloc.dart';
+import '../../presentation/blocs/settings/biometric_settings_cubit.dart';
+import '../../presentation/pages/settings/security_settings_page.dart';
 import '../../presentation/pages/splash/splash_page.dart';
 import '../../presentation/pages/error/error_page.dart';
 import '../../domain/entities/report.dart';
@@ -61,11 +66,13 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String notificationSettings = '/settings/notifications';
   static const String chatSettings = '/settings/chat';
+  static const String securitySettings = '/settings/security';
   static const String changePassword = '/settings/password';
   static const String accountDeletion = '/settings/account/delete';
   static const String terms = '/settings/terms';
   static const String privacyPolicy = '/settings/privacy';
   static const String report = '/report';
+  static const String emailVerification = '/email-verification';
 
   static String chatRoomPath(int roomId) => '/chat/room/$roomId';
   static String profileViewPath(int userId) => '/profile/view/$userId';
@@ -88,7 +95,8 @@ class AppRouter {
       final isInitialOrLoading = authState.status == AuthStatus.initial ||
           authState.status == AuthStatus.loading;
       final isAuthRoute = state.matchedLocation == AppRoutes.login ||
-          state.matchedLocation == AppRoutes.signUp;
+          state.matchedLocation == AppRoutes.signUp ||
+          state.matchedLocation == AppRoutes.emailVerification;
       final isSplash = state.matchedLocation == AppRoutes.splash;
       final isMainRoute = state.matchedLocation == AppRoutes.chatList ||
           state.matchedLocation == AppRoutes.friends ||
@@ -126,6 +134,16 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.signUp,
         builder: (context, state) => const SignUpPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.emailVerification,
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return BlocProvider(
+            create: (_) => getIt<EmailVerificationBloc>(),
+            child: EmailVerificationPage(email: email),
+          );
+        },
       ),
       ShellRoute(
         builder: (context, state, child) => BlocProvider.value(
@@ -212,12 +230,26 @@ class AppRouter {
           ),
         ),
       ),
+      // 보안 설정
+      GoRoute(
+        path: AppRoutes.securitySettings,
+        pageBuilder: (context, state) => MaterialPage(
+          key: state.pageKey,
+          child: BlocProvider(
+            create: (_) => getIt<BiometricSettingsCubit>()..load(),
+            child: const SecuritySettingsPage(),
+          ),
+        ),
+      ),
       // 비밀번호 변경
       GoRoute(
         path: AppRoutes.changePassword,
         pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey,
-          child: const ChangePasswordPage(),
+          child: BlocProvider(
+            create: (_) => getIt<ChangePasswordBloc>(),
+            child: const ChangePasswordPage(),
+          ),
         ),
       ),
       // 회원 탈퇴
