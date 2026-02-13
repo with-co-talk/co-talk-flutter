@@ -131,12 +131,52 @@ jobs:
           VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      # 배포 패키지 생성 (MSIX + 설치 스크립트)
+      - name: Create distribution package
+        shell: powershell
+        run: |
+          $distDir = "dist/CoTalk-Windows"
+          New-Item -ItemType Directory -Path $distDir -Force
+          
+          # MSIX 파일 복사
+          Copy-Item "build/windows/x64/runner/Release/CoTalk.msix" -Destination $distDir
+          
+          # 설치 스크립트 복사
+          Copy-Item "installer/install.ps1" -Destination $distDir
+          Copy-Item "installer/Co-Talk 설치.bat" -Destination $distDir
+          Copy-Item "installer/Co-Talk 제거.bat" -Destination $distDir
+          
+          # README 생성
+          $readme = @"
+          # Co-Talk v${{ steps.version.outputs.version }} - Windows 설치 가이드
+          
+          ## 설치 방법
+          
+          1. 'Co-Talk 설치.bat' 파일을 더블클릭하세요.
+          2. 관리자 권한 요청 창이 나타나면 '예'를 클릭하세요.
+          3. 설치가 완료되면 시작 메뉴에서 'Co-Talk'을 검색하여 실행하세요.
+          
+          ## 제거 방법
+          
+          1. 'Co-Talk 제거.bat' 파일을 더블클릭하세요.
+          2. 관리자 권한 요청 창이 나타나면 '예'를 클릭하세요.
+          
+          ## 시스템 요구사항
+          
+          - Windows 10 버전 1809 (빌드 17763) 이상
+          - x64 아키텍처
+          "@
+          $readme | Out-File -FilePath "$distDir/README.txt" -Encoding UTF8
+          
+          # ZIP 압축
+          Compress-Archive -Path "$distDir/*" -DestinationPath "dist/CoTalk-Windows-v${{ steps.version.outputs.version }}.zip"
+
       # 빌드 결과물 업로드
       - name: Upload MSIX artifact
         uses: actions/upload-artifact@v4
         with:
           name: CoTalk-Windows-v${{ steps.version.outputs.version }}
-          path: build/windows/x64/runner/Release/CoTalk.msix
+          path: dist/CoTalk-Windows-v${{ steps.version.outputs.version }}.zip
           retention-days: 30
 
   # ===========================================
@@ -160,7 +200,7 @@ jobs:
           VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download MSIX artifact
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: CoTalk-Windows-v${{ steps.version.outputs.version }}
@@ -175,12 +215,21 @@ jobs:
             ## Co-Talk Windows Desktop v${{ steps.version.outputs.version }}
 
             ### 설치 방법
-            1. `CoTalk.msix` 파일을 다운로드합니다
-            2. 더블클릭하여 설치합니다
-            3. 자체 서명 인증서 설치를 허용합니다
+            1. `CoTalk-Windows-v${{ steps.version.outputs.version }}.zip` 파일을 다운로드합니다
+            2. ZIP 파일 압축을 해제합니다
+            3. **`Co-Talk 설치.bat`** 파일을 더블클릭합니다
+            4. 관리자 권한 요청 창이 나타나면 '예'를 클릭합니다
+            5. 시작 메뉴에서 'Co-Talk'을 검색하여 실행합니다
+
+            ### 포함된 파일
+            - `CoTalk.msix` - 앱 패키지
+            - `Co-Talk 설치.bat` - 설치 스크립트 (이것만 실행하면 됩니다!)
+            - `Co-Talk 제거.bat` - 제거 스크립트
+            - `README.txt` - 설치 가이드
 
             ### 요구 사항
             - Windows 10 버전 1809 이상
-          files: ./release/CoTalk.msix
+            - x64 아키텍처
+          files: ./release/CoTalk-Windows-v${{ steps.version.outputs.version }}.zip
           draft: true
           generate_release_notes: true
