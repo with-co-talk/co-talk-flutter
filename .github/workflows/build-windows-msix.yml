@@ -130,10 +130,10 @@ jobs:
         run: |
           $msixPath = "build/windows/x64/runner/Release/CoTalk.msix"
           if (-not (Test-Path $msixPath)) {
-            Write-Error "MSIX 파일을 찾을 수 없습니다: $msixPath"
+            Write-Error "MSIX file not found: $msixPath"
             exit 1
           }
-          Write-Host "✅ MSIX 파일 확인 완료: $msixPath"
+          Write-Host "MSIX file verified: $msixPath"
 
       - name: Get version
         id: version
@@ -153,40 +153,40 @@ jobs:
           # MSIX 파일 복사
           $msixPath = "build/windows/x64/runner/Release/CoTalk.msix"
           if (-not (Test-Path $msixPath)) {
-            Write-Error "MSIX 파일을 찾을 수 없습니다: $msixPath"
+            Write-Error "MSIX file not found: $msixPath"
             exit 1
           }
           Copy-Item $msixPath -Destination $distDir
-          Write-Host "✅ MSIX 파일 복사 완료"
+          Write-Host "MSIX copied"
           
-          # 설치 스크립트 복사 (한글 파일명 인코딩 이슈 회피: Get-ChildItem으로 경로 획득)
+          # Installer scripts (use Get-ChildItem to avoid encoding issues with non-ASCII filenames)
           $installerDir = "installer"
           Copy-Item -LiteralPath (Join-Path $installerDir "install.ps1") -Destination $distDir
-          Write-Host "✅ 설치 스크립트 복사 완료: install.ps1"
+          Write-Host "Installer script copied: install.ps1"
           Get-ChildItem -Path $installerDir -Filter "*.bat" -File | ForEach-Object {
             Copy-Item -LiteralPath $_.FullName -Destination $distDir
-            Write-Host "✅ 설치 스크립트 복사 완료: $($_.Name)"
+            Write-Host "Installer script copied: $($_.Name)"
           }
           
-          # README 생성
+          # README (ASCII only to avoid runner encoding issues)
           $readme = @"
-          # Co-Talk v${{ steps.version.outputs.version }} - Windows 설치 가이드
+          # Co-Talk v${{ steps.version.outputs.version }} - Windows Install Guide
           
-          ## 설치 방법
+          ## How to install
           
-          1. 'Co-Talk 설치.bat' 파일을 더블클릭하세요.
-          2. 관리자 권한 요청 창이 나타나면 '예'를 클릭하세요.
-          3. 설치가 완료되면 시작 메뉴에서 'Co-Talk'을 검색하여 실행하세요.
+          1. Double-click the installation .bat file in this folder.
+          2. Click 'Yes' when prompted for administrator permission.
+          3. After installation, search for 'Co-Talk' in the Start menu to run.
           
-          ## 제거 방법
+          ## How to uninstall
           
-          1. 'Co-Talk 제거.bat' 파일을 더블클릭하세요.
-          2. 관리자 권한 요청 창이 나타나면 '예'를 클릭하세요.
+          1. Double-click the uninstall .bat file in this folder.
+          2. Click 'Yes' when prompted for administrator permission.
           
-          ## 시스템 요구사항
+          ## System requirements
           
-          - Windows 10 버전 1809 (빌드 17763) 이상
-          - x64 아키텍처
+          - Windows 10 version 1809 (build 17763) or later
+          - x64 architecture
           "@
           $readme | Out-File -FilePath "$distDir/README.txt" -Encoding UTF8
           
