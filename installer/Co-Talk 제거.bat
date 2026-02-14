@@ -11,3 +11,4 @@ echo 권한 요청 창이 나타나면 '예'를 클릭해주세요.
 echo.
 
 PowerShell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" -Uninstall
+
