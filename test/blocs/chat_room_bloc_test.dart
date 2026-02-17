@@ -1095,6 +1095,77 @@ void main() {
               .having((s) => s.messages[2].unreadCount, 'first msg unreadCount', 0),
         ],
       );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'should keep most recent read events when processedReadEvents exceeds 500',
+        build: () => createBloc(),
+        seed: () {
+          // Create a LinkedHashSet to guarantee insertion order
+          final orderedEvents = <String>{};
+          for (int i = 0; i < 500; i++) {
+            orderedEvents.add('2_event_$i');
+          }
+          return ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [
+              Message(
+                id: 1,
+                chatRoomId: 1,
+                senderId: 1,
+                content: 'Test message',
+                createdAt: DateTime(2024, 1, 1),
+                unreadCount: 1,
+              ),
+            ],
+            // Seed with 500 existing events in order
+            processedReadEvents: orderedEvents,
+          );
+        },
+        act: (bloc) {
+          // Add one more event to trigger trimming (total = 501)
+          bloc.add(const MessagesReadUpdated(userId: 2, lastReadMessageId: 1));
+        },
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.processedReadEvents.length, 'processedReadEvents size', 250)
+              // The most recent event (added by the event) should be included
+              .having(
+                (s) => s.processedReadEvents.contains('2_1'),
+                'contains newest event',
+                true,
+              )
+              // Recent seeded events should be kept (e.g., event_499)
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_499'),
+                'contains second-newest event',
+                true,
+              )
+              // Old events should be removed (first 250 + 1 should be gone)
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_0'),
+                'old event_0 removed',
+                false,
+              )
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_100'),
+                'old event_100 removed',
+                false,
+              )
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_250'),
+                'event_250 removed',
+                false,
+              )
+              // Events from 251 onwards should be kept
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_251'),
+                'event_251 kept',
+                true,
+              ),
+        ],
+      );
     });
 
     group('Auto read on message received', () {
