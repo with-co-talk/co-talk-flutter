@@ -316,6 +316,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i396.DesktopNotificationBridge>(),
         gh<_i480.ActiveRoomTracker>(),
         gh<_i1069.FriendRepository>(),
+        gh<_i977.SettingsRepository>(),
       ),
     );
     gh.factory<_i525.AuthBloc>(

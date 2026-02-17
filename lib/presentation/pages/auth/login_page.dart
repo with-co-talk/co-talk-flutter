@@ -187,6 +187,21 @@ class _LoginPageState extends State<LoginPage> {
                           onPressed: () => context.go(AppRoutes.signUp),
                           child: const Text('계정이 없으신가요? 회원가입'),
                         ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            TextButton(
+                              onPressed: () => context.go(AppRoutes.findEmail),
+                              child: const Text('아이디를 잊으셨나요?'),
+                            ),
+                            const Text('|', style: TextStyle(color: Colors.grey)),
+                            TextButton(
+                              onPressed: () => context.go(AppRoutes.forgotPassword),
+                              child: const Text('비밀번호를 잊으셨나요?'),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),

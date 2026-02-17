@@ -20,6 +20,9 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
   /// 모바일 플랫폼 여부
   bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
+  /// 슬라이더 드래그 중 로컬 값 (드래그 중 Cubit rebuild 방지)
+  double? _draggingFontSize;
+
   @override
   void initState() {
     super.initState();
@@ -159,6 +162,32 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                       ],
               ),
               _buildSection(
+                title: '입력 표시',
+                children: [
+                  _buildSwitchTile(
+                    icon: Icons.keyboard_outlined,
+                    title: '입력중 표시',
+                    value: state.settings.showTypingIndicator,
+                    onChanged: (value) {
+                      context
+                          .read<ChatSettingsCubit>()
+                          .setShowTypingIndicator(value);
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      '상대방이 메시지를 입력 중일 때 표시합니다. 켜면 나의 입력 상태도 상대방에게 전송됩니다.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+              _buildSection(
                 title: '저장 공간',
                 children: [
                   ListTile(
@@ -253,12 +282,20 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
             ],
           ),
           Slider(
-            value: state.settings.fontSize,
+            value: _draggingFontSize ?? state.settings.fontSize,
             min: 0.8,
             max: 1.4,
             divisions: 6,
-            label: _getFontSizeLabel(state.settings.fontSize),
+            label: _getFontSizeLabel(_draggingFontSize ?? state.settings.fontSize),
             onChanged: (value) {
+              setState(() {
+                _draggingFontSize = value;
+              });
+            },
+            onChangeEnd: (value) {
+              setState(() {
+                _draggingFontSize = null;
+              });
               context.read<ChatSettingsCubit>().setFontSize(value);
             },
           ),
@@ -268,6 +305,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
   }
 
   Widget _buildFontSizePreview(ChatSettingsState state) {
+    final fontSize = _draggingFontSize ?? state.settings.fontSize;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
@@ -288,14 +326,14 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
           Text(
             '안녕하세요! 글꼴 크기를 조절해보세요.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontSize: 16 * state.settings.fontSize,
+                  fontSize: 16 * fontSize,
                 ),
           ),
           const SizedBox(height: 4),
           Text(
             'Hello! Try adjusting the font size.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 14 * state.settings.fontSize,
+                  fontSize: 14 * fontSize,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),

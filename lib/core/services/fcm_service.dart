@@ -183,19 +183,28 @@ class FcmServiceImpl implements FcmService {
 
   Future<void> _handleForegroundMessageAsync(RemoteMessage message) async {
     if (kDebugMode) {
-      debugPrint('[FCM] Foreground message received: ${message.messageId}');
+      debugPrint('[FcmService] Foreground message received: ${message.messageId}');
     }
 
     // Suppress notification if the user is currently viewing this chat room
     final chatRoomIdStr = message.data['chatRoomId'];
+    final activeRoom = _activeRoomTracker.activeRoomId;
+    if (kDebugMode) {
+      debugPrint('[FcmService] chatRoomId=$chatRoomIdStr, activeRoomId=$activeRoom');
+    }
+
     if (chatRoomIdStr != null) {
       final chatRoomId = int.tryParse(chatRoomIdStr);
-      if (chatRoomId != null && chatRoomId == _activeRoomTracker.activeRoomId) {
+      if (chatRoomId != null && chatRoomId == activeRoom) {
         if (kDebugMode) {
-          debugPrint('[FCM] Suppressing notification for active room: $chatRoomId');
+          debugPrint('[FcmService] Suppressing notification: user is viewing room $chatRoomId');
         }
         return;
       }
+    }
+
+    if (kDebugMode) {
+      debugPrint('[FcmService] Displaying notification: not current room');
     }
 
     final notification = message.notification;
