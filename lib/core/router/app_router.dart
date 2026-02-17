@@ -12,7 +12,12 @@ import '../../presentation/blocs/chat/chat_room_bloc.dart';
 import '../../presentation/blocs/chat/message_search/message_search_bloc.dart';
 import '../../presentation/blocs/friend/friend_bloc.dart';
 import '../../presentation/blocs/auth/email_verification_bloc.dart';
+import '../../presentation/blocs/auth/find_email_bloc.dart';
+import '../../presentation/blocs/auth/forgot_password_bloc.dart';
 import '../../presentation/pages/auth/email_verification_page.dart';
+import '../../presentation/pages/auth/find_email_page.dart';
+import '../../presentation/pages/auth/find_email_result_page.dart';
+import '../../presentation/pages/auth/forgot_password_page.dart';
 import '../../presentation/pages/auth/login_page.dart';
 import '../../presentation/pages/auth/signup_page.dart';
 import '../../presentation/pages/chat/chat_list_page.dart';
@@ -73,6 +78,11 @@ class AppRoutes {
   static const String privacyPolicy = '/settings/privacy';
   static const String report = '/report';
   static const String emailVerification = '/email-verification';
+  static const String findEmail = '/find-email';
+  static const String findEmailResult = '/find-email/result';
+  static const String forgotPassword = '/forgot-password';
+  static const String resetPasswordCode = '/reset-password/code';
+  static const String resetPassword = '/reset-password';
 
   static String chatRoomPath(int roomId) => '/chat/room/$roomId';
   static String profileViewPath(int userId) => '/profile/view/$userId';
@@ -96,7 +106,12 @@ class AppRouter {
           authState.status == AuthStatus.loading;
       final isAuthRoute = state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.signUp ||
-          state.matchedLocation == AppRoutes.emailVerification;
+          state.matchedLocation == AppRoutes.emailVerification ||
+          state.matchedLocation == AppRoutes.findEmail ||
+          state.matchedLocation == AppRoutes.findEmailResult ||
+          state.matchedLocation == AppRoutes.forgotPassword ||
+          state.matchedLocation == AppRoutes.resetPasswordCode ||
+          state.matchedLocation == AppRoutes.resetPassword;
       final isSplash = state.matchedLocation == AppRoutes.splash;
       final isMainRoute = state.matchedLocation == AppRoutes.chatList ||
           state.matchedLocation == AppRoutes.friends ||
@@ -144,6 +159,27 @@ class AppRouter {
             child: EmailVerificationPage(email: email),
           );
         },
+      ),
+      GoRoute(
+        path: AppRoutes.findEmail,
+        builder: (context, state) => BlocProvider(
+          create: (_) => FindEmailBloc(getIt()),
+          child: const FindEmailPage(),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.findEmailResult,
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return FindEmailResultPage(maskedEmail: email);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (context, state) => BlocProvider(
+          create: (_) => ForgotPasswordBloc(getIt()),
+          child: const ForgotPasswordPage(),
+        ),
       ),
       ShellRoute(
         builder: (context, state, child) => BlocProvider.value(

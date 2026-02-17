@@ -141,4 +141,31 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> resendVerification({required String email}) async {
     await _remoteDataSource.resendVerification(email);
   }
+
+  @override
+  Future<Map<String, dynamic>> findEmail({
+    required String nickname,
+    required String phoneNumber,
+  }) async {
+    return await _remoteDataSource.findEmail(nickname, phoneNumber);
+  }
+
+  @override
+  Future<void> requestPasswordResetCode({required String email}) async {
+    await _remoteDataSource.requestPasswordResetCode(email);
+  }
+
+  @override
+  Future<bool> verifyPasswordResetCode({required String email, required String code}) async {
+    return await _remoteDataSource.verifyPasswordResetCode(email, code);
+  }
+
+  @override
+  Future<void> resetPasswordWithCode({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    await _remoteDataSource.resetPasswordWithCode(email, code, newPassword);
+  }
 }

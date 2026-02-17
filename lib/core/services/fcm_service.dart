@@ -190,7 +190,11 @@ class FcmServiceImpl implements FcmService {
     final chatRoomIdStr = message.data['chatRoomId'];
     if (chatRoomIdStr != null) {
       final chatRoomId = int.tryParse(chatRoomIdStr);
-      if (chatRoomId != null && chatRoomId == _activeRoomTracker.activeRoomId) {
+      final activeRoom = _activeRoomTracker.activeRoomId;
+      if (kDebugMode) {
+        debugPrint('[FCM] Foreground message: chatRoomId=$chatRoomId, activeRoomId=$activeRoom');
+      }
+      if (chatRoomId != null && chatRoomId == activeRoom) {
         if (kDebugMode) {
           debugPrint('[FCM] Suppressing notification for active room: $chatRoomId');
         }
