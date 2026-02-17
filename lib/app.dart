@@ -47,6 +47,8 @@ class CoTalkApp extends StatelessWidget {
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
           return BlocBuilder<ChatSettingsCubit, ChatSettingsState>(
+            buildWhen: (previous, current) =>
+                previous.settings.fontSize != current.settings.fontSize,
             builder: (context, chatSettingsState) {
               final appRouter = getIt<AppRouter>();
 

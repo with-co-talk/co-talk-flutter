@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -369,11 +370,18 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomClosed event,
     Emitter<ChatRoomState> emit,
   ) {
+    _log('_onClosed: roomId=${state.roomId}, cleaning up resources');
+
     if (state.roomId != null) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
     _reconnectedSubscription?.cancel();
     _reconnectedSubscription = null;
+    // Send presenceInactive to server before disposing (so server stops suppressing push)
+    // Guard: only send if not already sent by _onBackgrounded
+    if (state.roomId != null && state.currentUserId != null && _presenceManager.isViewingRoom) {
+      _presenceManager.sendPresenceInactive(state.roomId!, state.currentUserId!);
+    }
     _presenceManager.dispose();
     _stopPendingTimeoutChecker();
     // Clean up typing timeout timers
@@ -387,6 +395,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Release notification suppression
     _desktopNotificationBridge.setActiveRoomId(null);
     _activeRoomTracker.activeRoomId = null;
+    _log('_onClosed: activeRoomId cleared for notification suppression');
 
     emit(const ChatRoomState());
   }
@@ -806,6 +815,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       );
       if (replaced) {
         _log('_onMessageReceived: Replaced pending message with real message (id=${event.message.id})');
+        // Update lastKnownMessageId to prevent drift-based filtering
+        _subscriptionManager.updateLastKnownMessageId(event.message.id);
         emit(state.copyWith(
           messages: _cacheManager.messages,
           isOfflineData: false,
@@ -816,6 +827,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     // 일반 메시지 추가
     _cacheManager.addMessage(event.message);
+    // Update lastKnownMessageId to prevent drift-based filtering
+    _subscriptionManager.updateLastKnownMessageId(event.message.id);
     _log('_onMessageReceived: Added message, total messages: ${_cacheManager.messages.length}');
 
     emit(state.copyWith(
@@ -971,12 +984,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Also update cache manager for consistency
     _cacheManager.updateMessages(updateMessageReadCount);
 
-    // 처리된 이벤트 기록
-    var newProcessedEvents = Set<String>.from(state.processedReadEvents)..add(eventKey);
+    // 처리된 이벤트 기록 (LinkedHashSet을 사용하여 삽입 순서 보장)
+    var newProcessedEvents = LinkedHashSet<String>.from(state.processedReadEvents)..add(eventKey);
     // Cap the set to prevent unbounded growth
     if (newProcessedEvents.length > 500) {
       // Keep only the most recent entries by taking the last 250
-      newProcessedEvents = newProcessedEvents.toList().sublist(newProcessedEvents.length - 250).toSet();
+      final eventsList = newProcessedEvents.toList();
+      newProcessedEvents = LinkedHashSet<String>.from(
+        eventsList.sublist(eventsList.length - 250),
+      );
     }
 
     emit(state.copyWith(

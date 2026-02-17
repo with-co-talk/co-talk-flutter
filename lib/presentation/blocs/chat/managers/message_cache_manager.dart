@@ -125,6 +125,9 @@ class MessageCacheManager {
         return true;
       }).toList();
 
+      // Ensure consistent ordering: pending first, then real messages by ID descending
+      _sortMessages();
+
       _nextCursor = nextCursor;
       _hasMore = hasMore;
       _isOfflineData = false;
@@ -171,7 +174,7 @@ class MessageCacheManager {
     }
   }
 
-  /// Adds a new message to the cache.
+  /// Adds a new message to the cache in sorted position (ID descending).
   void addMessage(Message message) {
     // Check if message already exists
     final existingIndex = _messages.indexWhere((m) => m.id == message.id);
@@ -184,9 +187,14 @@ class MessageCacheManager {
       ];
       _log('Updated existing message: id=${message.id}');
     } else {
-      // Add new message at the beginning
-      _messages = [message, ..._messages];
-      _log('Added new message: id=${message.id}');
+      // Insert at the correct sorted position (ID descending, pending first)
+      final insertIndex = _findSortedInsertIndex(message);
+      _messages = [
+        ..._messages.sublist(0, insertIndex),
+        message,
+        ..._messages.sublist(insertIndex),
+      ];
+      _log('Added new message: id=${message.id} at index=$insertIndex');
     }
 
     // Fire-and-forget: local DB write runs in background to avoid blocking BLoC event queue.
@@ -335,13 +343,16 @@ class MessageCacheManager {
       replyToMessageId: realMessage.replyToMessageId ?? localMessage.replyToMessageId,
       forwardedFromMessageId: realMessage.forwardedFromMessageId ?? localMessage.forwardedFromMessageId,
     );
-    // Create new list for Equatable compatibility
+    // Remove the pending message and re-insert at the correct sorted position
     _messages = [
       for (int i = 0; i < _messages.length; i++)
-        if (i == localIndex)
-          mergedMessage
-        else
-          _messages[i],
+        if (i != localIndex) _messages[i],
+    ];
+    final insertIndex = _findSortedInsertIndex(mergedMessage);
+    _messages = [
+      ..._messages.sublist(0, insertIndex),
+      mergedMessage,
+      ..._messages.sublist(insertIndex),
     ];
     return true;
   }
@@ -395,4 +406,38 @@ class MessageCacheManager {
   int? get nextCursor => _nextCursor;
   bool get hasMore => _hasMore;
   bool get isOfflineData => _isOfflineData;
+
+  // ============================================================
+  // Message Ordering
+  // ============================================================
+
+  /// Finds the correct insertion index for a message in a sorted list.
+  ///
+  /// List invariant: pending messages (id < 0) first, then real messages
+  /// in descending ID order (newest first).
+  int _findSortedInsertIndex(Message message) {
+    // Pending messages always go to the front
+    if (message.id < 0) return 0;
+
+    // For real messages, skip past pending messages and find position by ID descending
+    for (int i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      if (m.id < 0) continue; // skip pending messages
+      if (m.id < message.id) return i; // insert before the first smaller ID
+    }
+    return _messages.length; // smallest ID → add at end
+  }
+
+  /// Sorts the entire message list: pending first, then real messages by ID descending.
+  void _sortMessages() {
+    _messages.sort((a, b) {
+      // Pending messages (negative IDs) always come first
+      if (a.id < 0 && b.id >= 0) return -1;
+      if (a.id >= 0 && b.id < 0) return 1;
+      // Both pending: sort by createdAt descending (newest first)
+      if (a.id < 0 && b.id < 0) return b.createdAt.compareTo(a.createdAt);
+      // Both real: sort by ID descending (newest first)
+      return b.id.compareTo(a.id);
+    });
+  }
 }

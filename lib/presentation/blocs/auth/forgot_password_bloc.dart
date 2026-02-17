@@ -1,19 +1,29 @@
+import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../core/utils/error_message_mapper.dart';
 
 // Events
-abstract class ForgotPasswordEvent {}
+abstract class ForgotPasswordEvent extends Equatable {
+  @override
+  List<Object?> get props => [];
+}
 
 class ForgotPasswordCodeRequested extends ForgotPasswordEvent {
   final String email;
   ForgotPasswordCodeRequested({required this.email});
+
+  @override
+  List<Object?> get props => [email];
 }
 
 class ForgotPasswordCodeVerified extends ForgotPasswordEvent {
   final String email;
   final String code;
   ForgotPasswordCodeVerified({required this.email, required this.code});
+
+  @override
+  List<Object?> get props => [email, code];
 }
 
 class ForgotPasswordResetRequested extends ForgotPasswordEvent {
@@ -25,6 +35,9 @@ class ForgotPasswordResetRequested extends ForgotPasswordEvent {
     required this.code,
     required this.newPassword,
   });
+
+  @override
+  List<Object?> get props => [email, code, newPassword];
 }
 
 class ForgotPasswordReset extends ForgotPasswordEvent {}
@@ -34,7 +47,7 @@ enum ForgotPasswordStep { email, code, newPassword, complete }
 
 enum ForgotPasswordStatus { initial, loading, success, failure }
 
-class ForgotPasswordState {
+class ForgotPasswordState extends Equatable {
   final ForgotPasswordStep step;
   final ForgotPasswordStatus status;
   final String? email;
@@ -64,6 +77,9 @@ class ForgotPasswordState {
       errorMessage: errorMessage,
     );
   }
+
+  @override
+  List<Object?> get props => [step, status, email, code, errorMessage];
 }
 
 // BLoC

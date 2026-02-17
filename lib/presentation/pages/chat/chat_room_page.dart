@@ -530,13 +530,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
             // Auto-scroll on new messages
             BlocListener<ChatRoomBloc, ChatRoomState>(
               listenWhen: (previous, current) {
-                if (previous.messages.length == current.messages.length) {
+                if (current.messages.isEmpty || previous.messages.isEmpty) {
                   return false;
                 }
-                if (previous.messages.isEmpty) {
+                // Skip loadMore completions (old messages added at the end)
+                if (previous.isLoadingMore && !current.isLoadingMore) {
                   return false;
                 }
-                return true;
+                // Only fire when the NEWEST message changed (new message arrived)
+                return current.messages.first.id != previous.messages.first.id;
               },
               listener: (context, state) {
                 if (_scrollController.hasClients) {
@@ -546,7 +548,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                       _scrollToBottom();
                     });
                   } else if (_showScrollFab) {
-                    // User is scrolled up, increment unread count
+                    // User is scrolled up, show new message indicator
                     setState(() {
                       _unreadWhileScrolled++;
                     });

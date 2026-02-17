@@ -1,15 +1,22 @@
+import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../core/utils/error_message_mapper.dart';
 
 // Events
-abstract class FindEmailEvent {}
+abstract class FindEmailEvent extends Equatable {
+  @override
+  List<Object?> get props => [];
+}
 
 class FindEmailRequested extends FindEmailEvent {
   final String nickname;
   final String phoneNumber;
 
   FindEmailRequested({required this.nickname, required this.phoneNumber});
+
+  @override
+  List<Object?> get props => [nickname, phoneNumber];
 }
 
 class FindEmailReset extends FindEmailEvent {}
@@ -17,7 +24,7 @@ class FindEmailReset extends FindEmailEvent {}
 // States
 enum FindEmailStatus { initial, loading, success, notFound, failure }
 
-class FindEmailState {
+class FindEmailState extends Equatable {
   final FindEmailStatus status;
   final String? maskedEmail;
   final String? message;
@@ -43,6 +50,9 @@ class FindEmailState {
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
+
+  @override
+  List<Object?> get props => [status, maskedEmail, message, errorMessage];
 }
 
 // BLoC
