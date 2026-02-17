@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:co_talk_flutter/core/network/websocket/websocket_events.dart';
+import 'package:co_talk_flutter/domain/entities/chat_room.dart';
+import 'package:co_talk_flutter/domain/entities/chat_settings.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/domain/repositories/chat_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +25,7 @@ void main() {
   late MockDesktopNotificationBridge mockDesktopNotificationBridge;
   late MockActiveRoomTracker mockActiveRoomTracker;
   late MockFriendRepository mockFriendRepository;
+  late MockSettingsRepository mockSettingsRepository;
 
   setUpAll(() {
     // Register fallback values for mocktail
@@ -38,6 +41,7 @@ void main() {
     mockDesktopNotificationBridge = MockDesktopNotificationBridge();
     mockActiveRoomTracker = MockActiveRoomTracker();
     mockFriendRepository = MockFriendRepository();
+    mockSettingsRepository = MockSettingsRepository();
 
     // AuthLocalDataSource mock 기본 설정
     when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
@@ -120,6 +124,10 @@ void main() {
     // ActiveRoomTracker mock 기본 설정
     when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
     when(() => mockActiveRoomTracker.activeRoomId = any()).thenReturn(null);
+
+    // SettingsRepository mock 기본 설정
+    when(() => mockSettingsRepository.getChatSettings())
+        .thenAnswer((_) async => const ChatSettings());
   });
 
   ChatRoomBloc createBloc() => ChatRoomBloc(
@@ -129,6 +137,7 @@ void main() {
         mockDesktopNotificationBridge,
         mockActiveRoomTracker,
         mockFriendRepository,
+        mockSettingsRepository,
       );
 
   group('ChatRoomBloc', () {
@@ -164,6 +173,7 @@ void main() {
             messages: FakeEntities.messages,
             nextCursor: 123,
             hasMore: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -1145,6 +1155,7 @@ void main() {
             messages: FakeEntities.messages,
             nextCursor: 123,
             hasMore: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
       );
@@ -1222,6 +1233,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // WebSocket 메시지 추가 (이전 isReadMarked 상태 유지)
           isA<ChatRoomState>()
@@ -1291,6 +1303,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내 메시지 수신: unreadCount=1
           isA<ChatRoomState>()
@@ -1352,6 +1365,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지가 unreadCount=1로 표시됨
           isA<ChatRoomState>()
@@ -1422,6 +1436,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내 메시지 수신: unreadCount=1
           isA<ChatRoomState>()
@@ -1485,6 +1500,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지가 즉시 unreadCount=0으로 표시됨 (상대방이 포커스되어 있었음)
           isA<ChatRoomState>()
@@ -1677,6 +1693,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // _onForegrounded always emits isReadMarked: true even if markAsRead fails
           // because the error is caught silently in MessageHandler.markAsRead
@@ -1688,6 +1705,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -1864,6 +1882,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // markAsRead 성공 후 isReadMarked가 true가 됨
           // 하지만 서버가 chatRoomUpdates를 보내주지 않으면 실제 unreadCount는 업데이트되지 않음
@@ -1875,6 +1894,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true, // markAsRead 성공으로 true
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -1928,6 +1948,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 중요: isReadMarked가 true가 되지 않아야 함!
           // pendingForegrounded가 취소되었으므로 markAsRead가 호출되지 않음
@@ -1987,6 +2008,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 두 번째 ChatRoomForegrounded에서 markAsRead 호출 → isReadMarked = true
           const ChatRoomState(
@@ -1997,6 +2019,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -2054,6 +2077,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 수신한 메시지의 unreadCount=1이 그대로 보존되어야 함
           isA<ChatRoomState>()
@@ -2111,6 +2135,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 수신한 메시지의 unreadCount=0이 그대로 보존되어야 함
           isA<ChatRoomState>()
@@ -2172,6 +2197,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // Background 상태에서 수신한 메시지의 unreadCount=1이 그대로 보존되어야 함
           // 이 시나리오가 실패하면 서버에서 0을 보내고 있다는 의미
@@ -2229,6 +2255,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지도 unreadCount=1로 보존 (UI에서 "1" 표시됨)
           isA<ChatRoomState>()
@@ -3049,6 +3076,7 @@ void main() {
           roomId: 1,
           currentUserId: 1,
           messages: [],
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const UserStartedTyping()),
         wait: const Duration(milliseconds: 100),
@@ -3074,6 +3102,7 @@ void main() {
           roomId: 1,
           currentUserId: 1,
           messages: [],
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const UserStoppedTyping()),
         wait: const Duration(milliseconds: 100),
@@ -3134,6 +3163,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3156,6 +3186,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {2: 'Alice', 3: 'Bob'},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3179,6 +3210,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3200,6 +3232,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {3: 'Bob'},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 999,
@@ -3218,6 +3251,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) {
           bloc.add(const TypingStatusChanged(userId: 2, userNickname: 'Alice', isTyping: true));
@@ -3231,6 +3265,83 @@ void main() {
               .having((s) => s.typingUsers[2], 'Alice', 'Alice')
               .having((s) => s.typingUsers[3], 'Bob', 'Bob')
               .having((s) => s.typingUsers[4], 'Charlie', 'Charlie'),
+        ],
+      );
+    });
+
+    group('TypingStatusChanged with showTypingIndicator disabled', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'ignores typing events when showTypingIndicator is false (default)',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: false,
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        expect: () => [],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'processes typing events when showTypingIndicator is true',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: true,
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.length, 'typingUsers length', 1)
+              .having((s) => s.typingUsers[2], 'user 2 nickname', 'Alice'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'typing start followed by explicit stop removes user',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: true,
+        ),
+        act: (bloc) {
+          bloc.add(const TypingStatusChanged(
+            userId: 2,
+            userNickname: 'Alice',
+            isTyping: true,
+          ));
+          bloc.add(const TypingStatusChanged(
+            userId: 2,
+            userNickname: 'Alice',
+            isTyping: false,
+          ));
+        },
+        expect: () => [
+          // First: Alice starts typing
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.length, 'typingUsers length', 1),
+          // Then: Alice stops typing
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.isEmpty, 'typingUsers empty', true),
         ],
       );
     });

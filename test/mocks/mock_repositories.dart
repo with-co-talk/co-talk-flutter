@@ -9,6 +9,7 @@ import 'package:co_talk_flutter/domain/repositories/friend_repository.dart';
 import 'package:co_talk_flutter/domain/repositories/notification_repository.dart';
 import 'package:co_talk_flutter/domain/repositories/profile_repository.dart';
 import 'package:co_talk_flutter/domain/repositories/report_repository.dart';
+import 'package:co_talk_flutter/domain/repositories/settings_repository.dart';
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -29,3 +30,5 @@ class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
 class MockDesktopNotificationBridge extends Mock implements DesktopNotificationBridge {}
 
 class MockActiveRoomTracker extends Mock implements ActiveRoomTracker {}
+
+class MockSettingsRepository extends Mock implements SettingsRepository {}
