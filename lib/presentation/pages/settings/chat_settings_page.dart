@@ -159,6 +159,32 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                       ],
               ),
               _buildSection(
+                title: '입력 표시',
+                children: [
+                  _buildSwitchTile(
+                    icon: Icons.keyboard_outlined,
+                    title: '입력중 표시',
+                    value: state.settings.showTypingIndicator,
+                    onChanged: (value) {
+                      context
+                          .read<ChatSettingsCubit>()
+                          .setShowTypingIndicator(value);
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      '상대방이 메시지를 입력 중일 때 표시합니다. 켜면 나의 입력 상태도 상대방에게 전송됩니다.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+              _buildSection(
                 title: '저장 공간',
                 children: [
                   ListTile(

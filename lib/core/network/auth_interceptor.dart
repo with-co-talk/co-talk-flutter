@@ -48,7 +48,12 @@ class AuthInterceptor extends QueuedInterceptor {
     // Skip auth header for auth endpoints
     final isAuthEndpoint = options.path.contains('/auth/login') ||
         options.path.contains('/auth/signup') ||
-        options.path.contains('/auth/refresh');
+        options.path.contains('/auth/refresh') ||
+        options.path.contains('/auth/find-email') ||
+        options.path.contains('/password/reset-request') ||
+        options.path.contains('/password/verify-code') ||
+        options.path.contains('/password/reset-with-code') ||
+        options.path.contains('/password/reset');
 
     if (!isAuthEndpoint) {
       final accessToken = await _authLocalDataSource.getAccessToken();
@@ -65,7 +70,12 @@ class AuthInterceptor extends QueuedInterceptor {
     // Auth 엔드포인트는 토큰 갱신 로직 제외
     final isAuthEndpoint = err.requestOptions.path.contains('/auth/login') ||
         err.requestOptions.path.contains('/auth/signup') ||
-        err.requestOptions.path.contains('/auth/refresh');
+        err.requestOptions.path.contains('/auth/refresh') ||
+        err.requestOptions.path.contains('/auth/find-email') ||
+        err.requestOptions.path.contains('/password/reset-request') ||
+        err.requestOptions.path.contains('/password/verify-code') ||
+        err.requestOptions.path.contains('/password/reset-with-code') ||
+        err.requestOptions.path.contains('/password/reset');
 
     // USER_NOT_FOUND 에러 체크 (404 + USER_NOT_FOUND 코드)
     // 토큰은 유효하지만 사용자가 DB에 없는 경우 (삭제됨, DB 초기화 등)

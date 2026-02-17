@@ -83,7 +83,7 @@ class PresenceManager {
     sendTypingStatus(roomId: roomId, userId: userId, isTyping: true);
 
     _typingDebounceTimer?.cancel();
-    _typingDebounceTimer = Timer(const Duration(seconds: 3), () {
+    _typingDebounceTimer = Timer(const Duration(seconds: 2), () {
       onStopTyping();
     });
   }

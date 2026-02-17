@@ -16,6 +16,7 @@ ChatSettingsModel _$ChatSettingsModelFromJson(
   autoDownloadVideosOnWifi: json['autoDownloadVideosOnWifi'] as bool? ?? true,
   autoDownloadVideosOnMobile:
       json['autoDownloadVideosOnMobile'] as bool? ?? false,
+  showTypingIndicator: json['showTypingIndicator'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$ChatSettingsModelToJson(ChatSettingsModel instance) =>
@@ -25,4 +26,5 @@ Map<String, dynamic> _$ChatSettingsModelToJson(ChatSettingsModel instance) =>
       'autoDownloadImagesOnMobile': instance.autoDownloadImagesOnMobile,
       'autoDownloadVideosOnWifi': instance.autoDownloadVideosOnWifi,
       'autoDownloadVideosOnMobile': instance.autoDownloadVideosOnMobile,
+      'showTypingIndicator': instance.showTypingIndicator,
     };

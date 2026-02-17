@@ -102,6 +102,8 @@ class _AppLifecycleHandlerState extends State<_AppLifecycleHandler> with Widgets
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // 앱 최초 실행 시 생체 인증 체크
+    context.read<AppLockCubit>().checkLockOnLaunch();
   }
 
   @override
