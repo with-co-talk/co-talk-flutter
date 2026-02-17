@@ -1,5 +1,10 @@
 # Flutter 기본 ProGuard 규칙
 
+# Play Core (Flutter embedding references these for Play Store deferred components; app does not use them)
+-dontwarn com.google.android.play.core.splitcompat.**
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
+
 # Flutter wrapper
 -keep class io.flutter.app.** { *; }
 -keep class io.flutter.plugin.** { *; }

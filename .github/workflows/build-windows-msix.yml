@@ -90,7 +90,7 @@ jobs:
 
       # MSIX 생성 (인증서 서명 있음)
       - name: Create MSIX (signed)
-        if: inputs.certificate_sign == true
+        if: github.event_name == 'workflow_dispatch' && inputs.certificate_sign == true
         run: >
           dart run msix:create
           --install-certificate false
@@ -101,11 +101,22 @@ jobs:
 
       # Windows 빌드 + MSIX 생성 (자체 서명 - 기본)
       - name: Create MSIX (self-signed)
-        if: inputs.certificate_sign != true
+        if: github.event_name != 'workflow_dispatch' || inputs.certificate_sign != true
         run: >
           dart run msix:create
           --install-certificate false
           --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }} --build-number=${{ github.run_number }}"
+
+      # MSIX 파일 생성 확인
+      - name: Verify MSIX file exists
+        shell: powershell
+        run: |
+          $msixPath = "build/windows/x64/runner/Release/CoTalk.msix"
+          if (-not (Test-Path $msixPath)) {
+            Write-Error "MSIX file not found: $msixPath"
+            exit 1
+          }
+          Write-Host "MSIX file verified: $msixPath"
 
       - name: Get version
         id: version
@@ -114,25 +125,63 @@ jobs:
           VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # 빌드 결과물 업로드 (glob 패턴으로 대소문자 무관하게 탐색)
-      - name: Find MSIX file
-        id: msix
+      # 배포 패키지 생성 (MSIX + 설치 스크립트)
+      - name: Create distribution package
         shell: powershell
         run: |
-          $msix = Get-ChildItem -Path "build\windows" -Recurse -Filter "CoTalk.msix" | Select-Object -First 1
-          if ($msix) {
-            echo "path=$($msix.FullName)" >> $env:GITHUB_OUTPUT
-            echo "Found MSIX at: $($msix.FullName)"
-          } else {
-            echo "::error::MSIX file not found"
+          $ErrorActionPreference = "Stop"
+          $distDir = "dist/CoTalk-Windows"
+          New-Item -ItemType Directory -Path $distDir -Force | Out-Null
+          
+          # MSIX 파일 복사
+          $msixPath = "build/windows/x64/runner/Release/CoTalk.msix"
+          if (-not (Test-Path $msixPath)) {
+            Write-Error "MSIX file not found: $msixPath"
             exit 1
           }
+          Copy-Item $msixPath -Destination $distDir
+          Write-Host "MSIX copied"
+          
+          # Installer scripts (use Get-ChildItem to avoid encoding issues with non-ASCII filenames)
+          $installerDir = "installer"
+          Copy-Item -LiteralPath (Join-Path $installerDir "install.ps1") -Destination $distDir
+          Write-Host "Installer script copied: install.ps1"
+          Get-ChildItem -Path $installerDir -Filter "*.bat" -File | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $distDir
+            Write-Host "Installer script copied: $($_.Name)"
+          }
+          
+          # README (ASCII only to avoid runner encoding issues)
+          $readme = @"
+          # Co-Talk v${{ steps.version.outputs.version }} - Windows Install Guide
+          
+          ## How to install
+          
+          1. Double-click the installation .bat file in this folder.
+          2. Click 'Yes' when prompted for administrator permission.
+          3. After installation, search for 'Co-Talk' in the Start menu to run.
+          
+          ## How to uninstall
+          
+          1. Double-click the uninstall .bat file in this folder.
+          2. Click 'Yes' when prompted for administrator permission.
+          
+          ## System requirements
+          
+          - Windows 10 version 1809 (build 17763) or later
+          - x64 architecture
+          "@
+          $readme | Out-File -FilePath "$distDir/README.txt" -Encoding UTF8
+          
+          # ZIP 압축
+          Compress-Archive -Path "$distDir/*" -DestinationPath "dist/CoTalk-Windows-v${{ steps.version.outputs.version }}.zip"
 
+      # 빌드 결과물 업로드
       - name: Upload MSIX artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CoTalk-Windows-v${{ steps.version.outputs.version }}-${{ github.run_number }}
-          path: ${{ steps.msix.outputs.path }}
+          name: CoTalk-Windows-v${{ steps.version.outputs.version }}
+          path: dist/CoTalk-Windows-v${{ steps.version.outputs.version }}.zip
           retention-days: 30
 
   # ===========================================
@@ -156,10 +205,10 @@ jobs:
           VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download MSIX artifact
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: CoTalk-Windows-v${{ steps.version.outputs.version }}-${{ github.run_number }}
+          name: CoTalk-Windows-v${{ steps.version.outputs.version }}
           path: ./release
 
       - name: Create GitHub Release
@@ -175,12 +224,21 @@ jobs:
             - Commit: ${{ github.sha }}
 
             ### 설치 방법
-            1. `CoTalk.msix` 파일을 다운로드합니다
-            2. 더블클릭하여 설치합니다
-            3. 자체 서명 인증서 설치를 허용합니다
+            1. `CoTalk-Windows-v${{ steps.version.outputs.version }}.zip` 파일을 다운로드합니다
+            2. ZIP 파일 압축을 해제합니다
+            3. **`Co-Talk 설치.bat`** 파일을 더블클릭합니다
+            4. 관리자 권한 요청 창이 나타나면 '예'를 클릭합니다
+            5. 시작 메뉴에서 'Co-Talk'을 검색하여 실행합니다
+
+            ### 포함된 파일
+            - `CoTalk.msix` - 앱 패키지
+            - `Co-Talk 설치.bat` - 설치 스크립트 (이것만 실행하면 됩니다!)
+            - `Co-Talk 제거.bat` - 제거 스크립트
+            - `README.txt` - 설치 가이드
 
             ### 요구 사항
             - Windows 10 버전 1809 이상
-          files: ./release/CoTalk.msix
+            - x64 아키텍처
+          files: ./release/CoTalk-Windows-v${{ steps.version.outputs.version }}.zip
           draft: true
           generate_release_notes: true
