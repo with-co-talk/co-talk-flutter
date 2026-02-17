@@ -8,9 +8,11 @@ import '../../../core/network/websocket_service.dart';
 import '../../../core/services/active_room_tracker.dart';
 import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
+import '../../../domain/entities/chat_room.dart';
 import '../../../domain/entities/message.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import '../../../domain/repositories/friend_repository.dart';
+import '../../../domain/repositories/settings_repository.dart';
 import 'chat_room_event.dart';
 import 'chat_room_state.dart';
 import 'managers/managers.dart';
@@ -25,6 +27,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   final DesktopNotificationBridge _desktopNotificationBridge;
   final ActiveRoomTracker _activeRoomTracker;
   final FriendRepository _friendRepository;
+  final SettingsRepository _settingsRepository;
 
   // Managers
   late final WebSocketSubscriptionManager _subscriptionManager;
@@ -38,6 +41,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
   // WebSocket reconnection subscription for gap recovery
   StreamSubscription<void>? _reconnectedSubscription;
+
+  // Typing indicator auto-timeout timers (5s per user)
+  final Map<int, Timer> _typingTimeoutTimers = {};
 
   // Pending message timeout timer
   Timer? _pendingTimeoutTimer;
@@ -56,6 +62,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     this._desktopNotificationBridge,
     this._activeRoomTracker,
     this._friendRepository,
+    this._settingsRepository,
   ) : super(const ChatRoomState()) {
     // Initialize managers
     _subscriptionManager = WebSocketSubscriptionManager(_webSocketService);
@@ -131,6 +138,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _log('Failed to fetch blocked users: $e');
     }
 
+    // Load typing indicator setting
+    bool showTypingIndicator = false;
+    try {
+      final chatSettings = await _settingsRepository.getChatSettings();
+      showTypingIndicator = chatSettings.showTypingIndicator;
+    } catch (e) {
+      _log('Failed to load chat settings: $e');
+    }
+
     // Set active room for notification suppression
     _desktopNotificationBridge.setActiveRoomId(event.roomId);
     _activeRoomTracker.activeRoomId = event.roomId;
@@ -142,6 +158,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       messages: [],
       isOfflineData: false,
       blockedUserIds: blockedUserIds,
+      showTypingIndicator: showTypingIndicator,
     ));
 
     // 1. Load cached messages first (fast initial display)
@@ -160,11 +177,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       bool isOtherUserLeft = false;
       int? otherUserId;
       String? otherUserNickname;
+      String? roomName;
+      ChatRoomType? roomType;
       try {
         final chatRoom = await _chatRepository.getChatRoom(event.roomId);
         isOtherUserLeft = chatRoom.isOtherUserLeft;
         otherUserId = chatRoom.otherUserId;
         otherUserNickname = chatRoom.otherUserNickname;
+        roomName = chatRoom.name;
+        roomType = chatRoom.type;
       } catch (e) {
         _log('getChatRoom failed: $e');
       }
@@ -191,6 +212,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         isOtherUserLeft: isOtherUserLeft,
         otherUserId: otherUserId,
         otherUserNickname: otherUserNickname,
+        roomName: roomName,
+        roomType: roomType,
         isOfflineData: false,
       ));
 
@@ -353,6 +376,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _reconnectedSubscription = null;
     _presenceManager.dispose();
     _stopPendingTimeoutChecker();
+    // Clean up typing timeout timers
+    for (final timer in _typingTimeoutTimers.values) {
+      timer.cancel();
+    }
+    _typingTimeoutTimers.clear();
     _roomInitialized = false;
     _pendingForegrounded = false;
 
@@ -588,6 +616,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _markAsReadDebounceTimer?.cancel();
     _markAsReadRetryTimer?.cancel();
     _reconnectedSubscription?.cancel();
+    for (final timer in _typingTimeoutTimers.values) {
+      timer.cancel();
+    }
+    _typingTimeoutTimers.clear();
     if (state.roomId != null && _subscriptionManager.isRoomSubscribed) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
@@ -957,12 +989,29 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     TypingStatusChanged event,
     Emitter<ChatRoomState> emit,
   ) {
+    // 입력중 표시 설정이 꺼져 있으면 무시
+    if (!state.showTypingIndicator) return;
+
     final updatedTypingUsers = Map<int, String>.from(state.typingUsers);
+
+    // 기존 타이머 취소
+    _typingTimeoutTimers[event.userId]?.cancel();
 
     if (event.isTyping) {
       updatedTypingUsers[event.userId] = event.userNickname ?? '상대방';
+      // 5초 자동 타임아웃: 서버 의존 없이 자동 해제
+      _typingTimeoutTimers[event.userId] = Timer(const Duration(seconds: 5), () {
+        if (!isClosed) {
+          add(TypingStatusChanged(
+            userId: event.userId,
+            userNickname: event.userNickname,
+            isTyping: false,
+          ));
+        }
+      });
     } else {
       updatedTypingUsers.remove(event.userId);
+      _typingTimeoutTimers.remove(event.userId);
     }
 
     emit(state.copyWith(typingUsers: updatedTypingUsers));
@@ -973,6 +1022,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
+    // 입력중 표시 설정이 꺼져 있으면 타이핑 상태를 전송하지 않음
+    if (!state.showTypingIndicator) return;
 
     _presenceManager.handleUserStartedTyping(
       roomId: state.roomId!,
@@ -988,6 +1039,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
+    if (!state.showTypingIndicator) return;
 
     _presenceManager.handleUserStoppedTyping(
       roomId: state.roomId!,

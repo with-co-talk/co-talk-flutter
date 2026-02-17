@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -42,16 +44,19 @@ class MessageInput extends StatefulWidget {
 class _MessageInputState extends State<MessageInput> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _isPasteHandling = false;
+  bool _showEmojiPicker = false;
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onTextChanged);
+    widget.focusNode.addListener(_onFocusChanged);
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_onTextChanged);
+    widget.focusNode.removeListener(_onFocusChanged);
     super.dispose();
   }
 
@@ -59,11 +64,69 @@ class _MessageInputState extends State<MessageInput> {
     setState(() {});
   }
 
+  void _onFocusChanged() {
+    // 키보드가 올라오면 이모지 피커 닫기
+    if (widget.focusNode.hasFocus && _showEmojiPicker) {
+      setState(() {
+        _showEmojiPicker = false;
+      });
+    }
+  }
+
+  void _toggleEmojiPicker() {
+    if (_showEmojiPicker) {
+      // 이모지 피커 닫기 → 키보드 열기
+      setState(() {
+        _showEmojiPicker = false;
+      });
+      widget.focusNode.requestFocus();
+    } else {
+      // 키보드 닫기 → 이모지 피커 열기
+      widget.focusNode.unfocus();
+      setState(() {
+        _showEmojiPicker = true;
+      });
+    }
+  }
+
+  void _onEmojiSelected(Category? category, Emoji emoji) {
+    final text = widget.controller.text;
+    final selection = widget.controller.selection;
+    final cursorPos = selection.baseOffset >= 0 ? selection.baseOffset : text.length;
+    final newText = text.substring(0, cursorPos) + emoji.emoji + text.substring(cursorPos);
+    final newCursorPos = cursorPos + emoji.emoji.length;
+    widget.controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursorPos),
+    );
+    widget.onChanged?.call();
+  }
+
+  void _onBackspacePressed() {
+    final text = widget.controller.text;
+    final selection = widget.controller.selection;
+    final cursorPos = selection.baseOffset;
+
+    if (cursorPos > 0) {
+      final newText = text.substring(0, cursorPos - 1) + text.substring(cursorPos);
+      widget.controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: cursorPos - 1),
+      );
+    }
+  }
+
   bool get _hasText => widget.controller.text.trim().isNotEmpty;
 
   void _handleSend() {
     if (_hasText) {
       widget.onSend();
+      // 전송 후 이모지 피커 닫기
+      if (_showEmojiPicker) {
+        setState(() {
+          _showEmojiPicker = false;
+        });
+      }
     }
   }
 
@@ -364,6 +427,9 @@ class _MessageInputState extends State<MessageInput> {
     }
   }
 
+  /// 이모지 피커가 모바일에서만 표시되는지 확인
+  bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ChatRoomBloc, ChatRoomState>(
@@ -577,6 +643,20 @@ class _MessageInputState extends State<MessageInput> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                  // 이모지 버튼 (모바일만)
+                  if (_isMobile)
+                    IconButton(
+                      icon: Icon(
+                        _showEmojiPicker
+                            ? Icons.keyboard_outlined
+                            : Icons.emoji_emotions_outlined,
+                        color: _showEmojiPicker
+                            ? AppColors.primary
+                            : context.textSecondaryColor,
+                      ),
+                      onPressed: _toggleEmojiPicker,
+                      tooltip: _showEmojiPicker ? '키보드' : '이모지',
+                    ),
                   IconButton(
                     icon: Icon(
                       Icons.add_circle_outline,
@@ -686,6 +766,34 @@ class _MessageInputState extends State<MessageInput> {
                     ],
                   ),
                 ),
+                // 이모지 피커
+                if (_showEmojiPicker)
+                  SizedBox(
+                    height: 260,
+                    child: EmojiPicker(
+                      onEmojiSelected: _onEmojiSelected,
+                      onBackspacePressed: _onBackspacePressed,
+                      config: Config(
+                        emojiViewConfig: EmojiViewConfig(
+                          columns: 8,
+                          emojiSizeMax: 28 * (Platform.isIOS ? 1.20 : 1.0),
+                          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                        ),
+                        categoryViewConfig: CategoryViewConfig(
+                          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                          indicatorColor: AppColors.primary,
+                          iconColorSelected: AppColors.primary,
+                        ),
+                        bottomActionBarConfig: const BottomActionBarConfig(
+                          enabled: false,
+                        ),
+                        searchViewConfig: SearchViewConfig(
+                          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                          hintText: '이모지 검색',
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
