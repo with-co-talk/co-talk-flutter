@@ -6,10 +6,13 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/active_room_tracker.dart';
 import '../../../core/services/notification_click_handler.dart';
 import '../../../core/window/window_focus_tracker.dart';
 import '../../../core/network/websocket_service.dart';
 import '../../../domain/repositories/chat_repository.dart';
+import '../../blocs/app/app_lock_cubit.dart';
+import '../../blocs/app/app_lock_state.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_room_bloc.dart';
@@ -139,7 +142,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
         });
         _focusTimer?.cancel();
         _focusTimer = Timer(const Duration(milliseconds: 100), () {
-          if (mounted && !_messageFocusNode.hasFocus) {
+          if (mounted && !_messageFocusNode.hasFocus && !_isAppLocked()) {
             _messageFocusNode.requestFocus();
           }
         });
@@ -151,7 +154,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
         }
         _focusTimer?.cancel();
         _focusTimer = Timer(const Duration(milliseconds: 300), () {
-          if (mounted && !_messageFocusNode.hasFocus) {
+          if (mounted && !_messageFocusNode.hasFocus && !_isAppLocked()) {
             _messageFocusNode.requestFocus();
           }
         });
@@ -276,6 +279,13 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     _messageController.dispose();
     _messageFocusNode.dispose();
     _scrollController.dispose();
+
+    // ActiveRoomTracker를 동기적으로 즉시 해제 (FCM 알림 suppress 방지)
+    try {
+      final activeRoomTracker = GetIt.instance<ActiveRoomTracker>();
+      activeRoomTracker.activeRoomId = null;
+    } catch (_) {}
+
     if (!_chatRoomBloc.isClosed) {
       _chatRoomBloc.add(const ChatRoomClosed());
     }
@@ -305,6 +315,16 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
           _unreadWhileScrolled = 0; // Reset unread count when at bottom
         }
       });
+    }
+  }
+
+  /// 앱이 잠금 상태인지 확인 (생체 인증 잠금 중이면 focus 요청 차단)
+  bool _isAppLocked() {
+    try {
+      final lockState = context.read<AppLockCubit>().state;
+      return lockState.status != AppLockStatus.unlocked;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -481,12 +501,21 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
               context.go(AppRoutes.chatList);
             },
           ),
-          title: const Text(
-            '채팅',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-            ),
+          title: BlocBuilder<ChatRoomBloc, ChatRoomState>(
+            buildWhen: (previous, current) =>
+                previous.otherUserNickname != current.otherUserNickname ||
+                previous.roomName != current.roomName ||
+                previous.roomType != current.roomType,
+            builder: (context, state) {
+              return Text(
+                state.displayTitle,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                ),
+                overflow: TextOverflow.ellipsis,
+              );
+            },
           ),
           actions: [
             if (!_isSearchMode) ...[
@@ -513,13 +542,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
             // Auto-scroll on new messages
             BlocListener<ChatRoomBloc, ChatRoomState>(
               listenWhen: (previous, current) {
-                if (previous.messages.length == current.messages.length) {
+                if (current.messages.isEmpty || previous.messages.isEmpty) {
                   return false;
                 }
-                if (previous.messages.isEmpty) {
+                // Skip loadMore completions (old messages added at the end)
+                if (previous.isLoadingMore && !current.isLoadingMore) {
                   return false;
                 }
-                return true;
+                // Only fire when the NEWEST message changed (new message arrived)
+                return current.messages.first.id != previous.messages.first.id;
               },
               listener: (context, state) {
                 if (_scrollController.hasClients) {
@@ -529,7 +560,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                       _scrollToBottom();
                     });
                   } else if (_showScrollFab) {
-                    // User is scrolled up, increment unread count
+                    // User is scrolled up, show new message indicator
                     setState(() {
                       _unreadWhileScrolled++;
                     });

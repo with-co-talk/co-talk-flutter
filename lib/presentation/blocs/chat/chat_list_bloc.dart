@@ -328,7 +328,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     ChatRoomExited event,
     Emitter<ChatListState> emit,
   ) {
-    _log('_onChatRoomExited: previous roomId=$_currentlyOpenRoomId');
+    _log('_onChatRoomExited: clearing currentlyOpenRoomId (was: $_currentlyOpenRoomId)');
     _currentlyOpenRoomId = null;
   }
 

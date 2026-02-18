@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,9 +9,11 @@ import '../../../core/network/websocket_service.dart';
 import '../../../core/services/active_room_tracker.dart';
 import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
+import '../../../domain/entities/chat_room.dart';
 import '../../../domain/entities/message.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import '../../../domain/repositories/friend_repository.dart';
+import '../../../domain/repositories/settings_repository.dart';
 import 'chat_room_event.dart';
 import 'chat_room_state.dart';
 import 'managers/managers.dart';
@@ -25,6 +28,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   final DesktopNotificationBridge _desktopNotificationBridge;
   final ActiveRoomTracker _activeRoomTracker;
   final FriendRepository _friendRepository;
+  final SettingsRepository _settingsRepository;
 
   // Managers
   late final WebSocketSubscriptionManager _subscriptionManager;
@@ -38,6 +42,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
   // WebSocket reconnection subscription for gap recovery
   StreamSubscription<void>? _reconnectedSubscription;
+
+  // Typing indicator auto-timeout timers (5s per user)
+  final Map<int, Timer> _typingTimeoutTimers = {};
 
   // Pending message timeout timer
   Timer? _pendingTimeoutTimer;
@@ -56,6 +63,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     this._desktopNotificationBridge,
     this._activeRoomTracker,
     this._friendRepository,
+    this._settingsRepository,
   ) : super(const ChatRoomState()) {
     // Initialize managers
     _subscriptionManager = WebSocketSubscriptionManager(_webSocketService);
@@ -131,6 +139,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _log('Failed to fetch blocked users: $e');
     }
 
+    // Load typing indicator setting
+    bool showTypingIndicator = false;
+    try {
+      final chatSettings = await _settingsRepository.getChatSettings();
+      showTypingIndicator = chatSettings.showTypingIndicator;
+    } catch (e) {
+      _log('Failed to load chat settings: $e');
+    }
+
     // Set active room for notification suppression
     _desktopNotificationBridge.setActiveRoomId(event.roomId);
     _activeRoomTracker.activeRoomId = event.roomId;
@@ -142,6 +159,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       messages: [],
       isOfflineData: false,
       blockedUserIds: blockedUserIds,
+      showTypingIndicator: showTypingIndicator,
     ));
 
     // 1. Load cached messages first (fast initial display)
@@ -160,11 +178,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       bool isOtherUserLeft = false;
       int? otherUserId;
       String? otherUserNickname;
+      String? roomName;
+      ChatRoomType? roomType;
       try {
         final chatRoom = await _chatRepository.getChatRoom(event.roomId);
         isOtherUserLeft = chatRoom.isOtherUserLeft;
         otherUserId = chatRoom.otherUserId;
         otherUserNickname = chatRoom.otherUserNickname;
+        roomName = chatRoom.name;
+        roomType = chatRoom.type;
       } catch (e) {
         _log('getChatRoom failed: $e');
       }
@@ -191,6 +213,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         isOtherUserLeft: isOtherUserLeft,
         otherUserId: otherUserId,
         otherUserNickname: otherUserNickname,
+        roomName: roomName,
+        roomType: roomType,
         isOfflineData: false,
       ));
 
@@ -346,19 +370,32 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomClosed event,
     Emitter<ChatRoomState> emit,
   ) {
+    _log('_onClosed: roomId=${state.roomId}, cleaning up resources');
+
     if (state.roomId != null) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
     _reconnectedSubscription?.cancel();
     _reconnectedSubscription = null;
+    // Send presenceInactive to server before disposing (so server stops suppressing push)
+    // Guard: only send if not already sent by _onBackgrounded
+    if (state.roomId != null && state.currentUserId != null && _presenceManager.isViewingRoom) {
+      _presenceManager.sendPresenceInactive(state.roomId!, state.currentUserId!);
+    }
     _presenceManager.dispose();
     _stopPendingTimeoutChecker();
+    // Clean up typing timeout timers
+    for (final timer in _typingTimeoutTimers.values) {
+      timer.cancel();
+    }
+    _typingTimeoutTimers.clear();
     _roomInitialized = false;
     _pendingForegrounded = false;
 
     // Release notification suppression
     _desktopNotificationBridge.setActiveRoomId(null);
     _activeRoomTracker.activeRoomId = null;
+    _log('_onClosed: activeRoomId cleared for notification suppression');
 
     emit(const ChatRoomState());
   }
@@ -588,6 +625,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _markAsReadDebounceTimer?.cancel();
     _markAsReadRetryTimer?.cancel();
     _reconnectedSubscription?.cancel();
+    for (final timer in _typingTimeoutTimers.values) {
+      timer.cancel();
+    }
+    _typingTimeoutTimers.clear();
     if (state.roomId != null && _subscriptionManager.isRoomSubscribed) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
@@ -774,6 +815,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       );
       if (replaced) {
         _log('_onMessageReceived: Replaced pending message with real message (id=${event.message.id})');
+        // Update lastKnownMessageId to prevent drift-based filtering
+        _subscriptionManager.updateLastKnownMessageId(event.message.id);
         emit(state.copyWith(
           messages: _cacheManager.messages,
           isOfflineData: false,
@@ -784,6 +827,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     // 일반 메시지 추가
     _cacheManager.addMessage(event.message);
+    // Update lastKnownMessageId to prevent drift-based filtering
+    _subscriptionManager.updateLastKnownMessageId(event.message.id);
     _log('_onMessageReceived: Added message, total messages: ${_cacheManager.messages.length}');
 
     emit(state.copyWith(
@@ -939,12 +984,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Also update cache manager for consistency
     _cacheManager.updateMessages(updateMessageReadCount);
 
-    // 처리된 이벤트 기록
-    var newProcessedEvents = Set<String>.from(state.processedReadEvents)..add(eventKey);
+    // 처리된 이벤트 기록 (LinkedHashSet을 사용하여 삽입 순서 보장)
+    var newProcessedEvents = LinkedHashSet<String>.from(state.processedReadEvents)..add(eventKey);
     // Cap the set to prevent unbounded growth
     if (newProcessedEvents.length > 500) {
       // Keep only the most recent entries by taking the last 250
-      newProcessedEvents = newProcessedEvents.toList().sublist(newProcessedEvents.length - 250).toSet();
+      final eventsList = newProcessedEvents.toList();
+      newProcessedEvents = LinkedHashSet<String>.from(
+        eventsList.sublist(eventsList.length - 250),
+      );
     }
 
     emit(state.copyWith(
@@ -957,12 +1005,29 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     TypingStatusChanged event,
     Emitter<ChatRoomState> emit,
   ) {
+    // 입력중 표시 설정이 꺼져 있으면 무시
+    if (!state.showTypingIndicator) return;
+
     final updatedTypingUsers = Map<int, String>.from(state.typingUsers);
+
+    // 기존 타이머 취소
+    _typingTimeoutTimers[event.userId]?.cancel();
 
     if (event.isTyping) {
       updatedTypingUsers[event.userId] = event.userNickname ?? '상대방';
+      // 5초 자동 타임아웃: 서버 의존 없이 자동 해제
+      _typingTimeoutTimers[event.userId] = Timer(const Duration(seconds: 5), () {
+        if (!isClosed) {
+          add(TypingStatusChanged(
+            userId: event.userId,
+            userNickname: event.userNickname,
+            isTyping: false,
+          ));
+        }
+      });
     } else {
       updatedTypingUsers.remove(event.userId);
+      _typingTimeoutTimers.remove(event.userId);
     }
 
     emit(state.copyWith(typingUsers: updatedTypingUsers));
@@ -973,6 +1038,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
+    // 입력중 표시 설정이 꺼져 있으면 타이핑 상태를 전송하지 않음
+    if (!state.showTypingIndicator) return;
 
     _presenceManager.handleUserStartedTyping(
       roomId: state.roomId!,
@@ -988,6 +1055,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
+    if (!state.showTypingIndicator) return;
 
     _presenceManager.handleUserStoppedTyping(
       roomId: state.roomId!,

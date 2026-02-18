@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/services/biometric_service.dart';
 import '../../../data/datasources/local/security_settings_local_datasource.dart';
+import '../app/app_lock_cubit.dart';
 import 'biometric_settings_state.dart';
 
 /// 생체 인증 설정 Cubit
@@ -9,10 +10,12 @@ import 'biometric_settings_state.dart';
 class BiometricSettingsCubit extends Cubit<BiometricSettingsState> {
   final BiometricService _biometricService;
   final SecuritySettingsLocalDataSource _securitySettings;
+  final AppLockCubit _appLockCubit;
 
   BiometricSettingsCubit(
     this._biometricService,
     this._securitySettings,
+    this._appLockCubit,
   ) : super(const BiometricSettingsState());
 
   /// 초기 상태 로드
@@ -21,6 +24,8 @@ class BiometricSettingsCubit extends Cubit<BiometricSettingsState> {
     try {
       final isSupported = await _biometricService.isSupported();
       final isEnabled = await _securitySettings.isBiometricEnabled();
+      // AppLockCubit 캐시도 동기화
+      _appLockCubit.updateBiometricEnabledCache(isEnabled);
       emit(state.copyWith(
         isSupported: isSupported,
         isEnabled: isEnabled,
@@ -41,6 +46,7 @@ class BiometricSettingsCubit extends Cubit<BiometricSettingsState> {
     if (state.isEnabled) {
       // 비활성화
       await _securitySettings.setBiometricEnabled(false);
+      _appLockCubit.updateBiometricEnabledCache(false);
       emit(state.copyWith(isEnabled: false));
     } else {
       // 활성화 전 인증 확인
@@ -49,6 +55,7 @@ class BiometricSettingsCubit extends Cubit<BiometricSettingsState> {
       );
       if (authenticated) {
         await _securitySettings.setBiometricEnabled(true);
+        _appLockCubit.updateBiometricEnabledCache(true);
         emit(state.copyWith(isEnabled: true));
       }
     }

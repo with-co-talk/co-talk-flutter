@@ -15,7 +15,7 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
 
   /// 채팅 설정 로드
   Future<void> loadSettings() async {
-    emit(const ChatSettingsState.loading());
+    emit(state.copyWith(status: ChatSettingsStatus.loading));
     try {
       final settings = await _repository.getChatSettings();
       emit(ChatSettingsState.loaded(settings));
@@ -27,7 +27,9 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
 
   /// 글꼴 크기 변경 (0.8 ~ 1.4)
   Future<void> setFontSize(double size) async {
-    final clampedSize = size.clamp(0.8, 1.4);
+    // 부동소수점 정밀도 문제 방지: 소수점 1자리로 반올림
+    final rounded = (size * 10).roundToDouble() / 10;
+    final clampedSize = rounded.clamp(0.8, 1.4);
     await _updateSetting(state.settings.copyWith(fontSize: clampedSize));
   }
 
@@ -51,15 +53,31 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
     await _updateSetting(state.settings.copyWith(autoDownloadVideosOnMobile: value));
   }
 
+  /// 입력중 표시 설정
+  Future<void> setShowTypingIndicator(bool value) async {
+    await _updateSetting(state.settings.copyWith(showTypingIndicator: value));
+  }
+
   /// 캐시 삭제
   Future<void> clearCache() async {
-    emit(const ChatSettingsState.clearing());
+    emit(state.copyWith(status: ChatSettingsStatus.clearing));
     try {
       await _repository.clearCache();
-      emit(state.copyWith(status: ChatSettingsStatus.loaded));
+      emit(ChatSettingsState(
+        status: ChatSettingsStatus.loaded,
+        settings: state.settings,
+      ));
     } catch (e) {
-      emit(ChatSettingsState.error('캐시 삭제에 실패했습니다'));
-      emit(state.copyWith(status: ChatSettingsStatus.loaded));
+      final currentSettings = state.settings;
+      emit(ChatSettingsState(
+        status: ChatSettingsStatus.error,
+        settings: currentSettings,
+        errorMessage: '캐시 삭제에 실패했습니다',
+      ));
+      emit(ChatSettingsState(
+        status: ChatSettingsStatus.loaded,
+        settings: currentSettings,
+      ));
     }
   }
 

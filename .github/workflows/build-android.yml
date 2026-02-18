@@ -45,7 +45,6 @@ env:
   FLUTTER_VERSION: '3.32.2'
   JAVA_VERSION: '17'
 
-# 동일 브랜치에서 같은 워크플로우가 중복 실행되지 않도록, 새 실행 시 이전 실행 취소
 concurrency:
   group: build-android-${{ github.ref }}
   cancel-in-progress: true
@@ -56,27 +55,7 @@ jobs:
   # ===========================================
   test:
     name: Test & Analyze
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Run analyzer
-        run: flutter analyze --no-fatal-infos
-
-      - name: Run tests
-        run: flutter test
+    uses: ./.github/workflows/test.yml
 
   # ===========================================
   # 2단계: Android 빌드 + Google Play 업로드
@@ -86,6 +65,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      HAS_ANDROID_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+      HAS_PLAY_STORE_KEY: ${{ secrets.PLAY_STORE_KEY_JSON != '' }}
 
     steps:
       - name: Checkout repository
@@ -107,29 +90,25 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Android 서명 키 설정 (Secret이 설정된 경우에만)
+      # Android 서명 키 설정
       - name: Set up Android signing
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.HAS_ANDROID_SIGNING == 'true'
         run: |
           mkdir -p android/keystore
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/keystore/co-talk-release.jks
-          cat <<'EOF' > android/key.properties
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/keystore/co-talk-release.jks
+          cat <<'PROPS' > android/key.properties
           storePassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           keyAlias=co-talk
           storeFile=../keystore/co-talk-release.jks
-          EOF
+          PROPS
           sed -i 's/^ *//' android/key.properties
 
       # Firebase google-services.json 설정
       - name: Set up Firebase
-        if: env.GOOGLE_SERVICES_JSON != ''
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        if: env.HAS_GOOGLE_SERVICES == 'true'
         run: |
-          echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > android/app/google-services.json
 
       # 환경 결정
       - name: Determine build config
@@ -161,6 +140,7 @@ jobs:
         run: |
           flutter build appbundle \
             --release \
+            --build-number=${{ github.run_number }} \
             --dart-define=ENVIRONMENT=${{ steps.config.outputs.environment }}
 
       # APK 빌드
@@ -169,6 +149,7 @@ jobs:
         run: |
           flutter build apk \
             --release \
+            --build-number=${{ github.run_number }} \
             --dart-define=ENVIRONMENT=${{ steps.config.outputs.environment }}
 
       # 버전 정보 추출
@@ -183,7 +164,7 @@ jobs:
         if: steps.config.outputs.build_type == 'appbundle'
         uses: actions/upload-artifact@v4
         with:
-          name: CoTalk-Android-AAB-v${{ steps.version.outputs.version }}
+          name: CoTalk-Android-AAB-v${{ steps.version.outputs.version }}-${{ github.run_number }}
           path: build/app/outputs/bundle/release/app-release.aab
           retention-days: 30
 
@@ -192,27 +173,34 @@ jobs:
         if: steps.config.outputs.build_type == 'apk'
         uses: actions/upload-artifact@v4
         with:
-          name: CoTalk-Android-APK-v${{ steps.version.outputs.version }}
+          name: CoTalk-Android-APK-v${{ steps.version.outputs.version }}-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
 
       # Google Play 업로드 (Fastlane)
       - name: Set up Ruby
-        if: inputs.skip_upload != true && steps.config.outputs.build_type == 'appbundle'
+        if: |
+          env.HAS_PLAY_STORE_KEY == 'true' &&
+          steps.config.outputs.build_type == 'appbundle' &&
+          (github.event_name == 'push' || inputs.skip_upload != true)
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.1'
+          ruby-version: '3.3'
           bundler-cache: true
 
       - name: Set up Google Play credentials
-        if: inputs.skip_upload != true && steps.config.outputs.build_type == 'appbundle'
-        env:
-          PLAY_STORE_KEY_JSON: ${{ secrets.PLAY_STORE_KEY_JSON }}
+        if: |
+          env.HAS_PLAY_STORE_KEY == 'true' &&
+          steps.config.outputs.build_type == 'appbundle' &&
+          (github.event_name == 'push' || inputs.skip_upload != true)
         run: |
           mkdir -p fastlane/keys
-          echo "$PLAY_STORE_KEY_JSON" > fastlane/keys/play-store-key.json
+          echo "${{ secrets.PLAY_STORE_KEY_JSON }}" > fastlane/keys/play-store-key.json
 
       - name: Upload to Google Play
-        if: inputs.skip_upload != true && steps.config.outputs.build_type == 'appbundle'
+        if: |
+          env.HAS_PLAY_STORE_KEY == 'true' &&
+          steps.config.outputs.build_type == 'appbundle' &&
+          (github.event_name == 'push' || inputs.skip_upload != true)
         run: |
-          cd fastlane && bundle exec fastlane upload_android track:${{ steps.config.outputs.track }}
+          bundle exec fastlane upload_android track:${{ steps.config.outputs.track }}

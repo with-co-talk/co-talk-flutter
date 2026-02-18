@@ -10,6 +10,8 @@ import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_state.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_state.dart';
+import 'package:co_talk_flutter/domain/entities/chat_room.dart';
+import 'package:co_talk_flutter/domain/entities/chat_settings.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import '../mocks/mock_repositories.dart';
 import '../mocks/fake_entities.dart';
@@ -22,6 +24,7 @@ void main() {
     late MockDesktopNotificationBridge mockDesktopNotificationBridge;
     late MockActiveRoomTracker mockActiveRoomTracker;
     late MockFriendRepository mockFriendRepository;
+    late MockSettingsRepository mockSettingsRepository;
     late StreamController<WebSocketChatMessage> messageController;
     late StreamController<WebSocketReadEvent> readEventController;
     late StreamController<WebSocketChatRoomUpdateEvent> chatRoomUpdateController;
@@ -33,6 +36,7 @@ void main() {
       mockDesktopNotificationBridge = MockDesktopNotificationBridge();
       mockActiveRoomTracker = MockActiveRoomTracker();
       mockFriendRepository = MockFriendRepository();
+      mockSettingsRepository = MockSettingsRepository();
 
       messageController = StreamController<WebSocketChatMessage>.broadcast();
       readEventController = StreamController<WebSocketReadEvent>.broadcast();
@@ -64,6 +68,8 @@ void main() {
       when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
       when(() => mockActiveRoomTracker.activeRoomId = any()).thenReturn(null);
       when(() => mockFriendRepository.getBlockedUsers()).thenAnswer((_) async => []);
+      when(() => mockSettingsRepository.getChatSettings())
+          .thenAnswer((_) async => const ChatSettings());
 
       // ChatRoomBloc에서 구독하는 추가 WebSocket 스트림 mock
       when(() => mockWebSocketService.messageDeletedEvents).thenAnswer(
@@ -118,6 +124,7 @@ void main() {
           mockDesktopNotificationBridge,
           mockActiveRoomTracker,
           mockFriendRepository,
+          mockSettingsRepository,
         );
 
     ChatListBloc createChatListBloc() => ChatListBloc(
@@ -284,6 +291,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내 메시지 수신: unreadCount=1
           isA<ChatRoomState>()
