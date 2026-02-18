@@ -26,7 +26,10 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
   @override
   void initState() {
     super.initState();
-    context.read<ChatSettingsCubit>().loadSettings();
+    final cubit = context.read<ChatSettingsCubit>();
+    if (cubit.state.status == ChatSettingsStatus.initial) {
+      cubit.loadSettings();
+    }
   }
 
   @override

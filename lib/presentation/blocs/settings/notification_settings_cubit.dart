@@ -17,7 +17,7 @@ class NotificationSettingsCubit extends Cubit<NotificationSettingsState> {
 
   /// 알림 설정 로드
   Future<void> loadSettings() async {
-    emit(const NotificationSettingsState.loading());
+    emit(state.copyWith(status: NotificationSettingsStatus.loading));
     try {
       final settings = await _repository.getNotificationSettings();
       emit(NotificationSettingsState.loaded(settings));
@@ -85,7 +85,7 @@ class NotificationSettingsCubit extends Cubit<NotificationSettingsState> {
         settings: previousSettings,
         errorMessage: message,
       ));
-      emit(state.copyWith(
+      emit(NotificationSettingsState(
         status: NotificationSettingsStatus.loaded,
         settings: previousSettings,
       ));

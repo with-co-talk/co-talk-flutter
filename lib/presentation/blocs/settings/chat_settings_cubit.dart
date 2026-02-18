@@ -15,7 +15,7 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
 
   /// 채팅 설정 로드
   Future<void> loadSettings() async {
-    emit(const ChatSettingsState.loading());
+    emit(state.copyWith(status: ChatSettingsStatus.loading));
     try {
       final settings = await _repository.getChatSettings();
       emit(ChatSettingsState.loaded(settings));
@@ -60,13 +60,24 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
 
   /// 캐시 삭제
   Future<void> clearCache() async {
-    emit(const ChatSettingsState.clearing());
+    emit(state.copyWith(status: ChatSettingsStatus.clearing));
     try {
       await _repository.clearCache();
-      emit(state.copyWith(status: ChatSettingsStatus.loaded));
+      emit(ChatSettingsState(
+        status: ChatSettingsStatus.loaded,
+        settings: state.settings,
+      ));
     } catch (e) {
-      emit(ChatSettingsState.error('캐시 삭제에 실패했습니다'));
-      emit(state.copyWith(status: ChatSettingsStatus.loaded));
+      final currentSettings = state.settings;
+      emit(ChatSettingsState(
+        status: ChatSettingsStatus.error,
+        settings: currentSettings,
+        errorMessage: '캐시 삭제에 실패했습니다',
+      ));
+      emit(ChatSettingsState(
+        status: ChatSettingsStatus.loaded,
+        settings: currentSettings,
+      ));
     }
   }
 
