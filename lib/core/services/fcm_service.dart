@@ -90,8 +90,9 @@ class FcmServiceImpl implements FcmService {
   ///
   /// 1. 알림 권한 요청
   /// 2. 초기 FCM 토큰 발급
-  /// 3. 포그라운드 메시지 핸들러 설정
-  /// 4. 알림 탭 핸들러 설정 (백그라운드/종료 상태)
+  /// 3. iOS 포그라운드 알림 표시 옵션 설정
+  /// 4. 포그라운드 메시지 핸들러 설정
+  /// 5. 알림 탭 핸들러 설정 (백그라운드/종료 상태)
   @override
   Future<void> initialize() async {
     // 모바일 플랫폼에서만 동작
@@ -104,6 +105,16 @@ class FcmServiceImpl implements FcmService {
 
     // 초기 토큰 발급
     await getToken();
+
+    // iOS: 포그라운드에서 시스템 알림 표시를 비활성화하여
+    // onMessage 핸들러에서 로컬 알림으로 직접 표시
+    if (Platform.isIOS) {
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: false,
+        badge: false,
+        sound: false,
+      );
+    }
 
     // 포그라운드 메시지 핸들러 설정
     _setupForegroundMessageHandler();
@@ -184,6 +195,7 @@ class FcmServiceImpl implements FcmService {
   Future<void> _handleForegroundMessageAsync(RemoteMessage message) async {
     if (kDebugMode) {
       debugPrint('[FcmService] Foreground message received: ${message.messageId}');
+      debugPrint('[FcmService] notification=${message.notification != null}, data=${message.data}');
     }
 
     // Suppress notification if the user is currently viewing this chat room
@@ -207,8 +219,18 @@ class FcmServiceImpl implements FcmService {
       debugPrint('[FcmService] Displaying notification: not current room');
     }
 
+    // notification 필드와 data 필드에서 제목/본문 추출
+    // 일부 기기/OS 버전에서 포그라운드 수신 시 notification이 null일 수 있으므로
+    // data 필드를 폴백으로 사용
     final notification = message.notification;
-    if (notification == null) {
+    final String rawTitle = notification?.title ?? message.data['title'] ?? '';
+    final String rawBody = notification?.body ?? message.data['body'] ?? '';
+
+    // notification도 null이고 data에도 제목/본문이 없으면 표시할 내용이 없음
+    if (rawTitle.isEmpty && rawBody.isEmpty && notification == null) {
+      if (kDebugMode) {
+        debugPrint('[FcmService] No notification content to display, skipping');
+      }
       return;
     }
 
@@ -226,10 +248,10 @@ class FcmServiceImpl implements FcmService {
     String body;
     switch (previewMode) {
       case NotificationPreviewMode.nameAndMessage:
-        title = notification.title ?? '새 메시지';
-        body = notification.body ?? '';
+        title = rawTitle.isNotEmpty ? rawTitle : '새 메시지';
+        body = rawBody;
       case NotificationPreviewMode.nameOnly:
-        title = notification.title ?? '새 메시지';
+        title = rawTitle.isNotEmpty ? rawTitle : '새 메시지';
         body = '새 메시지';
       case NotificationPreviewMode.nothing:
         title = '새 메시지';

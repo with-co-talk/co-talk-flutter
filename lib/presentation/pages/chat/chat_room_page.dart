@@ -11,6 +11,8 @@ import '../../../core/services/notification_click_handler.dart';
 import '../../../core/window/window_focus_tracker.dart';
 import '../../../core/network/websocket_service.dart';
 import '../../../domain/repositories/chat_repository.dart';
+import '../../blocs/app/app_lock_cubit.dart';
+import '../../blocs/app/app_lock_state.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_room_bloc.dart';
@@ -140,7 +142,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
         });
         _focusTimer?.cancel();
         _focusTimer = Timer(const Duration(milliseconds: 100), () {
-          if (mounted && !_messageFocusNode.hasFocus) {
+          if (mounted && !_messageFocusNode.hasFocus && !_isAppLocked()) {
             _messageFocusNode.requestFocus();
           }
         });
@@ -152,7 +154,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
         }
         _focusTimer?.cancel();
         _focusTimer = Timer(const Duration(milliseconds: 300), () {
-          if (mounted && !_messageFocusNode.hasFocus) {
+          if (mounted && !_messageFocusNode.hasFocus && !_isAppLocked()) {
             _messageFocusNode.requestFocus();
           }
         });
@@ -313,6 +315,16 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
           _unreadWhileScrolled = 0; // Reset unread count when at bottom
         }
       });
+    }
+  }
+
+  /// 앱이 잠금 상태인지 확인 (생체 인증 잠금 중이면 focus 요청 차단)
+  bool _isAppLocked() {
+    try {
+      final lockState = context.read<AppLockCubit>().state;
+      return lockState.status != AppLockStatus.unlocked;
+    } catch (_) {
+      return false;
     }
   }
 

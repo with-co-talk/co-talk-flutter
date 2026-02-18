@@ -143,12 +143,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i552.AuthInterceptor>(
       () => _i552.AuthInterceptor(gh<_i860.AuthLocalDataSource>()),
     );
-    gh.factory<_i884.BiometricSettingsCubit>(
-      () => _i884.BiometricSettingsCubit(
-        gh<_i379.BiometricService>(),
-        gh<_i171.SecuritySettingsLocalDataSource>(),
-      ),
-    );
     gh.lazySingleton<_i232.AppLockCubit>(
       () => _i232.AppLockCubit(
         gh<_i379.BiometricService>(),
@@ -203,6 +197,13 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i397.ChatRemoteDataSourceImpl(
         gh<_i393.DioClient>(),
         gh<_i860.AuthLocalDataSource>(),
+      ),
+    );
+    gh.factory<_i884.BiometricSettingsCubit>(
+      () => _i884.BiometricSettingsCubit(
+        gh<_i379.BiometricService>(),
+        gh<_i171.SecuritySettingsLocalDataSource>(),
+        gh<_i232.AppLockCubit>(),
       ),
     );
     gh.lazySingleton<_i708.NotificationRemoteDataSource>(
