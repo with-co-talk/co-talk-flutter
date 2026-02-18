@@ -95,6 +95,23 @@ class Message extends Equatable {
     return content;
   }
 
+  /// 답장 프리뷰용 텍스트 (이미지/파일 등 비텍스트 메시지 대응)
+  String get replyPreviewText {
+    if (isDeleted) return '삭제된 메시지';
+    if (content.isNotEmpty) return content;
+    switch (type) {
+      case MessageType.image:
+        return '사진';
+      case MessageType.file:
+        if (fileContentType?.startsWith('video/') == true) return '동영상';
+        return fileName ?? '파일';
+      case MessageType.system:
+        return '시스템 메시지';
+      case MessageType.text:
+        return content;
+    }
+  }
+
   Message copyWith({
     int? id,
     int? chatRoomId,

@@ -614,16 +614,36 @@ class _MessageInputState extends State<MessageInput> {
                                   color: AppColors.primary,
                                 ),
                               ),
-                              Text(
-                                widget.replyToMessage!.isDeleted
-                                    ? '삭제된 메시지'
-                                    : widget.replyToMessage!.content,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: context.textSecondaryColor,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (widget.replyToMessage!.type == MessageType.image)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 4),
+                                      child: Icon(Icons.image, size: 14, color: context.textSecondaryColor),
+                                    )
+                                  else if (widget.replyToMessage!.fileContentType?.startsWith('video/') == true)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 4),
+                                      child: Icon(Icons.videocam, size: 14, color: context.textSecondaryColor),
+                                    )
+                                  else if (widget.replyToMessage!.type == MessageType.file)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 4),
+                                      child: Icon(Icons.attach_file, size: 14, color: context.textSecondaryColor),
+                                    ),
+                                  Flexible(
+                                    child: Text(
+                                      widget.replyToMessage!.replyPreviewText,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: context.textSecondaryColor,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

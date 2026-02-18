@@ -21,6 +21,7 @@ import '../../../widgets/link_preview_card.dart';
 import '../../../widgets/link_preview_loader.dart';
 import '../../../widgets/reaction_display.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'photo_swipe_viewer.dart';
 import 'video_player_page.dart';
 
 /// A message bubble widget that displays different types of messages.
@@ -50,10 +51,13 @@ class MessageBubble extends StatelessWidget {
             .where((m) => m.id == message.replyToMessageId)
             .firstOrNull;
 
-    final previewText = replyMsg?.isDeleted == true
-        ? '삭제된 메시지'
-        : (replyMsg?.content ?? '원본 메시지를 찾을 수 없습니다');
+    final previewText = replyMsg != null
+        ? replyMsg.replyPreviewText
+        : '원본 메시지를 찾을 수 없습니다';
     final senderName = replyMsg?.senderNickname ?? '알 수 없음';
+    final isImageReply = replyMsg?.type == MessageType.image;
+    final isFileReply = replyMsg?.type == MessageType.file;
+    final isVideoReply = replyMsg?.fileContentType?.startsWith('video/') == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -85,16 +89,38 @@ class MessageBubble extends StatelessWidget {
               color: isMe ? Colors.white.withValues(alpha: 0.9) : AppColors.primary,
             ),
           ),
-          Text(
-            previewText,
-            style: TextStyle(
-              fontSize: 12,
-              color: isMe
-                  ? Colors.white.withValues(alpha: 0.7)
-                  : context.textSecondaryColor,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isImageReply || isVideoReply || isFileReply)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    isImageReply
+                        ? Icons.image
+                        : isVideoReply
+                            ? Icons.videocam
+                            : Icons.attach_file,
+                    size: 14,
+                    color: isMe
+                        ? Colors.white.withValues(alpha: 0.7)
+                        : context.textSecondaryColor,
+                  ),
+                ),
+              Flexible(
+                child: Text(
+                  previewText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isMe
+                        ? Colors.white.withValues(alpha: 0.7)
+                        : context.textSecondaryColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -324,81 +350,28 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
-  /// Shows image options bottom sheet (fullscreen, save to gallery, delete)
-  void _showImageOptions(BuildContext context, String imageUrl) {
-    final canDelete = isMe && !message.isDeleted && !_isEditTimeExpired;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        decoration: BoxDecoration(
-          color: context.surfaceColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: context.dividerColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.fullscreen_rounded),
-                title: const Text('전체 화면 보기'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _showFullScreenImage(context, imageUrl);
-                },
-              ),
-              if (!kIsWeb)
-                ListTile(
-                  leading: const Icon(Icons.download_rounded),
-                  title: const Text('갤러리에 저장'),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    _saveImageToGallery(context, imageUrl);
-                  },
-                ),
-              if (canDelete)
-                ListTile(
-                  leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    _showDeleteConfirmDialog(context);
-                  },
-                ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows fullscreen image viewer with drag-to-dismiss (KakaoTalk style)
+  /// Shows fullscreen image viewer with swipe navigation
   void _showFullScreenImage(BuildContext context, String imageUrl) {
+    final messages = context.read<ChatRoomBloc>().state.messages;
+    final imageMessages = messages
+        .where((m) => m.type == MessageType.image && m.fileUrl != null && !m.isDeleted)
+        .toList()
+        .reversed
+        .toList();
+    final imageUrls = imageMessages.map((m) => m.fileUrl!).toList();
+    final initialIndex = imageUrls.indexOf(imageUrl).clamp(0, imageUrls.isEmpty ? 0 : imageUrls.length - 1);
+
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black,
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return _DismissibleImageViewer(
-            imageUrl: imageUrl,
-            onSaveToGallery: kIsWeb ? null : () => _saveImageToGallery(context, imageUrl),
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
+        pageBuilder: (_, __, ___) => PhotoSwipeViewer(
+          imageUrls: imageUrls,
+          initialIndex: initialIndex,
+          onSaveToGallery: kIsWeb ? null : (i) => () => _saveImageToGallery(context, imageUrls[i]),
+        ),
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }
@@ -586,8 +559,10 @@ class MessageBubble extends StatelessWidget {
   void _showUnifiedMessageSheet(BuildContext context) {
     if (message.isDeleted) return;
 
-    final canEdit = isMe && !_isEditTimeExpired;
+    final canEdit = isMe && !_isEditTimeExpired && message.type == MessageType.text;
     final canDelete = isMe && !_isEditTimeExpired;
+    final isMediaMessage = message.type == MessageType.image ||
+        (message.type == MessageType.file && message.fileContentType?.startsWith('video/') == true);
     final quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
     showModalBottomSheet(
@@ -666,6 +641,36 @@ class MessageBubble extends StatelessWidget {
               const SizedBox(height: 8),
               const Divider(),
               const SizedBox(height: 4),
+              // Image/video specific options
+              if (isMediaMessage && message.fileUrl != null)
+                ListTile(
+                  leading: const Icon(Icons.fullscreen_rounded),
+                  title: const Text('전체 화면 보기'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    if (message.type == MessageType.image) {
+                      _showFullScreenImage(context, message.fileUrl!);
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => VideoPlayerPage(
+                            videoUrl: message.fileUrl!,
+                            title: message.fileName,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              if (message.type == MessageType.image && message.fileUrl != null && !kIsWeb)
+                ListTile(
+                  leading: const Icon(Icons.download_rounded),
+                  title: const Text('갤러리에 저장'),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    _saveImageToGallery(context, message.fileUrl!);
+                  },
+                ),
               // Message options
               ListTile(
                 leading: const Icon(Icons.reply, color: AppColors.primary),
@@ -882,7 +887,6 @@ class MessageBubble extends StatelessWidget {
         isMe: isMe,
         autoDownloadEnabled: autoDownload,
         onTapFullScreen: () => _showFullScreenImage(context, imageUrl),
-        onLongPress: _showImageOptions,
       );
     }
     // Video message
@@ -1231,14 +1235,12 @@ class _AutoDownloadImageWidget extends StatefulWidget {
   final bool isMe;
   final bool autoDownloadEnabled;
   final VoidCallback onTapFullScreen;
-  final Function(BuildContext, String) onLongPress;
 
   const _AutoDownloadImageWidget({
     required this.imageUrl,
     required this.isMe,
     required this.autoDownloadEnabled,
     required this.onTapFullScreen,
-    required this.onLongPress,
   });
 
   @override
@@ -1299,7 +1301,6 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
 
     return GestureDetector(
       onTap: widget.onTapFullScreen,
-      onLongPress: () => widget.onLongPress(context, widget.imageUrl),
       child: ClipRRect(
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(18),
@@ -1337,135 +1338,6 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
                     style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
                   ),
                 ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 드래그로 닫을 수 있는 전체화면 이미지 뷰어 (카카오톡 스타일)
-class _DismissibleImageViewer extends StatefulWidget {
-  final String imageUrl;
-  final VoidCallback? onSaveToGallery;
-
-  const _DismissibleImageViewer({
-    required this.imageUrl,
-    this.onSaveToGallery,
-  });
-
-  @override
-  State<_DismissibleImageViewer> createState() => _DismissibleImageViewerState();
-}
-
-class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
-    with SingleTickerProviderStateMixin {
-  double _dragOffset = 0;
-  double _dragVelocity = 0;
-  late AnimationController _animationController;
-  late Animation<double> _animation;
-
-  static const double _dismissThreshold = 100;
-  static const double _velocityThreshold = 500;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _animation = Tween<double>(begin: 0, end: 0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
-    _animationController.addListener(() {
-      setState(() {
-        _dragOffset = _animation.value;
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _onVerticalDragUpdate(DragUpdateDetails details) {
-    setState(() {
-      _dragOffset += details.delta.dy;
-    });
-  }
-
-  void _onVerticalDragEnd(DragEndDetails details) {
-    _dragVelocity = details.velocity.pixelsPerSecond.dy;
-
-    final shouldDismiss = _dragOffset.abs() > _dismissThreshold ||
-        _dragVelocity.abs() > _velocityThreshold;
-
-    if (shouldDismiss) {
-      Navigator.of(context).pop();
-    } else {
-      // Snap back to center
-      _animation = Tween<double>(begin: _dragOffset, end: 0).animate(
-        CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-      );
-      _animationController.forward(from: 0);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final opacity = (1 - (_dragOffset.abs() / 300)).clamp(0.3, 1.0);
-    final scale = (1 - (_dragOffset.abs() / 1000)).clamp(0.8, 1.0);
-
-    return Scaffold(
-      backgroundColor: Colors.black.withValues(alpha: opacity),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        iconTheme: IconThemeData(color: Colors.white.withValues(alpha: opacity)),
-        elevation: 0,
-        actions: [
-          if (widget.onSaveToGallery != null)
-            IconButton(
-              icon: Icon(Icons.download_rounded,
-                  color: Colors.white.withValues(alpha: opacity)),
-              tooltip: '갤러리에 저장',
-              onPressed: widget.onSaveToGallery,
-            ),
-        ],
-      ),
-      extendBodyBehindAppBar: true,
-      body: GestureDetector(
-        onVerticalDragUpdate: _onVerticalDragUpdate,
-        onVerticalDragEnd: _onVerticalDragEnd,
-        onTap: () => Navigator.of(context).pop(),
-        child: Container(
-          color: Colors.transparent,
-          child: Center(
-            child: Transform.translate(
-              offset: Offset(0, _dragOffset),
-              child: Transform.scale(
-                scale: scale,
-                child: InteractiveViewer(
-                  panEnabled: true,
-                  minScale: 0.5,
-                  maxScale: 4,
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    fit: BoxFit.contain,
-                    placeholder: (context, url) => const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => const Center(
-                      child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
-                    ),
-                  ),
-                ),
               ),
             ),
           ),
