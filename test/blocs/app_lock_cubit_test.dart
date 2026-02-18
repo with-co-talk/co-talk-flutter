@@ -130,5 +130,34 @@ void main() {
         ],
       );
     });
+
+    group('biometric cache', () {
+      test('should use cached value on subsequent checkLockOnResume calls', () async {
+        when(() => mockSecuritySettings.isBiometricEnabled())
+            .thenAnswer((_) async => true);
+
+        // First call: reads from SecureStorage and caches
+        await cubit.checkLockOnResume();
+        expect(cubit.state.status, AppLockStatus.locked);
+        verify(() => mockSecuritySettings.isBiometricEnabled()).called(1);
+
+        // Second call on a new cubit instance: cache is preloaded
+        final cubit2 = AppLockCubit(mockBiometricService, mockSecuritySettings);
+        cubit2.updateBiometricEnabledCache(true);
+        await cubit2.checkLockOnResume();
+        expect(cubit2.state.status, AppLockStatus.locked);
+        // isBiometricEnabled should NOT be called again (used cached value)
+        verifyNever(() => mockSecuritySettings.isBiometricEnabled());
+        cubit2.close();
+      });
+
+      test('updateBiometricEnabledCache should update cached state', () {
+        cubit.updateBiometricEnabledCache(true);
+        expect(cubit.isBiometricEnabled, true);
+
+        cubit.updateBiometricEnabledCache(false);
+        expect(cubit.isBiometricEnabled, false);
+      });
+    });
   });
 }

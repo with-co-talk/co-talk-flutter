@@ -67,6 +67,36 @@ void main() {
       );
 
       blocTest<NotificationSettingsCubit, NotificationSettingsState>(
+        'preserves settings during loading when already loaded',
+        seed: () => const NotificationSettingsState.loaded(NotificationSettings(
+          messageNotification: false,
+          soundEnabled: false,
+        )),
+        build: () {
+          when(() => mockSettingsRepository.getNotificationSettings())
+              .thenAnswer((_) async => const NotificationSettings(
+                    messageNotification: false,
+                    soundEnabled: false,
+                  ));
+          return createCubit();
+        },
+        act: (cubit) => cubit.loadSettings(),
+        expect: () => [
+          const NotificationSettingsState(
+            status: NotificationSettingsStatus.loading,
+            settings: NotificationSettings(
+              messageNotification: false,
+              soundEnabled: false,
+            ),
+          ),
+          const NotificationSettingsState.loaded(NotificationSettings(
+            messageNotification: false,
+            soundEnabled: false,
+          )),
+        ],
+      );
+
+      blocTest<NotificationSettingsCubit, NotificationSettingsState>(
         'loads default settings',
         build: () {
           when(() => mockSettingsRepository.getNotificationSettings())
@@ -110,7 +140,7 @@ void main() {
       );
 
       blocTest<NotificationSettingsCubit, NotificationSettingsState>(
-        'rolls back on error and shows error state briefly (BLoC bug: errorMessage not cleared)',
+        'rolls back on error and clears errorMessage on recovery',
         seed: () => const NotificationSettingsState.loaded(NotificationSettings(
           messageNotification: false,
         )),
@@ -127,11 +157,10 @@ void main() {
           isA<NotificationSettingsState>()
               .having((s) => s.status, 'status', NotificationSettingsStatus.error)
               .having((s) => s.settings.messageNotification, 'messageNotification', false),
-          // BLoC bug: second emit doesn't clear errorMessage
           isA<NotificationSettingsState>()
               .having((s) => s.status, 'status', NotificationSettingsStatus.loaded)
               .having((s) => s.settings.messageNotification, 'messageNotification', false)
-              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+              .having((s) => s.errorMessage, 'errorMessage', isNull),
         ],
       );
     });
@@ -334,7 +363,7 @@ void main() {
 
     group('Error handling and rollback', () {
       blocTest<NotificationSettingsCubit, NotificationSettingsState>(
-        'rolls back sound setting on API failure (BLoC bug: errorMessage not cleared)',
+        'rolls back sound setting on API failure and clears errorMessage',
         seed: () => const NotificationSettingsState.loaded(NotificationSettings(
           soundEnabled: true,
         )),
@@ -352,11 +381,10 @@ void main() {
               .having((s) => s.status, 'status', NotificationSettingsStatus.error)
               .having((s) => s.settings.soundEnabled, 'soundEnabled', true)
               .having((s) => s.errorMessage, 'errorMessage', isNotNull),
-          // BLoC bug: errorMessage not cleared on second emit
           isA<NotificationSettingsState>()
               .having((s) => s.status, 'status', NotificationSettingsStatus.loaded)
               .having((s) => s.settings.soundEnabled, 'soundEnabled', true)
-              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+              .having((s) => s.errorMessage, 'errorMessage', isNull),
         ],
       );
 

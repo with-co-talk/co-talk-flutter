@@ -54,6 +54,69 @@ void main() {
       );
     });
 
+    group('loadSettings preserves existing settings', () {
+      blocTest<ChatSettingsCubit, ChatSettingsState>(
+        'preserves settings during loading when already loaded',
+        seed: () => const ChatSettingsState.loaded(
+            ChatSettings(fontSize: 1.3, showTypingIndicator: true)),
+        build: () {
+          when(() => mockSettingsRepository.getChatSettings())
+              .thenAnswer((_) async => const ChatSettings(fontSize: 1.3, showTypingIndicator: true));
+          return cubit;
+        },
+        act: (cubit) => cubit.loadSettings(),
+        expect: () => [
+          const ChatSettingsState(
+            status: ChatSettingsStatus.loading,
+            settings: ChatSettings(fontSize: 1.3, showTypingIndicator: true),
+          ),
+          const ChatSettingsState.loaded(
+              ChatSettings(fontSize: 1.3, showTypingIndicator: true)),
+        ],
+      );
+    });
+
+    group('clearCache preserves settings', () {
+      blocTest<ChatSettingsCubit, ChatSettingsState>(
+        'preserves settings during cache clearing',
+        seed: () => const ChatSettingsState.loaded(
+            ChatSettings(fontSize: 1.3, showTypingIndicator: true)),
+        build: () {
+          when(() => mockSettingsRepository.clearCache())
+              .thenAnswer((_) async {});
+          return cubit;
+        },
+        act: (cubit) => cubit.clearCache(),
+        expect: () => [
+          const ChatSettingsState(
+            status: ChatSettingsStatus.clearing,
+            settings: ChatSettings(fontSize: 1.3, showTypingIndicator: true),
+          ),
+          const ChatSettingsState(
+            status: ChatSettingsStatus.loaded,
+            settings: ChatSettings(fontSize: 1.3, showTypingIndicator: true),
+          ),
+        ],
+      );
+
+      blocTest<ChatSettingsCubit, ChatSettingsState>(
+        'clears errorMessage after cache clear failure',
+        seed: () => const ChatSettingsState.loaded(
+            ChatSettings(fontSize: 1.2)),
+        build: () {
+          when(() => mockSettingsRepository.clearCache())
+              .thenThrow(Exception('clear failed'));
+          return cubit;
+        },
+        act: (cubit) => cubit.clearCache(),
+        verify: (cubit) {
+          expect(cubit.state.status, ChatSettingsStatus.loaded);
+          expect(cubit.state.settings.fontSize, 1.2);
+          expect(cubit.state.errorMessage, isNull);
+        },
+      );
+    });
+
     group('setFontSize', () {
       blocTest<ChatSettingsCubit, ChatSettingsState>(
         'rounds floating-point precision issues (1.0000000000000002 -> 1.0)',
