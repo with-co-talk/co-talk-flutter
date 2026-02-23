@@ -1,6 +1,8 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:co_talk_flutter/core/errors/exceptions.dart';
+import 'package:co_talk_flutter/core/utils/error_message_mapper.dart';
 import 'package:co_talk_flutter/data/models/media_gallery_model.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/media_gallery_bloc.dart';
 import '../mocks/mock_repositories.dart';
@@ -131,6 +133,117 @@ void main() {
           isA<MediaGalleryState>()
               .having((s) => s.status, 'status', MediaGalleryStatus.failure)
               .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+        ],
+      );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'emits failure with ErrorMessageMapper message when ServerException thrown',
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(any(), any()))
+              .thenThrow(const ServerException(
+                message: '미디어를 불러올 수 없습니다',
+                statusCode: 500,
+              ));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadRequested(
+          roomId: 1,
+          type: MediaType.photo,
+        )),
+        expect: () => [
+          isA<MediaGalleryState>()
+              .having((s) => s.status, 'status', MediaGalleryStatus.loading),
+          isA<MediaGalleryState>()
+              .having((s) => s.status, 'status', MediaGalleryStatus.failure)
+              .having(
+                (s) => s.errorMessage,
+                'errorMessage',
+                ErrorMessageMapper.toUserFriendlyMessage(
+                  const ServerException(
+                    message: '미디어를 불러올 수 없습니다',
+                    statusCode: 500,
+                  ),
+                ),
+              ),
+        ],
+      );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'emits failure with ErrorMessageMapper message when ServerException with status code thrown',
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(any(), any()))
+              .thenThrow(const ServerException(
+                message: 'Unknown error',
+                statusCode: 404,
+              ));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadRequested(
+          roomId: 1,
+          type: MediaType.photo,
+        )),
+        expect: () => [
+          isA<MediaGalleryState>()
+              .having((s) => s.status, 'status', MediaGalleryStatus.loading),
+          isA<MediaGalleryState>()
+              .having((s) => s.status, 'status', MediaGalleryStatus.failure)
+              .having(
+                (s) => s.errorMessage,
+                'errorMessage',
+                ErrorMessageMapper.toUserFriendlyMessage(
+                  const ServerException(message: 'Unknown error', statusCode: 404),
+                ),
+              ),
+        ],
+      );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'emits failure with ErrorMessageMapper message when NetworkException thrown',
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(any(), any()))
+              .thenThrow(const NetworkException(message: '네트워크 연결을 확인해주세요'));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadRequested(
+          roomId: 1,
+          type: MediaType.photo,
+        )),
+        expect: () => [
+          isA<MediaGalleryState>()
+              .having((s) => s.status, 'status', MediaGalleryStatus.loading),
+          isA<MediaGalleryState>()
+              .having((s) => s.status, 'status', MediaGalleryStatus.failure)
+              .having(
+                (s) => s.errorMessage,
+                'errorMessage',
+                ErrorMessageMapper.toUserFriendlyMessage(
+                  const NetworkException(message: '네트워크 연결을 확인해주세요'),
+                ),
+              ),
+        ],
+      );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'emits failure with generic ErrorMessageMapper message for unknown exception',
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(any(), any()))
+              .thenThrow(Exception('unexpected error'));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadRequested(
+          roomId: 1,
+          type: MediaType.photo,
+        )),
+        expect: () => [
+          isA<MediaGalleryState>()
+              .having((s) => s.status, 'status', MediaGalleryStatus.loading),
+          isA<MediaGalleryState>()
+              .having((s) => s.status, 'status', MediaGalleryStatus.failure)
+              .having(
+                (s) => s.errorMessage,
+                'errorMessage',
+                ErrorMessageMapper.toUserFriendlyMessage(Exception('unexpected error')),
+              ),
         ],
       );
 
@@ -430,6 +543,75 @@ void main() {
         expect: () => [
           isA<MediaGalleryState>()
               .having((s) => s.errorMessage, 'errorMessage', isNotNull)
+              .having((s) => s.items.length, 'items.length', 1),
+        ],
+      );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'emits ErrorMessageMapper message when load more fails with ServerException',
+        seed: () => MediaGalleryState(
+          status: MediaGalleryStatus.success,
+          items: [testItem1],
+          nextCursor: 100,
+          hasMore: true,
+          currentPage: 0,
+          currentType: MediaType.photo,
+          roomId: 1,
+        ),
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(
+                any(),
+                any(),
+                page: any(named: 'page'),
+              )).thenThrow(const ServerException(
+                message: 'Internal Server Error',
+                statusCode: 500,
+              ));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadMoreRequested()),
+        expect: () => [
+          isA<MediaGalleryState>()
+              .having(
+                (s) => s.errorMessage,
+                'errorMessage',
+                ErrorMessageMapper.toUserFriendlyMessage(
+                  const ServerException(message: 'Internal Server Error', statusCode: 500),
+                ),
+              )
+              .having((s) => s.items.length, 'items.length', 1),
+        ],
+      );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'emits ErrorMessageMapper message when load more fails with NetworkException',
+        seed: () => MediaGalleryState(
+          status: MediaGalleryStatus.success,
+          items: [testItem1],
+          nextCursor: 100,
+          hasMore: true,
+          currentPage: 0,
+          currentType: MediaType.photo,
+          roomId: 1,
+        ),
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(
+                any(),
+                any(),
+                page: any(named: 'page'),
+              )).thenThrow(const NetworkException(message: '인터넷 연결이 없습니다'));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadMoreRequested()),
+        expect: () => [
+          isA<MediaGalleryState>()
+              .having(
+                (s) => s.errorMessage,
+                'errorMessage',
+                ErrorMessageMapper.toUserFriendlyMessage(
+                  const NetworkException(message: '인터넷 연결이 없습니다'),
+                ),
+              )
               .having((s) => s.items.length, 'items.length', 1),
         ],
       );
