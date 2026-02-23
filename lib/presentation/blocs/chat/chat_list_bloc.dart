@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
-import '../../../core/errors/exceptions.dart';
 import '../../../core/network/websocket_service.dart';
+import '../../../core/utils/debug_logger.dart';
+import '../../../core/utils/error_message_mapper.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
 import '../../../domain/entities/chat_room.dart';
 import '../../../domain/repositories/chat_repository.dart';
@@ -12,7 +12,7 @@ import 'chat_list_event.dart';
 import 'chat_list_state.dart';
 
 @lazySingleton
-class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
+class ChatListBloc extends Bloc<ChatListEvent, ChatListState> with DebugLogger {
   final ChatRepository _chatRepository;
   final WebSocketService _webSocketService;
   final AuthLocalDataSource _authLocalDataSource;
@@ -44,13 +44,6 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     on<UserOnlineStatusChanged>(_onUserOnlineStatusChanged);
   }
 
-  /// 디버그 모드에서만 로그 출력
-  void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[ChatListBloc] $message');
-    }
-  }
-
   /// 채팅방 목록 조회: 현재는 커서 기반 페이징 없이 한 번에 전체 로드
   Future<void> _onLoadRequested(
     ChatListLoadRequested event,
@@ -69,7 +62,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } catch (e) {
       emit(state.copyWith(
         status: ChatListStatus.failure,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -79,7 +72,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     Emitter<ChatListState> emit,
   ) async {
     if (_isRefreshing) {
-      _log('Already refreshing, skipping duplicate request');
+      log('Already refreshing, skipping duplicate request');
       return;
     }
 
@@ -95,7 +88,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } catch (e) {
       emit(state.copyWith(
         status: ChatListStatus.failure,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     } finally {
       _isRefreshing = false;
@@ -132,7 +125,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } catch (e) {
       emit(state.copyWith(
         status: ChatListStatus.failure,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -147,7 +140,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     } catch (e) {
       emit(state.copyWith(
         status: ChatListStatus.failure,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -156,14 +149,14 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     ChatRoomUpdated event,
     Emitter<ChatListState> emit,
   ) async {
-    _log('_onChatRoomUpdated: roomId=${event.chatRoomId}, unreadCount=${event.unreadCount}');
+    log('_onChatRoomUpdated: roomId=${event.chatRoomId}, unreadCount=${event.unreadCount}');
 
     _currentUserId ??= await _authLocalDataSource.getUserId();
 
     final existingRoomIndex = state.chatRooms.indexWhere((room) => room.id == event.chatRoomId);
 
     if (existingRoomIndex < 0) {
-      _log('New chat room detected (roomId=${event.chatRoomId}), scheduling refresh...');
+      log('New chat room detected (roomId=${event.chatRoomId}), scheduling refresh...');
       _scheduleRefresh();
       return;
     }
@@ -174,7 +167,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
         final newUnreadCount = (_currentlyOpenRoomId == event.chatRoomId)
             ? 0
             : (event.unreadCount ?? room.unreadCount);
-        _log('Updating room ${event.chatRoomId}: unreadCount ${room.unreadCount} -> $newUnreadCount');
+        log('Updating room ${event.chatRoomId}: unreadCount ${room.unreadCount} -> $newUnreadCount');
 
         return room.copyWith(
           lastMessage: event.lastMessage ?? room.lastMessage,
@@ -199,7 +192,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     ChatListSubscriptionStarted event,
     Emitter<ChatListState> emit,
   ) async {
-    _log('_onSubscriptionStarted: userId=${event.userId}');
+    log('_onSubscriptionStarted: userId=${event.userId}');
 
     _currentUserId = event.userId;
     _chatRoomUpdateSubscription?.cancel();
@@ -207,13 +200,13 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     _onlineStatusSubscription?.cancel();
 
     if (!_webSocketService.isConnected) {
-      _log('WebSocket not connected, attempting to connect...');
+      log('WebSocket not connected, attempting to connect...');
       try {
         await _webSocketService.connect();
         await _waitForWebSocketConnection(timeout: const Duration(seconds: 5));
         emit(state.copyWith(isWebSocketDegraded: false));
       } catch (e) {
-        _log('Failed to connect WebSocket: $e');
+        log('Failed to connect WebSocket: $e');
         emit(state.copyWith(isWebSocketDegraded: true));
       }
     } else {
@@ -221,11 +214,11 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     }
 
     _webSocketService.subscribeToUserChannel(event.userId);
-    _log('Subscribed to user channel: ${event.userId}');
+    log('Subscribed to user channel: ${event.userId}');
 
     _chatRoomUpdateSubscription = _webSocketService.chatRoomUpdates.listen(
       (update) {
-        _log('Received chatRoomUpdate: roomId=${update.chatRoomId}, unreadCount=${update.unreadCount}');
+        log('Received chatRoomUpdate: roomId=${update.chatRoomId}, unreadCount=${update.unreadCount}');
         add(ChatRoomUpdated(
           chatRoomId: update.chatRoomId,
           eventType: update.eventType,
@@ -237,24 +230,24 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
         ));
       },
       onError: (error) {
-        _log('Error in chatRoomUpdates stream: $error');
+        log('Error in chatRoomUpdates stream: $error');
       },
       cancelOnError: false,
     );
 
     _readReceiptSubscription = _webSocketService.readEvents.listen(
       (readEvent) {
-        _log('Received readEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
+        log('Received readEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
       },
       onError: (error) {
-        _log('Error in readEvents stream: $error');
+        log('Error in readEvents stream: $error');
       },
       cancelOnError: false,
     );
 
     _onlineStatusSubscription = _webSocketService.onlineStatusEvents.listen(
       (event) {
-        _log('Received onlineStatusEvent: userId=${event.userId}, isOnline=${event.isOnline}');
+        log('Received onlineStatusEvent: userId=${event.userId}, isOnline=${event.isOnline}');
         add(UserOnlineStatusChanged(
           userId: event.userId,
           isOnline: event.isOnline,
@@ -262,7 +255,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
         ));
       },
       onError: (error) {
-        _log('Error in onlineStatusEvents stream: $error');
+        log('Error in onlineStatusEvents stream: $error');
       },
       cancelOnError: false,
     );
@@ -272,7 +265,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     ChatListSubscriptionStopped event,
     Emitter<ChatListState> emit,
   ) {
-    _log('_onSubscriptionStopped');
+    log('_onSubscriptionStopped');
     _chatRoomUpdateSubscription?.cancel();
     _chatRoomUpdateSubscription = null;
     _readReceiptSubscription?.cancel();
@@ -285,7 +278,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     ChatListResetRequested event,
     Emitter<ChatListState> emit,
   ) {
-    _log('_onResetRequested: clearing all state');
+    log('_onResetRequested: clearing all state');
     _chatRoomUpdateSubscription?.cancel();
     _chatRoomUpdateSubscription = null;
     _readReceiptSubscription?.cancel();
@@ -303,11 +296,11 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     ChatRoomReadCompleted event,
     Emitter<ChatListState> emit,
   ) {
-    _log('_onChatRoomReadCompleted: roomId=${event.chatRoomId}');
+    log('_onChatRoomReadCompleted: roomId=${event.chatRoomId}');
 
     final updatedChatRooms = state.chatRooms.map((room) {
       if (room.id == event.chatRoomId) {
-        _log('Optimistically updating unreadCount: ${room.unreadCount} -> 0');
+        log('Optimistically updating unreadCount: ${room.unreadCount} -> 0');
         return room.copyWith(unreadCount: 0);
       }
       return room;
@@ -320,7 +313,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     ChatRoomEntered event,
     Emitter<ChatListState> emit,
   ) {
-    _log('_onChatRoomEntered: roomId=${event.chatRoomId}');
+    log('_onChatRoomEntered: roomId=${event.chatRoomId}');
     _currentlyOpenRoomId = event.chatRoomId;
   }
 
@@ -328,7 +321,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     ChatRoomExited event,
     Emitter<ChatListState> emit,
   ) {
-    _log('_onChatRoomExited: clearing currentlyOpenRoomId (was: $_currentlyOpenRoomId)');
+    log('_onChatRoomExited: clearing currentlyOpenRoomId (was: $_currentlyOpenRoomId)');
     _currentlyOpenRoomId = null;
   }
 
@@ -336,7 +329,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     UserOnlineStatusChanged event,
     Emitter<ChatListState> emit,
   ) {
-    _log('_onUserOnlineStatusChanged: userId=${event.userId}, isOnline=${event.isOnline}');
+    log('_onUserOnlineStatusChanged: userId=${event.userId}, isOnline=${event.isOnline}');
 
     final updatedChatRooms = state.chatRooms.map((room) {
       if (room.otherUserId == event.userId) {
@@ -381,7 +374,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     });
 
     subscription = _webSocketService.connectionState.listen((state) {
-      _log('WebSocket connection state changed: $state');
+      log('WebSocket connection state changed: $state');
       if (state == WebSocketConnectionState.connected) {
         if (!completer.isCompleted) {
           timer.cancel();
@@ -393,29 +386,11 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
 
     try {
       await completer.future;
-      _log('WebSocket connection established');
+      log('WebSocket connection established');
     } catch (e) {
-      _log('WebSocket connection wait failed: $e');
+      log('WebSocket connection wait failed: $e');
       rethrow;
     }
   }
 
-  String _extractErrorMessage(dynamic error) {
-    if (error is ServerException) {
-      return error.message;
-    }
-    if (error is NetworkException) {
-      return error.message;
-    }
-    if (error is AuthException) {
-      return error.message;
-    }
-    if (error is ValidationException) {
-      return error.message;
-    }
-    if (error is CacheException) {
-      return error.message;
-    }
-    return error.toString();
-  }
 }

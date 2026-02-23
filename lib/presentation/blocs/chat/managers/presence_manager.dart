@@ -1,7 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show VoidCallback;
 import '../../../../core/network/websocket_service.dart';
+import '../../../../core/utils/debug_logger.dart';
 
 /// Manages user presence in a chat room.
 ///
@@ -10,7 +11,7 @@ import '../../../../core/network/websocket_service.dart';
 /// - Online/offline status tracking
 /// - Typing indicator management
 /// - View state tracking
-class PresenceManager {
+class PresenceManager with DebugLogger {
   final WebSocketService _webSocketService;
 
   Timer? _presencePingTimer;
@@ -19,12 +20,6 @@ class PresenceManager {
   bool _isViewingRoom = false;
 
   PresenceManager(this._webSocketService);
-
-  void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[PresenceManager] $message');
-    }
-  }
 
   /// Starts sending presence pings to indicate the user is actively viewing the room.
   void startPresencePing(int roomId, int userId) {
@@ -37,14 +32,14 @@ class PresenceManager {
       );
     });
 
-    _log('Started presence ping for room $roomId');
+    log('Started presence ping for room $roomId');
   }
 
   /// Stops sending presence pings.
   void stopPresencePing() {
     _presencePingTimer?.cancel();
     _presencePingTimer = null;
-    _log('Stopped presence ping');
+    log('Stopped presence ping');
   }
 
   /// Sends presence active status.
@@ -58,7 +53,7 @@ class PresenceManager {
     _isViewingRoom = false;
     stopPresencePing();
     _webSocketService.sendPresenceInactive(roomId: roomId);
-    _log('Sent presence inactive for room $roomId');
+    log('Sent presence inactive for room $roomId');
   }
 
   /// Sends typing status to the server.
@@ -71,7 +66,7 @@ class PresenceManager {
       roomId: roomId,
       isTyping: isTyping,
     );
-    _log('Sent typing status: isTyping=$isTyping');
+    log('Sent typing status: isTyping=$isTyping');
   }
 
   /// Handles user started typing event with debounce.

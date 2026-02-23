@@ -54,7 +54,7 @@ class DioClient {
     String path, {
     Map<String, dynamic>? queryParameters,
     Options? options,
-  }) async {
+  }) {
     return _dio.get<T>(
       path,
       queryParameters: queryParameters,
@@ -67,7 +67,7 @@ class DioClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Options? options,
-  }) async {
+  }) {
     return _dio.post<T>(
       path,
       data: data,
@@ -81,7 +81,7 @@ class DioClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Options? options,
-  }) async {
+  }) {
     return _dio.put<T>(
       path,
       data: data,
@@ -95,7 +95,7 @@ class DioClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Options? options,
-  }) async {
+  }) {
     return _dio.patch<T>(
       path,
       data: data,
@@ -109,7 +109,7 @@ class DioClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Options? options,
-  }) async {
+  }) {
     return _dio.delete<T>(
       path,
       data: data,

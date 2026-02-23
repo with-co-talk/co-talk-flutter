@@ -361,6 +361,7 @@ class MessageBubble extends StatelessWidget {
     final imageUrls = imageMessages.map((m) => m.fileUrl!).toList();
     final initialIndex = imageUrls.indexOf(imageUrl).clamp(0, imageUrls.isEmpty ? 0 : imageUrls.length - 1);
 
+    // GoRouter 미적용: 커스텀 전환 효과(FadeTransition + opaque:false) 및 콜백 전달 필요
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -651,6 +652,7 @@ class MessageBubble extends StatelessWidget {
                     if (message.type == MessageType.image) {
                       _showFullScreenImage(context, message.fileUrl!);
                     } else {
+                      // GoRouter 미적용: VideoPlayerPage에 해당하는 GoRouter 라우트가 없음
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => VideoPlayerPage(
@@ -893,6 +895,7 @@ class MessageBubble extends StatelessWidget {
     else if (message.fileUrl != null && message.fileContentType?.startsWith('video/') == true) {
       bubbleWidget = GestureDetector(
         onTap: () {
+          // GoRouter 미적용: VideoPlayerPage에 해당하는 GoRouter 라우트가 없음
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => VideoPlayerPage(

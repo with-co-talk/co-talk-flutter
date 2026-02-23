@@ -47,6 +47,10 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
   final _messageFocusNode = FocusNode();
   late final ChatRoomBloc _chatRoomBloc;
   late final ChatListBloc _chatListBloc;
+  late final NotificationClickHandler? _notificationClickHandler;
+  late final ActiveRoomTracker? _activeRoomTracker;
+  late final ChatRepository? _chatRepository;
+  late final WebSocketService? _webSocketService;
   AppLifecycleState? _lastLifecycleState;
   bool _hasResumedOnce = false;
   late final WindowFocusTracker _windowFocusTracker;
@@ -67,16 +71,35 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     _chatRoomBloc = context.read<ChatRoomBloc>();
     _chatListBloc = context.read<ChatListBloc>();
 
-    // Register same-room refresh callback for notification taps
+    // Resolve singletons once — keeps GetIt calls in one place
+    NotificationClickHandler? notificationClickHandlerInstance;
+    ActiveRoomTracker? activeRoomTrackerInstance;
+    ChatRepository? chatRepositoryInstance;
+    WebSocketService? webSocketServiceInstance;
     try {
-      final notificationClickHandler = GetIt.instance<NotificationClickHandler>();
-      notificationClickHandler.onSameRoomRefresh = (roomId) {
+      notificationClickHandlerInstance = GetIt.instance<NotificationClickHandler>();
+    } catch (_) {}
+    try {
+      activeRoomTrackerInstance = GetIt.instance<ActiveRoomTracker>();
+    } catch (_) {}
+    try {
+      chatRepositoryInstance = GetIt.instance<ChatRepository>();
+    } catch (_) {}
+    try {
+      webSocketServiceInstance = GetIt.instance<WebSocketService>();
+    } catch (_) {}
+    _notificationClickHandler = notificationClickHandlerInstance;
+    _activeRoomTracker = activeRoomTrackerInstance;
+    _chatRepository = chatRepositoryInstance;
+    _webSocketService = webSocketServiceInstance;
+
+    // Register same-room refresh callback for notification taps
+    if (_notificationClickHandler != null) {
+      _notificationClickHandler.onSameRoomRefresh = (roomId) {
         if (!_chatRoomBloc.isClosed) {
           _chatRoomBloc.add(const ChatRoomRefreshRequested());
         }
       };
-    } catch (_) {
-      // NotificationClickHandler not registered in DI (e.g., tests)
     }
 
     // Notify ChatListBloc of room entry (to prevent unreadCount increase)
@@ -282,8 +305,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
 
     // ActiveRoomTracker를 동기적으로 즉시 해제 (FCM 알림 suppress 방지)
     try {
-      final activeRoomTracker = GetIt.instance<ActiveRoomTracker>();
-      activeRoomTracker.activeRoomId = null;
+      _activeRoomTracker?.activeRoomId = null;
     } catch (_) {}
 
     if (!_chatRoomBloc.isClosed) {
@@ -294,8 +316,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     }
     // Unregister same-room refresh callback
     try {
-      final notificationClickHandler = GetIt.instance<NotificationClickHandler>();
-      notificationClickHandler.onSameRoomRefresh = null;
+      _notificationClickHandler?.onSameRoomRefresh = null;
     } catch (_) {}
     super.dispose();
   }
@@ -367,7 +388,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     if (!context.mounted) return;
 
     try {
-      final chatRepository = GetIt.instance<ChatRepository>();
+      final chatRepository = _chatRepository;
+      if (chatRepository == null) throw Exception('ChatRepository not available');
       final uploadResult = await chatRepository.uploadFile(file);
       await chatRepository.updateChatRoomImage(widget.roomId, uploadResult.fileUrl);
 
@@ -425,6 +447,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 title: const Text('미디어 모아보기'),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
+                  // GoRouter 미적용: MediaGalleryPage에 해당하는 GoRouter 라우트가 없음
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => MediaGalleryPage(roomId: widget.roomId),
@@ -659,7 +682,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                   onClose: _toggleSearchMode,
                 )
               : StreamBuilder<WebSocketConnectionState>(
-                  stream: GetIt.instance<WebSocketService>().connectionState,
+                  stream: _webSocketService?.connectionState ?? const Stream.empty(),
                   builder: (context, snapshot) {
                     final connectionState = snapshot.data ?? WebSocketConnectionState.connected;
 
@@ -671,9 +694,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                             ConnectionStatusBanner(
                               connectionState: connectionState,
                               onReconnect: () {
-                                final webSocketService = GetIt.instance<WebSocketService>();
-                                webSocketService.resetReconnectAttempts();
-                                webSocketService.connect();
+                                _webSocketService?.resetReconnectAttempts();
+                                _webSocketService?.connect();
                               },
                             ),
                             Expanded(

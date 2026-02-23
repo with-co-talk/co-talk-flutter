@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:injectable/injectable.dart';
 import '../../core/errors/exceptions.dart';
-import '../../core/utils/exception_to_failure_mapper.dart';
 import '../../core/utils/jwt_utils.dart';
 import '../../domain/entities/auth_token.dart';
 import '../../domain/entities/user.dart';
@@ -75,8 +74,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
       return response.toEntity();
     } catch (e) {
-      // Exception을 Failure로 변환하여 throw
-      throw ExceptionToFailureMapper.toFailure(e);
+      rethrow;
     }
   }
 

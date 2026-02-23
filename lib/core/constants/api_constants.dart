@@ -9,7 +9,6 @@ class ApiConstants {
   static String get baseUrl {
     switch (_environment) {
       case 'prod':
-        // 프로덕션 URL (Synology NAS)
         const prodUrl =
             String.fromEnvironment('API_URL', defaultValue: 'https://co-talk.sgyj-dev.synology.me');
         return prodUrl;
