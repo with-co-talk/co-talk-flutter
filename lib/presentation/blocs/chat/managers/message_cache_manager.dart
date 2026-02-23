@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/debug_logger.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../../domain/repositories/chat_repository.dart';
 
@@ -10,7 +10,7 @@ import '../../../../domain/repositories/chat_repository.dart';
 /// - Message list state
 /// - Pagination cursor management
 /// - Cache invalidation
-class MessageCacheManager {
+class MessageCacheManager with DebugLogger {
   final ChatRepository _chatRepository;
 
   List<Message> _messages = [];
@@ -19,12 +19,6 @@ class MessageCacheManager {
   bool _isOfflineData = false;
 
   MessageCacheManager(this._chatRepository);
-
-  void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[MessageCacheManager] $message');
-    }
-  }
 
   /// Loads cached messages from local storage.
   Future<List<Message>> loadCachedMessages(int roomId) async {
@@ -35,14 +29,14 @@ class MessageCacheManager {
       );
 
       if (cachedMessages.isNotEmpty) {
-        _log('Loaded ${cachedMessages.length} cached messages');
+        log('Loaded ${cachedMessages.length} cached messages');
         _messages = cachedMessages;
         _hasMore = cachedMessages.length >= AppConstants.messagePageSize;
         _isOfflineData = true;
         return cachedMessages;
       }
     } catch (e) {
-      _log('Failed to load cached messages: $e');
+      log('Failed to load cached messages: $e');
     }
 
     return [];
@@ -55,7 +49,7 @@ class MessageCacheManager {
       size: AppConstants.messagePageSize,
     );
 
-    _log('Fetched ${messages.length} messages from server');
+    log('Fetched ${messages.length} messages from server');
     _messages = messages;
     _nextCursor = nextCursor;
     _hasMore = hasMore;
@@ -75,7 +69,7 @@ class MessageCacheManager {
         size: AppConstants.messagePageSize,
       );
 
-      _log('refreshFromServer: fetched ${serverMessages.length} messages');
+      log('refreshFromServer: fetched ${serverMessages.length} messages');
 
       if (serverMessages.isEmpty) return false;
 
@@ -102,7 +96,7 @@ class MessageCacheManager {
               local.content == server.content &&
               server.createdAt.difference(local.createdAt).abs() <= maxTimeDiff) {
             if (local.localId != null) resolvedLocalIds.add(local.localId!);
-            _log('refreshFromServer: resolved local message (localId=${local.localId}) with server message (id=${server.id})');
+            log('refreshFromServer: resolved local message (localId=${local.localId}) with server message (id=${server.id})');
             break;
           }
         }
@@ -125,14 +119,17 @@ class MessageCacheManager {
         return true;
       }).toList();
 
+      // Ensure consistent ordering: pending first, then real messages by ID descending
+      _sortMessages();
+
       _nextCursor = nextCursor;
       _hasMore = hasMore;
       _isOfflineData = false;
 
-      _log('refreshFromServer: merged to ${_messages.length} messages, hasNew=$hasNewMessages');
+      log('refreshFromServer: merged to ${_messages.length} messages, hasNew=$hasNewMessages');
       return hasNewMessages;
     } catch (e) {
-      _log('refreshFromServer failed: $e (keeping existing cache)');
+      log('refreshFromServer failed: $e (keeping existing cache)');
       return false;
     }
   }
@@ -140,7 +137,7 @@ class MessageCacheManager {
   /// Loads more messages for pagination.
   Future<List<Message>> loadMoreMessages(int roomId) async {
     if (!_hasMore || _nextCursor == null) {
-      _log('No more messages to load');
+      log('No more messages to load');
       return _messages;
     }
 
@@ -156,22 +153,22 @@ class MessageCacheManager {
       final newMessages = messages.where((m) => !existingIds.contains(m.id)).toList();
 
       if (newMessages.length != messages.length) {
-        _log('Filtered ${messages.length - newMessages.length} duplicate messages');
+        log('Filtered ${messages.length - newMessages.length} duplicate messages');
       }
 
       _messages = [..._messages, ...newMessages];
       _nextCursor = nextCursor;
       _hasMore = hasMore;
 
-      _log('Loaded ${newMessages.length} more messages. Total: ${_messages.length}');
+      log('Loaded ${newMessages.length} more messages. Total: ${_messages.length}');
       return _messages;
     } catch (e) {
-      _log('Failed to load more messages: $e');
+      log('Failed to load more messages: $e');
       rethrow;
     }
   }
 
-  /// Adds a new message to the cache.
+  /// Adds a new message to the cache in sorted position (ID descending).
   void addMessage(Message message) {
     // Check if message already exists
     final existingIndex = _messages.indexWhere((m) => m.id == message.id);
@@ -182,17 +179,22 @@ class MessageCacheManager {
         for (int i = 0; i < _messages.length; i++)
           if (i == existingIndex) message else _messages[i],
       ];
-      _log('Updated existing message: id=${message.id}');
+      log('Updated existing message: id=${message.id}');
     } else {
-      // Add new message at the beginning
-      _messages = [message, ..._messages];
-      _log('Added new message: id=${message.id}');
+      // Insert at the correct sorted position (ID descending, pending first)
+      final insertIndex = _findSortedInsertIndex(message);
+      _messages = [
+        ..._messages.sublist(0, insertIndex),
+        message,
+        ..._messages.sublist(insertIndex),
+      ];
+      log('Added new message: id=${message.id} at index=$insertIndex');
     }
 
     // Fire-and-forget: local DB write runs in background to avoid blocking BLoC event queue.
     // In-memory cache is already updated above, so UI updates instantly.
     _chatRepository.saveMessageLocally(message).catchError((e) {
-      _log('Failed to save message locally: $e');
+      log('Failed to save message locally: $e');
       return null;
     });
 
@@ -208,7 +210,7 @@ class MessageCacheManager {
       return m;
     }).toList();
 
-    _log('Updated message: id=$messageId');
+    log('Updated message: id=$messageId');
   }
 
   /// Updates all messages matching a predicate.
@@ -219,7 +221,7 @@ class MessageCacheManager {
   /// Removes a message from the cache.
   void removeMessage(int messageId) {
     _messages = _messages.where((m) => m.id != messageId).toList();
-    _log('Removed message: id=$messageId');
+    log('Removed message: id=$messageId');
   }
 
   /// Marks a message as deleted.
@@ -238,7 +240,7 @@ class MessageCacheManager {
 
       return m.copyWith(reactions: [...m.reactions, reaction]);
     });
-    _log('Added reaction to message $messageId: ${reaction.emoji}');
+    log('Added reaction to message $messageId: ${reaction.emoji}');
   }
 
   /// Removes a reaction from a message.
@@ -249,7 +251,7 @@ class MessageCacheManager {
           .toList();
       return m.copyWith(reactions: updatedReactions);
     });
-    _log('Removed reaction from message $messageId: $emoji');
+    log('Removed reaction from message $messageId: $emoji');
   }
 
   /// Clears all cached messages.
@@ -258,7 +260,7 @@ class MessageCacheManager {
     _nextCursor = null;
     _hasMore = false;
     _isOfflineData = false;
-    _log('Cache cleared');
+    log('Cache cleared');
   }
 
   /// Syncs the cache with external messages and pagination state (for tests or state recovery).
@@ -266,7 +268,7 @@ class MessageCacheManager {
     _messages = List.from(messages);
     if (nextCursor != null) _nextCursor = nextCursor;
     if (hasMore != null) _hasMore = hasMore;
-    _log('Synced ${messages.length} messages (cursor=$nextCursor, hasMore=$hasMore)');
+    log('Synced ${messages.length} messages (cursor=$nextCursor, hasMore=$hasMore)');
   }
 
   // ============================================================
@@ -276,14 +278,14 @@ class MessageCacheManager {
   /// Adds a pending message to the cache (optimistic UI).
   void addPendingMessage(Message message) {
     _messages = [message, ..._messages];
-    _log('Added pending message: localId=${message.localId}');
+    log('Added pending message: localId=${message.localId}');
   }
 
   /// Updates a pending message's send status.
   void updatePendingMessageStatus(String localId, MessageSendStatus status) {
     _messages = _messages.map((m) {
       if (m.localId == localId) {
-        _log('Updated pending message status: localId=$localId, status=$status');
+        log('Updated pending message status: localId=$localId, status=$status');
         return m.copyWith(sendStatus: status);
       }
       return m;
@@ -327,7 +329,7 @@ class MessageCacheManager {
     final localIndex = matchingIndices.reduce((a, b) => a > b ? a : b);
     final localMessage = _messages[localIndex];
 
-    _log('Replacing local message (localId=${localMessage.localId}) with real message (id=${realMessage.id})');
+    log('Replacing local message (localId=${localMessage.localId}) with real message (id=${realMessage.id})');
     // Preserve reply/forward metadata from local message if server didn't return it
     final mergedMessage = realMessage.copyWith(
       sendStatus: MessageSendStatus.sent,
@@ -335,13 +337,16 @@ class MessageCacheManager {
       replyToMessageId: realMessage.replyToMessageId ?? localMessage.replyToMessageId,
       forwardedFromMessageId: realMessage.forwardedFromMessageId ?? localMessage.forwardedFromMessageId,
     );
-    // Create new list for Equatable compatibility
+    // Remove the pending message and re-insert at the correct sorted position
     _messages = [
       for (int i = 0; i < _messages.length; i++)
-        if (i == localIndex)
-          mergedMessage
-        else
-          _messages[i],
+        if (i != localIndex) _messages[i],
+    ];
+    final insertIndex = _findSortedInsertIndex(mergedMessage);
+    _messages = [
+      ..._messages.sublist(0, insertIndex),
+      mergedMessage,
+      ..._messages.sublist(insertIndex),
     ];
     return true;
   }
@@ -349,7 +354,7 @@ class MessageCacheManager {
   /// Removes a pending message by localId.
   void removePendingMessage(String localId) {
     _messages = _messages.where((m) => m.localId != localId).toList();
-    _log('Removed pending message: localId=$localId');
+    log('Removed pending message: localId=$localId');
   }
 
   /// Gets a pending message by localId.
@@ -377,7 +382,7 @@ class MessageCacheManager {
       if (m.isPending && m.localId != null) {
         final elapsed = now.difference(m.createdAt);
         if (elapsed > timeout) {
-          _log('Pending message timed out: localId=${m.localId}, elapsed=${elapsed.inSeconds}s');
+          log('Pending message timed out: localId=${m.localId}, elapsed=${elapsed.inSeconds}s');
           timedOutLocalIds.add(m.localId!);
           return m.copyWith(sendStatus: MessageSendStatus.failed);
         }
@@ -395,4 +400,38 @@ class MessageCacheManager {
   int? get nextCursor => _nextCursor;
   bool get hasMore => _hasMore;
   bool get isOfflineData => _isOfflineData;
+
+  // ============================================================
+  // Message Ordering
+  // ============================================================
+
+  /// Finds the correct insertion index for a message in a sorted list.
+  ///
+  /// List invariant: pending messages (id < 0) first, then real messages
+  /// in descending ID order (newest first).
+  int _findSortedInsertIndex(Message message) {
+    // Pending messages always go to the front
+    if (message.id < 0) return 0;
+
+    // For real messages, skip past pending messages and find position by ID descending
+    for (int i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      if (m.id < 0) continue; // skip pending messages
+      if (m.id < message.id) return i; // insert before the first smaller ID
+    }
+    return _messages.length; // smallest ID → add at end
+  }
+
+  /// Sorts the entire message list: pending first, then real messages by ID descending.
+  void _sortMessages() {
+    _messages.sort((a, b) {
+      // Pending messages (negative IDs) always come first
+      if (a.id < 0 && b.id >= 0) return -1;
+      if (a.id >= 0 && b.id < 0) return 1;
+      // Both pending: sort by createdAt descending (newest first)
+      if (a.id < 0 && b.id < 0) return b.createdAt.compareTo(a.createdAt);
+      // Both real: sort by ID descending (newest first)
+      return b.id.compareTo(a.id);
+    });
+  }
 }

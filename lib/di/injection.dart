@@ -45,7 +45,7 @@ String _determineEnvironment() {
   if (Platform.isAndroid || Platform.isIOS) {
     return mobileEnv;
   }
-  return desktopEnv; // iOS, macOS, Windows, Linux
+  return desktopEnv; // macOS, Windows, Linux (desktop)
 }
 
 @module

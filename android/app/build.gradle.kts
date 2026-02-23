@@ -52,12 +52,11 @@ android {
 
     buildTypes {
         release {
-            // key.properties가 있으면 릴리즈 서명, 없으면 디버그 서명 사용
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            // key.properties가 없으면 릴리즈 빌드 실패 (디버그 키 사일런트 폴백 방지)
+            if (!keystorePropertiesFile.exists()) {
+                throw GradleException("Release 빌드에는 key.properties 파일이 필요합니다. android/key.properties를 생성하세요.")
             }
+            signingConfig = signingConfigs.getByName("release")
 
             isMinifyEnabled = true
             isShrinkResources = true

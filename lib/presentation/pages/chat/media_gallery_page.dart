@@ -1,12 +1,15 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/save_image_to_gallery.dart';
 import '../../../data/models/media_gallery_model.dart';
 import '../../../di/injection.dart';
 import '../../blocs/chat/media_gallery_bloc.dart';
+import 'widgets/photo_swipe_viewer.dart';
 import 'widgets/video_player_page.dart';
 
 /// Media gallery page showing photos, files, and links from a chat room.
@@ -179,6 +182,11 @@ class _MediaTabContent extends StatelessWidget {
   }
 
   Widget _buildPhotoGrid(List<MediaGalleryItem> items) {
+    // 사진(비디오 아닌)만 분리
+    final photoItems = items.where((i) =>
+        i.contentType?.startsWith('video/') != true && i.fileUrl != null).toList();
+    final photoUrls = photoItems.map((i) => i.fileUrl!).toList();
+
     return GridView.builder(
       padding: const EdgeInsets.all(2),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -190,25 +198,64 @@ class _MediaTabContent extends StatelessWidget {
       itemBuilder: (context, index) {
         final item = items[index];
         return GestureDetector(
-          onTap: () => _showFullScreenImage(context, item),
-          child: CachedNetworkImage(
-            imageUrl: item.thumbnailUrl ?? item.fileUrl ?? '',
-            fit: BoxFit.cover,
-            placeholder: (_, __) => Container(
-              color: Colors.grey[200],
-              child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-            errorWidget: (_, __, ___) => Container(
-              color: Colors.grey[200],
-              child: const Icon(Icons.broken_image, color: Colors.grey),
-            ),
+          onTap: () => _showFullScreenImage(context, item, photoUrls, photoItems),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImage(
+                imageUrl: item.thumbnailUrl ?? item.fileUrl ?? '',
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  color: Colors.grey[200],
+                  child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+                errorWidget: (_, __, ___) => Container(
+                  color: Colors.grey[200],
+                  child: const Icon(Icons.broken_image, color: Colors.grey),
+                ),
+              ),
+              if (item.contentType?.startsWith('video/') == true)
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 24),
+                  ),
+                ),
+            ],
           ),
         );
       },
     );
   }
 
-  void _showFullScreenImage(BuildContext context, MediaGalleryItem item) {
+  Future<void> _saveImageToGallery(BuildContext context, String imageUrl) async {
+    try {
+      await saveImageFromUrlToGallery(imageUrl);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('사진이 갤러리에 저장되었습니다')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        final msg = e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장 실패: $msg')),
+        );
+      }
+    }
+  }
+
+  void _showFullScreenImage(
+    BuildContext context,
+    MediaGalleryItem item,
+    List<String> photoUrls,
+    List<MediaGalleryItem> photoItems,
+  ) {
     // Check if it's a video
     if (item.contentType?.startsWith('video/') == true) {
       Navigator.of(context).push(
@@ -222,24 +269,19 @@ class _MediaTabContent extends StatelessWidget {
       return;
     }
 
+    final initialIndex = photoItems.indexOf(item).clamp(0, photoUrls.isEmpty ? 0 : photoUrls.length - 1);
+
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            iconTheme: const IconThemeData(color: Colors.white),
-          ),
-          extendBodyBehindAppBar: true,
-          body: Center(
-            child: InteractiveViewer(
-              child: CachedNetworkImage(
-                imageUrl: item.fileUrl ?? '',
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (_, __, ___) => PhotoSwipeViewer(
+          imageUrls: photoUrls,
+          initialIndex: initialIndex,
+          onSaveToGallery: kIsWeb ? null : (i) => () => _saveImageToGallery(context, photoUrls[i]),
         ),
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }

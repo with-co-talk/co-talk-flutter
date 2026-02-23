@@ -1,7 +1,7 @@
 name: co_talk_flutter
 description: "Co-Talk - Real-time messaging application"
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+58
 
 environment:
   sdk: ^3.8.1

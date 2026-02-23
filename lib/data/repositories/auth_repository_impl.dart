@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:injectable/injectable.dart';
 import '../../core/errors/exceptions.dart';
-import '../../core/utils/exception_to_failure_mapper.dart';
 import '../../core/utils/jwt_utils.dart';
 import '../../domain/entities/auth_token.dart';
 import '../../domain/entities/user.dart';
@@ -75,8 +74,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
       return response.toEntity();
     } catch (e) {
-      // Exception을 Failure로 변환하여 throw
-      throw ExceptionToFailureMapper.toFailure(e);
+      rethrow;
     }
   }
 
@@ -140,5 +138,32 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> resendVerification({required String email}) async {
     await _remoteDataSource.resendVerification(email);
+  }
+
+  @override
+  Future<Map<String, dynamic>> findEmail({
+    required String nickname,
+    required String phoneNumber,
+  }) async {
+    return await _remoteDataSource.findEmail(nickname, phoneNumber);
+  }
+
+  @override
+  Future<void> requestPasswordResetCode({required String email}) async {
+    await _remoteDataSource.requestPasswordResetCode(email);
+  }
+
+  @override
+  Future<bool> verifyPasswordResetCode({required String email, required String code}) async {
+    return await _remoteDataSource.verifyPasswordResetCode(email, code);
+  }
+
+  @override
+  Future<void> resetPasswordWithCode({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    await _remoteDataSource.resetPasswordWithCode(email, code, newPassword);
   }
 }

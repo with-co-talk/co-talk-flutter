@@ -1,17 +1,17 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
-import '../../../core/errors/exceptions.dart';
 import '../../../core/network/websocket_service.dart';
+import '../../../core/utils/debug_logger.dart';
+import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/repositories/friend_repository.dart';
 import 'friend_event.dart';
 import 'friend_state.dart';
 
 @injectable
-class FriendBloc extends Bloc<FriendEvent, FriendState> {
+class FriendBloc extends Bloc<FriendEvent, FriendState> with DebugLogger {
   final FriendRepository _friendRepository;
   final WebSocketService _webSocketService;
 
@@ -39,20 +39,14 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     on<BlockedUsersLoadRequested>(_onBlockedUsersLoadRequested);
   }
 
-  void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[FriendBloc] $message');
-    }
-  }
-
   void _onSubscriptionStarted(
     FriendListSubscriptionStarted event,
     Emitter<FriendState> emit,
   ) {
-    _log('Subscription started');
+    log('Subscription started');
     _onlineStatusSubscription?.cancel();
     _onlineStatusSubscription = _webSocketService.onlineStatusEvents.listen((wsEvent) {
-      _log('Received online status: userId=${wsEvent.userId}, isOnline=${wsEvent.isOnline}');
+      log('Received online status: userId=${wsEvent.userId}, isOnline=${wsEvent.isOnline}');
       add(FriendOnlineStatusChanged(
         userId: wsEvent.userId,
         isOnline: wsEvent.isOnline,
@@ -62,7 +56,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
 
     _profileUpdateSubscription?.cancel();
     _profileUpdateSubscription = _webSocketService.profileUpdateEvents.listen((wsEvent) {
-      _log('Received profile update: userId=${wsEvent.userId}, avatarUrl=${wsEvent.avatarUrl}');
+      log('Received profile update: userId=${wsEvent.userId}, avatarUrl=${wsEvent.avatarUrl}');
       add(FriendProfileUpdated(
         userId: wsEvent.userId,
         avatarUrl: wsEvent.avatarUrl,
@@ -86,11 +80,11 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     FriendOnlineStatusChanged event,
     Emitter<FriendState> emit,
   ) {
-    _log('Online status changed: userId=${event.userId}, isOnline=${event.isOnline}');
+    log('Online status changed: userId=${event.userId}, isOnline=${event.isOnline}');
 
     final updatedFriends = state.friends.map((friend) {
       if (friend.user.id == event.userId) {
-        _log('Updating friend: ${friend.user.nickname}');
+        log('Updating friend: ${friend.user.nickname}');
         return friend.copyWith(
           user: friend.user.copyWith(
             onlineStatus: event.isOnline ? OnlineStatus.online : OnlineStatus.offline,
@@ -108,11 +102,11 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     FriendProfileUpdated event,
     Emitter<FriendState> emit,
   ) {
-    _log('Profile updated: userId=${event.userId}, avatarUrl=${event.avatarUrl}');
+    log('Profile updated: userId=${event.userId}, avatarUrl=${event.avatarUrl}');
 
     final updatedFriends = state.friends.map((friend) {
       if (friend.user.id == event.userId) {
-        _log('Updating friend profile: ${friend.user.nickname}');
+        log('Updating friend profile: ${friend.user.nickname}');
         return friend.copyWith(
           user: friend.user.copyWith(
             avatarUrl: event.avatarUrl,
@@ -151,7 +145,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     } catch (e) {
       emit(state.copyWith(
         status: FriendStatus.failure,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -169,7 +163,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         clearErrorMessage: true,
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 
@@ -191,7 +185,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         clearErrorMessage: true,
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 
@@ -208,7 +202,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         clearErrorMessage: true,
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 
@@ -226,7 +220,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         successMessage: '친구를 삭제했습니다',
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 
@@ -265,7 +259,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
       emit(state.copyWith(
         isSearching: false,
         searchResults: [],
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -282,7 +276,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         clearErrorMessage: true,
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 
@@ -298,7 +292,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         clearErrorMessage: true,
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 
@@ -319,7 +313,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
       // 실패 시 이전 목록 복원
       emit(state.copyWith(
         friends: previousFriends,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -337,7 +331,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         clearErrorMessage: true,
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 
@@ -359,7 +353,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     } catch (e) {
       emit(state.copyWith(
         isHiddenFriendsLoading: false,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -381,7 +375,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
       // 실패 시 이전 목록 복원
       emit(state.copyWith(
         friends: previousFriends,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -399,7 +393,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         clearErrorMessage: true,
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 
@@ -421,27 +415,9 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     } catch (e) {
       emit(state.copyWith(
         isBlockedUsersLoading: false,
-        errorMessage: _extractErrorMessage(e),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
 
-  String _extractErrorMessage(dynamic error) {
-    if (error is ServerException) {
-      return error.message;
-    }
-    if (error is NetworkException) {
-      return error.message;
-    }
-    if (error is AuthException) {
-      return error.message;
-    }
-    if (error is ValidationException) {
-      return error.message;
-    }
-    if (error is CacheException) {
-      return error.message;
-    }
-    return error.toString();
-  }
 }

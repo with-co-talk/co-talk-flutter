@@ -243,6 +243,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final userId = context.read<AuthBloc>().state.user?.id;
     if (userId == null) return;
 
+    // GoRouter 미적용: BlocProvider.value로 BLoC 전달 필요 + ProfileHistoryPage 라우트 미등록
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -362,6 +363,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void _navigateToBackgroundHistory() {
     final userId = context.read<AuthBloc>().state.user?.id;
     if (userId == null) return;
+    // GoRouter 미적용: BlocProvider.value로 BLoC 전달 필요 + ProfileHistoryPage 라우트 미등록
     Navigator.push(
       context,
       MaterialPageRoute<void>(

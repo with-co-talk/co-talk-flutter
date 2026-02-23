@@ -1,16 +1,20 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/network/websocket_service.dart';
+import '../../../core/utils/debug_logger.dart';
 import '../../../core/services/active_room_tracker.dart';
 import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
+import '../../../domain/entities/chat_room.dart';
 import '../../../domain/entities/message.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import '../../../domain/repositories/friend_repository.dart';
+import '../../../domain/repositories/settings_repository.dart';
 import 'chat_room_event.dart';
 import 'chat_room_state.dart';
 import 'managers/managers.dart';
@@ -18,13 +22,14 @@ import 'managers/managers.dart';
 const _uuid = Uuid();
 
 @injectable
-class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
+class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> with DebugLogger {
   final ChatRepository _chatRepository;
   final WebSocketService _webSocketService;
   final AuthLocalDataSource _authLocalDataSource;
   final DesktopNotificationBridge _desktopNotificationBridge;
   final ActiveRoomTracker _activeRoomTracker;
   final FriendRepository _friendRepository;
+  final SettingsRepository _settingsRepository;
 
   // Managers
   late final WebSocketSubscriptionManager _subscriptionManager;
@@ -38,6 +43,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
   // WebSocket reconnection subscription for gap recovery
   StreamSubscription<void>? _reconnectedSubscription;
+
+  // Typing indicator auto-timeout timers (5s per user)
+  final Map<int, Timer> _typingTimeoutTimers = {};
 
   // Pending message timeout timer
   Timer? _pendingTimeoutTimer;
@@ -56,6 +64,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     this._desktopNotificationBridge,
     this._activeRoomTracker,
     this._friendRepository,
+    this._settingsRepository,
   ) : super(const ChatRoomState()) {
     // Initialize managers
     _subscriptionManager = WebSocketSubscriptionManager(_webSocketService);
@@ -101,17 +110,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<MessageForwardRequested>(_onMessageForwardRequested);
   }
 
-  void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[ChatRoomBloc] $message');
-    }
-  }
-
   Future<void> _onOpened(
     ChatRoomOpened event,
     Emitter<ChatRoomState> emit,
   ) async {
-    _log('_onOpened: roomId=${event.roomId}');
+    log('_onOpened: roomId=${event.roomId}');
 
     _roomInitialized = false;
     _pendingForegrounded = false;
@@ -128,7 +131,16 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       final blockedUsers = await _friendRepository.getBlockedUsers();
       blockedUserIds = blockedUsers.map((u) => u.id).toSet();
     } catch (e) {
-      _log('Failed to fetch blocked users: $e');
+      log('Failed to fetch blocked users: $e');
+    }
+
+    // Load typing indicator setting
+    bool showTypingIndicator = false;
+    try {
+      final chatSettings = await _settingsRepository.getChatSettings();
+      showTypingIndicator = chatSettings.showTypingIndicator;
+    } catch (e) {
+      log('Failed to load chat settings: $e');
     }
 
     // Set active room for notification suppression
@@ -142,6 +154,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       messages: [],
       isOfflineData: false,
       blockedUserIds: blockedUserIds,
+      showTypingIndicator: showTypingIndicator,
     ));
 
     // 1. Load cached messages first (fast initial display)
@@ -160,17 +173,21 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       bool isOtherUserLeft = false;
       int? otherUserId;
       String? otherUserNickname;
+      String? roomName;
+      ChatRoomType? roomType;
       try {
         final chatRoom = await _chatRepository.getChatRoom(event.roomId);
         isOtherUserLeft = chatRoom.isOtherUserLeft;
         otherUserId = chatRoom.otherUserId;
         otherUserNickname = chatRoom.otherUserNickname;
+        roomName = chatRoom.name;
+        roomType = chatRoom.type;
       } catch (e) {
-        _log('getChatRoom failed: $e');
+        log('getChatRoom failed: $e');
       }
 
       await _cacheManager.loadMessagesFromServer(event.roomId);
-      _log('Fetched ${_cacheManager.messages.length} messages from server');
+      log('Fetched ${_cacheManager.messages.length} messages from server');
 
       await _subscribeToWebSocket(event.roomId);
 
@@ -178,7 +195,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _reconnectedSubscription?.cancel();
       _reconnectedSubscription = _webSocketService.reconnected.listen((_) {
         if (state.roomId != null && state.status == ChatRoomStatus.success) {
-          _log('WebSocket reconnected, triggering gap recovery');
+          log('WebSocket reconnected, triggering gap recovery');
           add(const ChatRoomRefreshRequested());
         }
       });
@@ -191,6 +208,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         isOtherUserLeft: isOtherUserLeft,
         otherUserId: otherUserId,
         otherUserNickname: otherUserNickname,
+        roomName: roomName,
+        roomType: roomType,
         isOfflineData: false,
       ));
 
@@ -200,7 +219,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _startPendingTimeoutChecker();
 
       if (_pendingForegrounded) {
-        _log('Processing pending foreground event');
+        log('Processing pending foreground event');
         _pendingForegrounded = false;
         if (state.currentUserId != null) {
           _presenceManager.sendPresenceActive(event.roomId, state.currentUserId!);
@@ -209,15 +228,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         }
       } else if (state.currentUserId != null && !_presenceManager.isViewingRoom) {
         // Not viewing room, send inactive presence
-        _log('Sending presenceInactive (not viewing room)');
+        log('Sending presenceInactive (not viewing room)');
         _presenceManager.sendPresenceInactive(event.roomId, state.currentUserId!);
       }
     } catch (e, stackTrace) {
-      _log('Error in _onOpened: $e\n$stackTrace');
+      log('Error in _onOpened: $e\n$stackTrace');
 
       // Offline mode: keep cached messages if available
       if (state.messages.isNotEmpty) {
-        _log('Keeping cached messages due to network error');
+        log('Keeping cached messages due to network error');
         _roomInitialized = true;
         emit(state.copyWith(isOfflineData: true));
       } else {
@@ -232,133 +251,165 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   Future<void> _subscribeToWebSocket(int roomId) async {
     final isConnected = _webSocketService.isConnected;
     final lastMessageId = _cacheManager.lastMessageId;
-    _log('_subscribeToWebSocket: roomId=$roomId, isConnected=$isConnected, lastMessageId=$lastMessageId');
+    log('_subscribeToWebSocket: roomId=$roomId, isConnected=$isConnected, lastMessageId=$lastMessageId');
 
     // Ensure WebSocket is connected before subscribing
     if (!isConnected) {
-      _log('_subscribeToWebSocket: WebSocket not connected, attempting to connect...');
+      log('_subscribeToWebSocket: WebSocket not connected, attempting to connect...');
       final connected = await _webSocketService.ensureConnected(
         timeout: const Duration(seconds: 10),
       );
       if (!connected) {
-        _log('_subscribeToWebSocket: Failed to connect WebSocket');
+        log('_subscribeToWebSocket: Failed to connect WebSocket');
         // Continue anyway - subscription will work when connection is restored
       } else {
-        _log('_subscribeToWebSocket: WebSocket connected successfully');
+        log('_subscribeToWebSocket: WebSocket connected successfully');
       }
     }
 
     _subscriptionManager.subscribeToRoom(
       roomId,
       lastMessageId: lastMessageId,
-      onMessage: (wsMessage) {
-        _log('WebSocket message received: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}, senderId=${wsMessage.senderId}, eventType=${wsMessage.eventType}');
-
-        if (state.roomId != null && wsMessage.chatRoomId == state.roomId) {
-          _log('WebSocket message matches current room, adding MessageReceived event');
-          add(MessageReceived(_subscriptionManager.convertToMessage(wsMessage)));
-
-          if (wsMessage.eventType == 'USER_LEFT') {
-            _log('USER_LEFT event: relatedUserId=${wsMessage.relatedUserId}');
-            add(OtherUserLeftStatusChanged(
-              isOtherUserLeft: true,
-              relatedUserId: wsMessage.relatedUserId,
-              relatedUserNickname: wsMessage.relatedUserNickname,
-            ));
-          } else if (wsMessage.eventType == 'USER_JOINED') {
-            _log('USER_JOINED event: relatedUserId=${wsMessage.relatedUserId}');
-            add(OtherUserLeftStatusChanged(
-              isOtherUserLeft: false,
-              relatedUserId: wsMessage.relatedUserId,
-              relatedUserNickname: wsMessage.relatedUserNickname,
-            ));
-          }
-        } else {
-          _log('WebSocket message IGNORED: state.roomId=${state.roomId}, wsMessage.chatRoomId=${wsMessage.chatRoomId}');
-        }
-      },
-      onReadEvent: (readEvent) {
-        _log('ReadEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
-
-        if (state.roomId != null && readEvent.chatRoomId == state.roomId) {
-          add(MessagesReadUpdated(
-            userId: readEvent.userId,
-            lastReadMessageId: readEvent.lastReadMessageId,
-            lastReadAt: readEvent.lastReadAt,
-          ));
-        }
-      },
-      onTypingEvent: (typingEvent) {
-        if (state.roomId != null && typingEvent.chatRoomId == state.roomId) {
-          if (typingEvent.userId == state.currentUserId) return;
-
-          add(TypingStatusChanged(
-            userId: typingEvent.userId,
-            userNickname: typingEvent.userNickname,
-            isTyping: typingEvent.isTyping,
-          ));
-        }
-      },
-      onMessageDeleted: (deletedEvent) {
-        _log('WebSocket message deleted: messageId=${deletedEvent.messageId}');
-
-        if (state.roomId != null && deletedEvent.chatRoomId == state.roomId) {
-          add(MessageDeletedByOther(deletedEvent.messageId));
-        }
-      },
-      onMessageUpdated: (updatedEvent) {
-        _log('WebSocket message updated: messageId=${updatedEvent.messageId}');
-
-        if (state.roomId != null && updatedEvent.chatRoomId == state.roomId) {
-          add(MessageUpdatedByOther(
-            messageId: updatedEvent.messageId,
-            newContent: updatedEvent.newContent,
-          ));
-        }
-      },
-      onLinkPreviewUpdated: (event) {
-        _log('WebSocket link preview updated: messageId=${event.messageId}');
-        if (state.roomId != null && event.chatRoomId == state.roomId) {
-          add(LinkPreviewUpdated(
-            messageId: event.messageId,
-            linkPreviewUrl: event.linkPreviewUrl,
-            linkPreviewTitle: event.linkPreviewTitle,
-            linkPreviewDescription: event.linkPreviewDescription,
-            linkPreviewImageUrl: event.linkPreviewImageUrl,
-          ));
-        }
-      },
-      onReactionEvent: (reactionEvent) {
-        _log('WebSocket reaction: messageId=${reactionEvent.messageId}, userId=${reactionEvent.userId}, emoji=${reactionEvent.emoji}, type=${reactionEvent.eventType}');
-
-        add(ReactionEventReceived(
-          messageId: reactionEvent.messageId,
-          userId: reactionEvent.userId,
-          emoji: reactionEvent.emoji,
-          isAdd: reactionEvent.eventType == 'ADDED',
-          reactionId: reactionEvent.reactionId,
-        ));
-      },
+      onMessage: _handleWsMessage,
+      onReadEvent: _handleWsReadEvent,
+      onTypingEvent: _handleWsTypingEvent,
+      onMessageDeleted: _handleWsMessageDeleted,
+      onMessageUpdated: _handleWsMessageUpdated,
+      onLinkPreviewUpdated: _handleWsLinkPreviewUpdated,
+      onReactionEvent: _handleWsReactionEvent,
     );
+  }
+
+  /// Returns true if [chatRoomId] matches the currently open room.
+  bool _isCurrentRoom(int chatRoomId) =>
+      state.roomId != null && chatRoomId == state.roomId;
+
+  void _handleWsMessage(WebSocketChatMessage wsMessage) {
+    log('WebSocket message received: id=${wsMessage.messageId}, roomId=${wsMessage.chatRoomId}, senderId=${wsMessage.senderId}, eventType=${wsMessage.eventType}');
+
+    if (_isCurrentRoom(wsMessage.chatRoomId)) {
+      log('WebSocket message matches current room, adding MessageReceived event');
+      add(MessageReceived(_subscriptionManager.convertToMessage(wsMessage)));
+
+      if (wsMessage.eventType == 'USER_LEFT') {
+        log('USER_LEFT event: relatedUserId=${wsMessage.relatedUserId}');
+        add(OtherUserLeftStatusChanged(
+          isOtherUserLeft: true,
+          relatedUserId: wsMessage.relatedUserId,
+          relatedUserNickname: wsMessage.relatedUserNickname,
+        ));
+      } else if (wsMessage.eventType == 'USER_JOINED') {
+        log('USER_JOINED event: relatedUserId=${wsMessage.relatedUserId}');
+        add(OtherUserLeftStatusChanged(
+          isOtherUserLeft: false,
+          relatedUserId: wsMessage.relatedUserId,
+          relatedUserNickname: wsMessage.relatedUserNickname,
+        ));
+      }
+    } else {
+      log('WebSocket message IGNORED: state.roomId=${state.roomId}, wsMessage.chatRoomId=${wsMessage.chatRoomId}');
+    }
+  }
+
+  void _handleWsReadEvent(WebSocketReadEvent readEvent) {
+    log('ReadEvent: roomId=${readEvent.chatRoomId}, userId=${readEvent.userId}');
+
+    if (_isCurrentRoom(readEvent.chatRoomId)) {
+      add(MessagesReadUpdated(
+        userId: readEvent.userId,
+        lastReadMessageId: readEvent.lastReadMessageId,
+        lastReadAt: readEvent.lastReadAt,
+      ));
+    }
+  }
+
+  void _handleWsTypingEvent(WebSocketTypingEvent typingEvent) {
+    if (_isCurrentRoom(typingEvent.chatRoomId)) {
+      if (typingEvent.userId == state.currentUserId) return;
+
+      add(TypingStatusChanged(
+        userId: typingEvent.userId,
+        userNickname: typingEvent.userNickname,
+        isTyping: typingEvent.isTyping,
+      ));
+    }
+  }
+
+  void _handleWsMessageDeleted(WebSocketMessageDeletedEvent deletedEvent) {
+    log('WebSocket message deleted: messageId=${deletedEvent.messageId}');
+
+    if (_isCurrentRoom(deletedEvent.chatRoomId)) {
+      add(MessageDeletedByOther(deletedEvent.messageId));
+    }
+  }
+
+  void _handleWsMessageUpdated(WebSocketMessageUpdatedEvent updatedEvent) {
+    log('WebSocket message updated: messageId=${updatedEvent.messageId}');
+
+    if (_isCurrentRoom(updatedEvent.chatRoomId)) {
+      add(MessageUpdatedByOther(
+        messageId: updatedEvent.messageId,
+        newContent: updatedEvent.newContent,
+      ));
+    }
+  }
+
+  void _handleWsLinkPreviewUpdated(WebSocketLinkPreviewUpdatedEvent event) {
+    log('WebSocket link preview updated: messageId=${event.messageId}');
+
+    if (_isCurrentRoom(event.chatRoomId)) {
+      add(LinkPreviewUpdated(
+        messageId: event.messageId,
+        linkPreviewUrl: event.linkPreviewUrl,
+        linkPreviewTitle: event.linkPreviewTitle,
+        linkPreviewDescription: event.linkPreviewDescription,
+        linkPreviewImageUrl: event.linkPreviewImageUrl,
+      ));
+    }
+  }
+
+  void _handleWsReactionEvent(WebSocketReactionEvent reactionEvent) {
+    log('WebSocket reaction: messageId=${reactionEvent.messageId}, userId=${reactionEvent.userId}, emoji=${reactionEvent.emoji}, type=${reactionEvent.eventType}');
+
+    add(ReactionEventReceived(
+      messageId: reactionEvent.messageId,
+      userId: reactionEvent.userId,
+      emoji: reactionEvent.emoji,
+      isAdd: reactionEvent.eventType == 'ADDED',
+      reactionId: reactionEvent.reactionId,
+    ));
   }
 
   void _onClosed(
     ChatRoomClosed event,
     Emitter<ChatRoomState> emit,
   ) {
+    log('_onClosed: roomId=${state.roomId}, cleaning up resources');
+
     if (state.roomId != null) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
     _reconnectedSubscription?.cancel();
     _reconnectedSubscription = null;
+    // Send presenceInactive to server before disposing (so server stops suppressing push)
+    // Guard: only send if not already sent by _onBackgrounded
+    if (state.roomId != null && state.currentUserId != null && _presenceManager.isViewingRoom) {
+      _presenceManager.sendPresenceInactive(state.roomId!, state.currentUserId!);
+    }
     _presenceManager.dispose();
     _stopPendingTimeoutChecker();
+    // Clean up typing timeout timers
+    for (final timer in _typingTimeoutTimers.values) {
+      timer.cancel();
+    }
+    _typingTimeoutTimers.clear();
     _roomInitialized = false;
     _pendingForegrounded = false;
 
     // Release notification suppression
     _desktopNotificationBridge.setActiveRoomId(null);
     _activeRoomTracker.activeRoomId = null;
+    log('_onClosed: activeRoomId cleared for notification suppression');
 
     emit(const ChatRoomState());
   }
@@ -386,7 +437,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) {
     final timedOutIds = _cacheManager.timeoutPendingMessages(timeout: _pendingMessageTimeout);
     if (timedOutIds.isNotEmpty) {
-      _log('Pending messages timed out: $timedOutIds');
+      log('Pending messages timed out: $timedOutIds');
       emit(state.copyWith(messages: _cacheManager.messages));
     }
   }
@@ -396,7 +447,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) async {
     if (state.roomId == null) return;
-    _log('_onRefreshRequested: performing gap recovery for room ${state.roomId}');
+    log('_onRefreshRequested: performing gap recovery for room ${state.roomId}');
 
     final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
     if (hasNewMessages) {
@@ -424,11 +475,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomBackgrounded event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onBackgrounded: roomId=${state.roomId}, initialized=$_roomInitialized');
+    log('_onBackgrounded: roomId=${state.roomId}, initialized=$_roomInitialized');
 
     // Cancel pending foregrounded event if backgrounded before initialization
     if (_pendingForegrounded) {
-      _log('Cancelling pending foregrounded event');
+      log('Cancelling pending foregrounded event');
       _pendingForegrounded = false;
     }
 
@@ -453,9 +504,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         defaultTargetPlatform == TargetPlatform.iOS;
     if (isMobile) {
       _webSocketService.disconnect();
-      _log('_onBackgrounded: WebSocket disconnected (mobile)');
+      log('_onBackgrounded: WebSocket disconnected (mobile)');
     } else {
-      _log('_onBackgrounded: presenceInactive only (desktop)');
+      log('_onBackgrounded: presenceInactive only (desktop)');
     }
   }
 
@@ -463,7 +514,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomForegrounded event,
     Emitter<ChatRoomState> emit,
   ) async {
-    _log('_onForegrounded: roomId=${state.roomId}, initialized=$_roomInitialized');
+    log('_onForegrounded: roomId=${state.roomId}, initialized=$_roomInitialized');
 
     if (!_roomInitialized) {
       _pendingForegrounded = true;
@@ -481,24 +532,24 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _webSocketService.resetReconnectAttempts();
 
       // 2. Reconnect WebSocket
-      _log('_onForegrounded: reconnecting WebSocket (mobile, was disconnected)...');
+      log('_onForegrounded: reconnecting WebSocket (mobile, was disconnected)...');
       final connected = await _webSocketService.ensureConnected(
         timeout: const Duration(seconds: 10),
       );
 
       if (connected) {
-        _log('_onForegrounded: WebSocket reconnected, resubscribing to room');
+        log('_onForegrounded: WebSocket reconnected, resubscribing to room');
         // 3. Resubscribe to ensure we receive messages
         await _subscribeToWebSocket(state.roomId!);
       } else {
-        _log('_onForegrounded: Failed to reconnect WebSocket');
+        log('_onForegrounded: Failed to reconnect WebSocket');
       }
 
       // 4. Gap recovery: fetch latest messages from server and merge with cache
-      _log('_onForegrounded: performing gap recovery...');
+      log('_onForegrounded: performing gap recovery...');
       final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
       if (hasNewMessages) {
-        _log('_onForegrounded: new messages found during gap recovery');
+        log('_onForegrounded: new messages found during gap recovery');
         final latestId = _cacheManager.lastMessageId;
         if (latestId != null) {
           _subscriptionManager.updateLastKnownMessageId(latestId);
@@ -509,10 +560,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       //    (gap recovery already fetched them, no need to retry)
     } else if (isMobile) {
       // Mobile but still connected (brief lifecycle event, debounced background didn't fire)
-      _log('_onForegrounded: WebSocket still connected, skipping reconnect (mobile)');
+      log('_onForegrounded: WebSocket still connected, skipping reconnect (mobile)');
     } else {
       // Desktop: WebSocket stayed connected, just resume presence
-      _log('_onForegrounded: resuming presence (desktop)');
+      log('_onForegrounded: resuming presence (desktop)');
     }
 
     // Presence active + mark as read (both mobile and desktop)
@@ -588,6 +639,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _markAsReadDebounceTimer?.cancel();
     _markAsReadRetryTimer?.cancel();
     _reconnectedSubscription?.cancel();
+    for (final timer in _typingTimeoutTimers.values) {
+      timer.cancel();
+    }
+    _typingTimeoutTimers.clear();
     if (state.roomId != null && _subscriptionManager.isRoomSubscribed) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
@@ -602,7 +657,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) async {
     // 이미 로딩 중이면 중복 요청 방지
     if (state.isLoadingMore) {
-      _log('_onLoadMore: Already loading, skipping');
+      log('_onLoadMore: Already loading, skipping');
       return;
     }
 
@@ -659,7 +714,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       replyToMessage: replyToMessage,
     );
 
-    _log('_onMessageSent: Adding pending message (localId=$localId${replyToMessage != null ? ', replyTo=${replyToMessage.id}' : ''})');
+    log('_onMessageSent: Adding pending message (localId=$localId${replyToMessage != null ? ', replyTo=${replyToMessage.id}' : ''})');
     _cacheManager.addPendingMessage(pendingMessage);
 
     // Clear reply state immediately after creating the pending message
@@ -717,7 +772,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (event.success) {
-      _log('_onMessageSendCompleted: sent (localId=${event.localId})');
+      log('_onMessageSendCompleted: sent (localId=${event.localId})');
       // 전송 성공 → 즉시 "sent" 상태로 변경 (에코를 기다리지 않음).
       // 에코가 오면 _onMessageReceived에서 서버 메시지로 교체.
       _cacheManager.updatePendingMessageStatus(
@@ -726,7 +781,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       );
       emit(state.copyWith(messages: _cacheManager.messages));
     } else {
-      _log('_onMessageSendCompleted: failed (localId=${event.localId}): ${event.error}');
+      log('_onMessageSendCompleted: failed (localId=${event.localId}): ${event.error}');
       _cacheManager.updatePendingMessageStatus(
         event.localId,
         MessageSendStatus.failed,
@@ -742,16 +797,16 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     MessageReceived event,
     Emitter<ChatRoomState> emit,
   ) async {
-    _log('_onMessageReceived: id=${event.message.id}, roomId=${event.message.chatRoomId}, senderId=${event.message.senderId}, unreadCount=${event.message.unreadCount}');
+    log('_onMessageReceived: id=${event.message.id}, roomId=${event.message.chatRoomId}, senderId=${event.message.senderId}, unreadCount=${event.message.unreadCount}');
 
     if (state.roomId != event.message.chatRoomId) {
-      _log('_onMessageReceived: SKIPPED - roomId mismatch (state.roomId=${state.roomId}, event.chatRoomId=${event.message.chatRoomId})');
+      log('_onMessageReceived: SKIPPED - roomId mismatch (state.roomId=${state.roomId}, event.chatRoomId=${event.message.chatRoomId})');
       return;
     }
 
     // Filter messages from blocked users
     if (state.blockedUserIds.contains(event.message.senderId)) {
-      _log('_onMessageReceived: FILTERED - message from blocked user ${event.message.senderId}');
+      log('_onMessageReceived: FILTERED - message from blocked user ${event.message.senderId}');
       return;
     }
 
@@ -762,7 +817,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     // Filter duplicate messages based on last known ID
     if (_subscriptionManager.shouldFilterMessage(event.message.id)) {
-      _log('_onMessageReceived: FILTERED - message id ${event.message.id} <= lastKnownMessageId ${_subscriptionManager.lastKnownMessageId}');
+      log('_onMessageReceived: FILTERED - message id ${event.message.id} <= lastKnownMessageId ${_subscriptionManager.lastKnownMessageId}');
       return;
     }
 
@@ -773,7 +828,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         event.message,
       );
       if (replaced) {
-        _log('_onMessageReceived: Replaced pending message with real message (id=${event.message.id})');
+        log('_onMessageReceived: Replaced pending message with real message (id=${event.message.id})');
+        // Update lastKnownMessageId to prevent drift-based filtering
+        _subscriptionManager.updateLastKnownMessageId(event.message.id);
         emit(state.copyWith(
           messages: _cacheManager.messages,
           isOfflineData: false,
@@ -784,13 +841,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     // 일반 메시지 추가
     _cacheManager.addMessage(event.message);
-    _log('_onMessageReceived: Added message, total messages: ${_cacheManager.messages.length}');
+    // Update lastKnownMessageId to prevent drift-based filtering
+    _subscriptionManager.updateLastKnownMessageId(event.message.id);
+    log('_onMessageReceived: Added message, total messages: ${_cacheManager.messages.length}');
 
     emit(state.copyWith(
       messages: _cacheManager.messages,
       isOfflineData: false,
     ));
-    _log('_onMessageReceived: State emitted with ${state.messages.length} messages');
+    log('_onMessageReceived: State emitted with ${state.messages.length} messages');
 
     if (_presenceManager.isViewingRoom &&
         state.currentUserId != null &&
@@ -805,7 +864,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _markAsReadDebounceTimer = Timer(const Duration(milliseconds: 500), () {
         if (!isClosed && state.roomId == roomId && _presenceManager.isViewingRoom) {
           _messageHandler.markAsRead(roomId).catchError((e) {
-            if (kDebugMode) debugPrint('[ChatRoomBloc] markAsRead failed, retrying: $e');
+            log('markAsRead failed, retrying: $e');
             _markAsReadRetryTimer = Timer(const Duration(seconds: 2), () {
               if (!isClosed && state.roomId == roomId && _presenceManager.isViewingRoom) {
                 _messageHandler.markAsRead(roomId).catchError((_) {});
@@ -840,7 +899,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     MessageDeletedByOther event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onMessageDeletedByOther: messageId=${event.messageId}');
+    log('_onMessageDeletedByOther: messageId=${event.messageId}');
     _cacheManager.markMessageAsDeleted(event.messageId);
     emit(state.copyWith(messages: _cacheManager.messages));
   }
@@ -849,7 +908,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     MessageUpdatedByOther event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onMessageUpdatedByOther: messageId=${event.messageId}');
+    log('_onMessageUpdatedByOther: messageId=${event.messageId}');
     _cacheManager.updateMessage(
       event.messageId,
       (m) => m.copyWith(content: event.newContent),
@@ -861,7 +920,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     LinkPreviewUpdated event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onLinkPreviewUpdated: messageId=${event.messageId}');
+    log('_onLinkPreviewUpdated: messageId=${event.messageId}');
     _cacheManager.updateMessage(
       event.messageId,
       (m) => m.copyWith(
@@ -878,7 +937,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     MessagesReadUpdated event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onMessagesReadUpdated: userId=${event.userId}, lastReadMessageId=${event.lastReadMessageId}, lastReadAt=${event.lastReadAt}');
+    log('_onMessagesReadUpdated: userId=${event.userId}, lastReadMessageId=${event.lastReadMessageId}, lastReadAt=${event.lastReadAt}');
 
     if (state.currentUserId == null) return;
     // 내가 읽은 이벤트는 무시
@@ -887,7 +946,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // 중복 읽음 이벤트 방지: (userId, lastReadMessageId) 또는 (userId, lastReadAt) 조합으로 체크
     final eventKey = '${event.userId}_${event.lastReadMessageId ?? event.lastReadAt?.millisecondsSinceEpoch ?? 'all'}';
     if (state.processedReadEvents.contains(eventKey)) {
-      _log('_onMessagesReadUpdated: Duplicate read event ignored: $eventKey');
+      log('_onMessagesReadUpdated: Duplicate read event ignored: $eventKey');
       return;
     }
 
@@ -932,19 +991,22 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     // 변경된 메시지가 없으면 상태 업데이트 하지 않음
     if (!hasChanges) {
-      _log('_onMessagesReadUpdated: No messages updated, skipping state emit');
+      log('_onMessagesReadUpdated: No messages updated, skipping state emit');
       return;
     }
 
     // Also update cache manager for consistency
     _cacheManager.updateMessages(updateMessageReadCount);
 
-    // 처리된 이벤트 기록
-    var newProcessedEvents = Set<String>.from(state.processedReadEvents)..add(eventKey);
+    // 처리된 이벤트 기록 (LinkedHashSet을 사용하여 삽입 순서 보장)
+    var newProcessedEvents = LinkedHashSet<String>.from(state.processedReadEvents)..add(eventKey);
     // Cap the set to prevent unbounded growth
     if (newProcessedEvents.length > 500) {
       // Keep only the most recent entries by taking the last 250
-      newProcessedEvents = newProcessedEvents.toList().sublist(newProcessedEvents.length - 250).toSet();
+      final eventsList = newProcessedEvents.toList();
+      newProcessedEvents = LinkedHashSet<String>.from(
+        eventsList.sublist(eventsList.length - 250),
+      );
     }
 
     emit(state.copyWith(
@@ -957,12 +1019,29 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     TypingStatusChanged event,
     Emitter<ChatRoomState> emit,
   ) {
+    // 입력중 표시 설정이 꺼져 있으면 무시
+    if (!state.showTypingIndicator) return;
+
     final updatedTypingUsers = Map<int, String>.from(state.typingUsers);
+
+    // 기존 타이머 취소
+    _typingTimeoutTimers[event.userId]?.cancel();
 
     if (event.isTyping) {
       updatedTypingUsers[event.userId] = event.userNickname ?? '상대방';
+      // 5초 자동 타임아웃: 서버 의존 없이 자동 해제
+      _typingTimeoutTimers[event.userId] = Timer(const Duration(seconds: 5), () {
+        if (!isClosed) {
+          add(TypingStatusChanged(
+            userId: event.userId,
+            userNickname: event.userNickname,
+            isTyping: false,
+          ));
+        }
+      });
     } else {
       updatedTypingUsers.remove(event.userId);
+      _typingTimeoutTimers.remove(event.userId);
     }
 
     emit(state.copyWith(typingUsers: updatedTypingUsers));
@@ -973,6 +1052,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
+    // 입력중 표시 설정이 꺼져 있으면 타이핑 상태를 전송하지 않음
+    if (!state.showTypingIndicator) return;
 
     _presenceManager.handleUserStartedTyping(
       roomId: state.roomId!,
@@ -988,6 +1069,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
+    if (!state.showTypingIndicator) return;
 
     _presenceManager.handleUserStoppedTyping(
       roomId: state.roomId!,
@@ -1055,14 +1137,14 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         reinviteSuccess: true,
         isOtherUserLeft: false,
       ));
-      _log('User reinvited: inviteeId=${event.inviteeId}');
+      log('User reinvited: inviteeId=${event.inviteeId}');
     } catch (e) {
       emit(state.copyWith(
         isReinviting: false,
         reinviteSuccess: false,
         errorMessage: e.toString(),
       ));
-      _log('Failed to reinvite user: $e');
+      log('Failed to reinvite user: $e');
     }
   }
 
@@ -1070,7 +1152,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     OtherUserLeftStatusChanged event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onOtherUserLeftStatusChanged: isOtherUserLeft=${event.isOtherUserLeft}');
+    log('_onOtherUserLeftStatusChanged: isOtherUserLeft=${event.isOtherUserLeft}');
 
     emit(state.copyWith(
       isOtherUserLeft: event.isOtherUserLeft,
@@ -1101,7 +1183,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         uploadProgress: 1.0,
       ));
     } catch (e) {
-      _log('File attachment failed: $e');
+      log('File attachment failed: $e');
       final raw = e.toString().toLowerCase();
       final isSignatureError = raw.contains('signature') ||
           raw.contains('content type') ||
@@ -1125,7 +1207,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     final pendingMessage = _cacheManager.getPendingMessage(event.localId);
     if (pendingMessage == null || state.roomId == null) return;
 
-    _log('_onMessageRetryRequested: Retrying message (localId=${event.localId})');
+    log('_onMessageRetryRequested: Retrying message (localId=${event.localId})');
 
     // 상태를 다시 pending으로 변경
     _cacheManager.updatePendingMessageStatus(event.localId, MessageSendStatus.pending);
@@ -1145,7 +1227,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     PendingMessageDeleteRequested event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onPendingMessageDeleteRequested: Deleting message (localId=${event.localId})');
+    log('_onPendingMessageDeleteRequested: Deleting message (localId=${event.localId})');
     _cacheManager.removePendingMessage(event.localId);
     emit(state.copyWith(messages: _cacheManager.messages));
   }
@@ -1159,7 +1241,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ReactionAddRequested event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionAddRequested: messageId=${event.messageId}, emoji=${event.emoji}');
+    log('_onReactionAddRequested: messageId=${event.messageId}, emoji=${event.emoji}');
 
     // Sync cache manager with state if out of sync (for tests with seeded state)
     if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
@@ -1190,7 +1272,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ReactionRemoveRequested event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionRemoveRequested: messageId=${event.messageId}, emoji=${event.emoji}');
+    log('_onReactionRemoveRequested: messageId=${event.messageId}, emoji=${event.emoji}');
 
     // Sync cache manager with state if out of sync (for tests with seeded state)
     if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
@@ -1215,7 +1297,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ReactionEventReceived event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionEventReceived: messageId=${event.messageId}, userId=${event.userId}, emoji=${event.emoji}, isAdd=${event.isAdd}');
+    log('_onReactionEventReceived: messageId=${event.messageId}, userId=${event.userId}, emoji=${event.emoji}, isAdd=${event.isAdd}');
 
     // Sync cache manager with state if out of sync (for tests with seeded state)
     if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {

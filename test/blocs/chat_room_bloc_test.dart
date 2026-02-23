@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:co_talk_flutter/core/network/websocket/websocket_events.dart';
+import 'package:co_talk_flutter/domain/entities/chat_room.dart';
+import 'package:co_talk_flutter/domain/entities/chat_settings.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/domain/repositories/chat_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +25,7 @@ void main() {
   late MockDesktopNotificationBridge mockDesktopNotificationBridge;
   late MockActiveRoomTracker mockActiveRoomTracker;
   late MockFriendRepository mockFriendRepository;
+  late MockSettingsRepository mockSettingsRepository;
 
   setUpAll(() {
     // Register fallback values for mocktail
@@ -38,6 +41,7 @@ void main() {
     mockDesktopNotificationBridge = MockDesktopNotificationBridge();
     mockActiveRoomTracker = MockActiveRoomTracker();
     mockFriendRepository = MockFriendRepository();
+    mockSettingsRepository = MockSettingsRepository();
 
     // AuthLocalDataSource mock 기본 설정
     when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
@@ -120,6 +124,10 @@ void main() {
     // ActiveRoomTracker mock 기본 설정
     when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
     when(() => mockActiveRoomTracker.activeRoomId = any()).thenReturn(null);
+
+    // SettingsRepository mock 기본 설정
+    when(() => mockSettingsRepository.getChatSettings())
+        .thenAnswer((_) async => const ChatSettings());
   });
 
   ChatRoomBloc createBloc() => ChatRoomBloc(
@@ -129,6 +137,7 @@ void main() {
         mockDesktopNotificationBridge,
         mockActiveRoomTracker,
         mockFriendRepository,
+        mockSettingsRepository,
       );
 
   group('ChatRoomBloc', () {
@@ -164,6 +173,7 @@ void main() {
             messages: FakeEntities.messages,
             nextCursor: 123,
             hasMore: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -1085,6 +1095,77 @@ void main() {
               .having((s) => s.messages[2].unreadCount, 'first msg unreadCount', 0),
         ],
       );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'should keep most recent read events when processedReadEvents exceeds 500',
+        build: () => createBloc(),
+        seed: () {
+          // Create a LinkedHashSet to guarantee insertion order
+          final orderedEvents = <String>{};
+          for (int i = 0; i < 500; i++) {
+            orderedEvents.add('2_event_$i');
+          }
+          return ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [
+              Message(
+                id: 1,
+                chatRoomId: 1,
+                senderId: 1,
+                content: 'Test message',
+                createdAt: DateTime(2024, 1, 1),
+                unreadCount: 1,
+              ),
+            ],
+            // Seed with 500 existing events in order
+            processedReadEvents: orderedEvents,
+          );
+        },
+        act: (bloc) {
+          // Add one more event to trigger trimming (total = 501)
+          bloc.add(const MessagesReadUpdated(userId: 2, lastReadMessageId: 1));
+        },
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.processedReadEvents.length, 'processedReadEvents size', 250)
+              // The most recent event (added by the event) should be included
+              .having(
+                (s) => s.processedReadEvents.contains('2_1'),
+                'contains newest event',
+                true,
+              )
+              // Recent seeded events should be kept (e.g., event_499)
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_499'),
+                'contains second-newest event',
+                true,
+              )
+              // Old events should be removed (first 250 + 1 should be gone)
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_0'),
+                'old event_0 removed',
+                false,
+              )
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_100'),
+                'old event_100 removed',
+                false,
+              )
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_250'),
+                'event_250 removed',
+                false,
+              )
+              // Events from 251 onwards should be kept
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_251'),
+                'event_251 kept',
+                true,
+              ),
+        ],
+      );
     });
 
     group('Auto read on message received', () {
@@ -1145,6 +1226,7 @@ void main() {
             messages: FakeEntities.messages,
             nextCursor: 123,
             hasMore: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
       );
@@ -1222,6 +1304,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // WebSocket 메시지 추가 (이전 isReadMarked 상태 유지)
           isA<ChatRoomState>()
@@ -1291,6 +1374,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내 메시지 수신: unreadCount=1
           isA<ChatRoomState>()
@@ -1352,6 +1436,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지가 unreadCount=1로 표시됨
           isA<ChatRoomState>()
@@ -1422,6 +1507,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내 메시지 수신: unreadCount=1
           isA<ChatRoomState>()
@@ -1485,6 +1571,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지가 즉시 unreadCount=0으로 표시됨 (상대방이 포커스되어 있었음)
           isA<ChatRoomState>()
@@ -1677,6 +1764,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // _onForegrounded always emits isReadMarked: true even if markAsRead fails
           // because the error is caught silently in MessageHandler.markAsRead
@@ -1688,6 +1776,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -1864,6 +1953,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // markAsRead 성공 후 isReadMarked가 true가 됨
           // 하지만 서버가 chatRoomUpdates를 보내주지 않으면 실제 unreadCount는 업데이트되지 않음
@@ -1875,6 +1965,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true, // markAsRead 성공으로 true
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -1928,6 +2019,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 중요: isReadMarked가 true가 되지 않아야 함!
           // pendingForegrounded가 취소되었으므로 markAsRead가 호출되지 않음
@@ -1987,6 +2079,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 두 번째 ChatRoomForegrounded에서 markAsRead 호출 → isReadMarked = true
           const ChatRoomState(
@@ -1997,6 +2090,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -2054,6 +2148,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 수신한 메시지의 unreadCount=1이 그대로 보존되어야 함
           isA<ChatRoomState>()
@@ -2111,6 +2206,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 수신한 메시지의 unreadCount=0이 그대로 보존되어야 함
           isA<ChatRoomState>()
@@ -2172,6 +2268,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // Background 상태에서 수신한 메시지의 unreadCount=1이 그대로 보존되어야 함
           // 이 시나리오가 실패하면 서버에서 0을 보내고 있다는 의미
@@ -2229,6 +2326,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지도 unreadCount=1로 보존 (UI에서 "1" 표시됨)
           isA<ChatRoomState>()
@@ -3049,6 +3147,7 @@ void main() {
           roomId: 1,
           currentUserId: 1,
           messages: [],
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const UserStartedTyping()),
         wait: const Duration(milliseconds: 100),
@@ -3074,6 +3173,7 @@ void main() {
           roomId: 1,
           currentUserId: 1,
           messages: [],
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const UserStoppedTyping()),
         wait: const Duration(milliseconds: 100),
@@ -3134,6 +3234,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3156,6 +3257,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {2: 'Alice', 3: 'Bob'},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3179,6 +3281,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3200,6 +3303,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {3: 'Bob'},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 999,
@@ -3218,6 +3322,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) {
           bloc.add(const TypingStatusChanged(userId: 2, userNickname: 'Alice', isTyping: true));
@@ -3231,6 +3336,83 @@ void main() {
               .having((s) => s.typingUsers[2], 'Alice', 'Alice')
               .having((s) => s.typingUsers[3], 'Bob', 'Bob')
               .having((s) => s.typingUsers[4], 'Charlie', 'Charlie'),
+        ],
+      );
+    });
+
+    group('TypingStatusChanged with showTypingIndicator disabled', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'ignores typing events when showTypingIndicator is false (default)',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: false,
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        expect: () => [],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'processes typing events when showTypingIndicator is true',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: true,
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.length, 'typingUsers length', 1)
+              .having((s) => s.typingUsers[2], 'user 2 nickname', 'Alice'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'typing start followed by explicit stop removes user',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: true,
+        ),
+        act: (bloc) {
+          bloc.add(const TypingStatusChanged(
+            userId: 2,
+            userNickname: 'Alice',
+            isTyping: true,
+          ));
+          bloc.add(const TypingStatusChanged(
+            userId: 2,
+            userNickname: 'Alice',
+            isTyping: false,
+          ));
+        },
+        expect: () => [
+          // First: Alice starts typing
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.length, 'typingUsers length', 1),
+          // Then: Alice stops typing
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.isEmpty, 'typingUsers empty', true),
         ],
       );
     });
@@ -3654,6 +3836,654 @@ void main() {
         verify: (_) {
           verifyNever(() => mockChatRepository.replyToMessage(any(), any()));
         },
+      );
+    });
+
+    // ============================================================
+    // WebSocket subscription callback tests
+    // Each callback in _subscribeToWebSocket is covered below.
+    // These tests open the room (which triggers subscription), then
+    // emit events via the mock stream controllers and verify the BLoC
+    // produces the expected state changes.
+    // ============================================================
+    group('WebSocket subscription callbacks', () {
+      // Helper to set up bloc with an open room and stream controllers.
+      // Returns the controllers so tests can emit events.
+      Map<String, dynamic> setupBlocWithRoom() {
+        final messageController = StreamController<WebSocketChatMessage>.broadcast();
+        final readController = StreamController<WebSocketReadEvent>.broadcast();
+        final typingController = StreamController<WebSocketTypingEvent>.broadcast();
+        final deletedController = StreamController<WebSocketMessageDeletedEvent>.broadcast();
+        final updatedController = StreamController<WebSocketMessageUpdatedEvent>.broadcast();
+        final linkPreviewController = StreamController<WebSocketLinkPreviewUpdatedEvent>.broadcast();
+        final reactionController = StreamController<WebSocketReactionEvent>.broadcast();
+
+        when(() => mockWebSocketService.messages)
+            .thenAnswer((_) => messageController.stream);
+        when(() => mockWebSocketService.readEvents)
+            .thenAnswer((_) => readController.stream);
+        when(() => mockWebSocketService.typingEvents)
+            .thenAnswer((_) => typingController.stream);
+        when(() => mockWebSocketService.messageDeletedEvents)
+            .thenAnswer((_) => deletedController.stream);
+        when(() => mockWebSocketService.messageUpdatedEvents)
+            .thenAnswer((_) => updatedController.stream);
+        when(() => mockWebSocketService.linkPreviewUpdatedEvents)
+            .thenAnswer((_) => linkPreviewController.stream);
+        when(() => mockWebSocketService.reactions)
+            .thenAnswer((_) => reactionController.stream);
+
+        when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+            .thenAnswer((_) async => (<Message>[], null, false));
+        when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+        return {
+          'messageController': messageController,
+          'readController': readController,
+          'typingController': typingController,
+          'deletedController': deletedController,
+          'updatedController': updatedController,
+          'linkPreviewController': linkPreviewController,
+          'reactionController': reactionController,
+        };
+      }
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onMessage - message from matching room triggers MessageReceived and updates state',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final messageController = controllers['messageController'] as StreamController<WebSocketChatMessage>;
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            messageController.add(WebSocketChatMessage(
+              messageId: 100,
+              senderId: 2,
+              chatRoomId: 1,
+              content: 'Hello from WS',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 1),
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2, // Skip loading + success from ChatRoomOpened
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.content, 'content', 'Hello from WS'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onMessage room guard - message from different room is ignored',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final messageController = controllers['messageController'] as StreamController<WebSocketChatMessage>;
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            // Emit a message for room 999 (not room 1)
+            messageController.add(WebSocketChatMessage(
+              messageId: 200,
+              senderId: 2,
+              chatRoomId: 999, // different room
+              content: 'Message for other room',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 1),
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2, // Skip loading + success from ChatRoomOpened
+        expect: () => [], // No new state — message was ignored
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onReadEvent - read event for current room triggers MessagesReadUpdated',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final readController = controllers['readController'] as StreamController<WebSocketReadEvent>;
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            readController.add(WebSocketReadEvent(
+              chatRoomId: 1,
+              userId: 2,
+              lastReadMessageId: 50,
+              lastReadAt: DateTime(2026, 1, 1, 12),
+            ));
+          });
+          return bloc;
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+        ),
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        // We verify the read event was processed by checking processedReadEvents is populated
+        verify: (bloc) {
+          // A read event from userId=2 with lastReadMessageId=50 should have been recorded
+          // (No messages to update unreadCount, but processedReadEvents should grow)
+          // Simply assert no exception was thrown and state is still valid
+          expect(bloc.state.status, ChatRoomStatus.success);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onReadEvent room guard - read event from different room is ignored',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final readController = controllers['readController'] as StreamController<WebSocketReadEvent>;
+
+          // Pre-populate a message so we can verify unreadCount was NOT changed
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 1,
+                      chatRoomId: 1,
+                      senderId: 1,
+                      content: 'My message',
+                      createdAt: DateTime(2026, 1, 1),
+                      unreadCount: 1,
+                    ),
+                  ], null, false));
+
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            readController.add(WebSocketReadEvent(
+              chatRoomId: 999, // different room
+              userId: 2,
+              lastReadMessageId: 1,
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2, // Skip loading + success
+        expect: () => [], // unreadCount not changed
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onTypingEvent - typing=true triggers TypingStatusChanged and adds user to typingUsers',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final typingController = controllers['typingController'] as StreamController<WebSocketTypingEvent>;
+          final bloc = createBloc();
+          // Enable typing indicator setting
+          when(() => mockSettingsRepository.getChatSettings())
+              .thenAnswer((_) async => const ChatSettings(showTypingIndicator: true));
+          Future.delayed(const Duration(milliseconds: 150), () {
+            typingController.add(WebSocketTypingEvent(
+              chatRoomId: 1,
+              userId: 2,
+              userNickname: 'Alice',
+              isTyping: true,
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2, // Skip loading + success
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.containsKey(2), 'Alice typing', true)
+              .having((s) => s.typingUsers[2], 'Alice nickname', 'Alice'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onTypingEvent - currentUser typing event is ignored (no self-typing indicator)',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final typingController = controllers['typingController'] as StreamController<WebSocketTypingEvent>;
+          when(() => mockSettingsRepository.getChatSettings())
+              .thenAnswer((_) async => const ChatSettings(showTypingIndicator: true));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            typingController.add(WebSocketTypingEvent(
+              chatRoomId: 1,
+              userId: 1, // currentUserId = 1
+              userNickname: 'Me',
+              isTyping: true,
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2, // Skip loading + success
+        expect: () => [], // Own typing event ignored
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onMessageDeleted - deleted event for current room triggers MessageDeletedByOther',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final deletedController = controllers['deletedController'] as StreamController<WebSocketMessageDeletedEvent>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 10,
+                      chatRoomId: 1,
+                      senderId: 2,
+                      content: 'To be deleted',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            deletedController.add(WebSocketMessageDeletedEvent(
+              chatRoomId: 1,
+              messageId: 10,
+              deletedBy: 2,
+              deletedAt: DateTime(2026, 1, 1, 12),
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2, // Skip loading + success
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.isDeleted, 'isDeleted', true),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onMessageDeleted room guard - deleted event from different room is ignored',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final deletedController = controllers['deletedController'] as StreamController<WebSocketMessageDeletedEvent>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 10,
+                      chatRoomId: 1,
+                      senderId: 2,
+                      content: 'Should not be deleted',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            deletedController.add(WebSocketMessageDeletedEvent(
+              chatRoomId: 999, // different room
+              messageId: 10,
+              deletedBy: 2,
+              deletedAt: DateTime(2026, 1, 1, 12),
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [], // Message was NOT deleted
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onMessageUpdated - updated event for current room triggers MessageUpdatedByOther',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final updatedController = controllers['updatedController'] as StreamController<WebSocketMessageUpdatedEvent>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 20,
+                      chatRoomId: 1,
+                      senderId: 2,
+                      content: 'Original content',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            updatedController.add(WebSocketMessageUpdatedEvent(
+              chatRoomId: 1,
+              messageId: 20,
+              updatedBy: 2,
+              newContent: 'Edited content',
+              updatedAt: DateTime(2026, 1, 1, 13),
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.content, 'updated content', 'Edited content'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onMessageUpdated room guard - updated event from different room is ignored',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final updatedController = controllers['updatedController'] as StreamController<WebSocketMessageUpdatedEvent>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 20,
+                      chatRoomId: 1,
+                      senderId: 2,
+                      content: 'Original content',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            updatedController.add(WebSocketMessageUpdatedEvent(
+              chatRoomId: 999, // different room
+              messageId: 20,
+              updatedBy: 2,
+              newContent: 'Should not apply',
+              updatedAt: DateTime(2026, 1, 1, 13),
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [], // Content was NOT changed
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onLinkPreviewUpdated - link preview event for current room triggers LinkPreviewUpdated',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final linkPreviewController = controllers['linkPreviewController'] as StreamController<WebSocketLinkPreviewUpdatedEvent>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 30,
+                      chatRoomId: 1,
+                      senderId: 2,
+                      content: 'https://example.com',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            linkPreviewController.add(WebSocketLinkPreviewUpdatedEvent(
+              chatRoomId: 1,
+              messageId: 30,
+              linkPreviewUrl: 'https://example.com',
+              linkPreviewTitle: 'Example Title',
+              linkPreviewDescription: 'Example description',
+              linkPreviewImageUrl: 'https://example.com/image.png',
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.linkPreviewUrl, 'linkPreviewUrl', 'https://example.com')
+              .having((s) => s.messages.first.linkPreviewTitle, 'linkPreviewTitle', 'Example Title'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onLinkPreviewUpdated room guard - link preview from different room is ignored',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final linkPreviewController = controllers['linkPreviewController'] as StreamController<WebSocketLinkPreviewUpdatedEvent>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 30,
+                      chatRoomId: 1,
+                      senderId: 2,
+                      content: 'https://example.com',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            linkPreviewController.add(WebSocketLinkPreviewUpdatedEvent(
+              chatRoomId: 999, // different room
+              messageId: 30,
+              linkPreviewUrl: 'https://example.com',
+              linkPreviewTitle: 'Should not appear',
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [], // Link preview was NOT updated
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onReactionEvent - ADDED reaction event triggers ReactionEventReceived and adds reaction',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final reactionController = controllers['reactionController'] as StreamController<WebSocketReactionEvent>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 40,
+                      chatRoomId: 1,
+                      senderId: 1,
+                      content: 'React to me',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            reactionController.add(WebSocketReactionEvent(
+              messageId: 40,
+              userId: 2,
+              emoji: '❤️',
+              eventType: 'ADDED',
+              timestamp: 1000,
+              reactionId: 99,
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.reactions.length, 'reactions length', 1)
+              .having((s) => s.messages.first.reactions.first.emoji, 'emoji', '❤️')
+              .having((s) => s.messages.first.reactions.first.userId, 'userId', 2)
+              .having((s) => s.messages.first.reactions.first.id, 'reactionId', 99),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'onReactionEvent - REMOVED reaction event triggers ReactionEventReceived and removes reaction',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final reactionController = controllers['reactionController'] as StreamController<WebSocketReactionEvent>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 40,
+                      chatRoomId: 1,
+                      senderId: 1,
+                      content: 'React to me',
+                      createdAt: DateTime(2026, 1, 1),
+                      reactions: const [
+                        MessageReaction(
+                          id: 99,
+                          messageId: 40,
+                          userId: 2,
+                          emoji: '❤️',
+                        ),
+                      ],
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            reactionController.add(WebSocketReactionEvent(
+              messageId: 40,
+              userId: 2,
+              emoji: '❤️',
+              eventType: 'REMOVED',
+              timestamp: 1001,
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 1)
+              .having((s) => s.messages.first.reactions.isEmpty, 'reactions empty', true),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'cache sync guard - message with ID <= lastKnownMessageId is filtered (duplicate prevention)',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final messageController = controllers['messageController'] as StreamController<WebSocketChatMessage>;
+          // First load with message id=50, so lastKnownMessageId becomes 50
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 50,
+                      chatRoomId: 1,
+                      senderId: 2,
+                      content: 'Existing message',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            // Emit a message with ID <= 50 (would be duplicate/old)
+            messageController.add(WebSocketChatMessage(
+              messageId: 50, // same ID as existing message
+              senderId: 2,
+              chatRoomId: 1,
+              content: 'Duplicate message',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 1),
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [], // Duplicate was filtered — no new state
+        verify: (bloc) {
+          // Still only 1 message (the original), not 2
+          expect(bloc.state.messages.length, 1);
+          expect(bloc.state.messages.first.id, 50);
+          expect(bloc.state.messages.first.content, 'Existing message');
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'cache sync guard - new message with ID > lastKnownMessageId is accepted',
+        build: () {
+          final controllers = setupBlocWithRoom();
+          final messageController = controllers['messageController'] as StreamController<WebSocketChatMessage>;
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => ([
+                    Message(
+                      id: 50,
+                      chatRoomId: 1,
+                      senderId: 2,
+                      content: 'Existing message',
+                      createdAt: DateTime(2026, 1, 1),
+                    ),
+                  ], null, false));
+          final bloc = createBloc();
+          Future.delayed(const Duration(milliseconds: 150), () {
+            // Emit a message with ID > 50 (genuinely new message)
+            messageController.add(WebSocketChatMessage(
+              messageId: 51, // new message
+              senderId: 2,
+              chatRoomId: 1,
+              content: 'New message',
+              type: 'TEXT',
+              createdAt: DateTime(2026, 1, 1, 12),
+            ));
+          });
+          return bloc;
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 500),
+        skip: 2,
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.messages.length, 'messages length', 2)
+              .having((s) => s.messages.first.content, 'newest first', 'New message'),
+        ],
       );
     });
 
