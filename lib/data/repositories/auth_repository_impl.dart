@@ -154,8 +154,8 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<bool> verifyPasswordResetCode({required String email, required String code}) async {
-    return await _remoteDataSource.verifyPasswordResetCode(email, code);
+  Future<void> verifyPasswordResetCode({required String email, required String code}) async {
+    await _remoteDataSource.verifyPasswordResetCode(email, code);
   }
 
   @override

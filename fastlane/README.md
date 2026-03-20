@@ -127,6 +127,48 @@ macOS TestFlight 업로드 (이미 빌드된 앱)
 
 빌드 번호 증가 (iOS + macOS)
 
+### submit_ios
+
+```sh
+[bundle exec] fastlane submit_ios
+```
+
+iOS App Store 심사 제출 (메타데이터 + 스크린샷 + 빌드)
+
+TestFlight에 업로드된 빌드를 App Store에 제출합니다
+
+### submit_macos
+
+```sh
+[bundle exec] fastlane submit_macos
+```
+
+macOS App Store 심사 제출
+
+### upload_metadata
+
+```sh
+[bundle exec] fastlane upload_metadata
+```
+
+메타데이터만 업로드 (심사 제출 없이)
+
+### release_ios
+
+```sh
+[bundle exec] fastlane release_ios
+```
+
+iOS 빌드 + TestFlight + App Store 심사 제출 (풀 파이프라인)
+
+### submit_all
+
+```sh
+[bundle exec] fastlane submit_all
+```
+
+iOS + macOS 모두 App Store 심사 제출
+
 ### deploy_android
 
 ```sh

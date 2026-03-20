@@ -22,6 +22,6 @@ abstract class AuthRepository {
   Future<void> resendVerification({required String email});
   Future<Map<String, dynamic>> findEmail({required String nickname, required String phoneNumber});
   Future<void> requestPasswordResetCode({required String email});
-  Future<bool> verifyPasswordResetCode({required String email, required String code});
+  Future<void> verifyPasswordResetCode({required String email, required String code});
   Future<void> resetPasswordWithCode({required String email, required String code, required String newPassword});
 }

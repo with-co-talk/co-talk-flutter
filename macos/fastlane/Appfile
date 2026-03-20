@@ -1,0 +1,14 @@
+# App Identifier (Bundle ID)
+app_identifier("com.cotalk.coTalkFlutter")
+
+# Apple Developer Portal에 로그인할 Apple ID
+apple_id(ENV["APPLE_ID"] || "leesg107@naver.com")
+
+# App Store Connect 팀 ID (숫자)
+itc_team_id(ENV["128505909"])
+
+# Apple Developer Portal 팀 ID (영문+숫자)
+team_id(ENV["TEAM_ID"] || "QW7DJ7FBDT")
+
+# macOS 플랫폼
+for_platform :mac

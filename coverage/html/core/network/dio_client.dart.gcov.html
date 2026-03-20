@@ -31,14 +31,18 @@
             <td class="headerValue">lcov.info</td>
             <td></td>
             <td class="headerItem">Lines:</td>
-            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntryLo">54.5&nbsp;%</td>
             <td class="headerCovTableEntry">22</td>
-            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">12</td>
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-01-21 21:14:22</td>
+            <td class="headerValue">2026-02-03 17:19:24</td>
             <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
           </tr>
                   <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
                 </table>
@@ -67,35 +71,35 @@
 <span id="L9"><span class="lineNum">       9</span>              :   late final Dio _dio;</span>
 <span id="L10"><span class="lineNum">      10</span>              :   final AuthInterceptor _authInterceptor;</span>
 <span id="L11"><span class="lineNum">      11</span>              : </span>
-<span id="L12"><span class="lineNum">      12</span> <span class="tlaUNC">           0 :   DioClient(this._authInterceptor) {</span></span>
-<span id="L13"><span class="lineNum">      13</span> <span class="tlaUNC">           0 :     _dio = Dio(</span></span>
-<span id="L14"><span class="lineNum">      14</span> <span class="tlaUNC">           0 :       BaseOptions(</span></span>
-<span id="L15"><span class="lineNum">      15</span> <span class="tlaUNC">           0 :         baseUrl: ApiConstants.apiBaseUrl,</span></span>
+<span id="L12"><span class="lineNum">      12</span> <span class="tlaGNC">           1 :   DioClient(this._authInterceptor) {</span></span>
+<span id="L13"><span class="lineNum">      13</span> <span class="tlaGNC">           2 :     _dio = Dio(</span></span>
+<span id="L14"><span class="lineNum">      14</span> <span class="tlaGNC">           1 :       BaseOptions(</span></span>
+<span id="L15"><span class="lineNum">      15</span> <span class="tlaGNC">           1 :         baseUrl: ApiConstants.apiBaseUrl,</span></span>
 <span id="L16"><span class="lineNum">      16</span>              :         connectTimeout: ApiConstants.connectTimeout,</span>
 <span id="L17"><span class="lineNum">      17</span>              :         receiveTimeout: ApiConstants.receiveTimeout,</span>
 <span id="L18"><span class="lineNum">      18</span>              :         sendTimeout: ApiConstants.sendTimeout,</span>
-<span id="L19"><span class="lineNum">      19</span> <span class="tlaUNC">           0 :         headers: {</span></span>
+<span id="L19"><span class="lineNum">      19</span> <span class="tlaGNC">           1 :         headers: {</span></span>
 <span id="L20"><span class="lineNum">      20</span>              :           'Content-Type': 'application/json',</span>
 <span id="L21"><span class="lineNum">      21</span>              :           'Accept': 'application/json',</span>
 <span id="L22"><span class="lineNum">      22</span>              :         },</span>
 <span id="L23"><span class="lineNum">      23</span>              :       ),</span>
 <span id="L24"><span class="lineNum">      24</span>              :     );</span>
 <span id="L25"><span class="lineNum">      25</span>              : </span>
-<span id="L26"><span class="lineNum">      26</span> <span class="tlaUNC">           0 :     _dio.interceptors.add(_authInterceptor);</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">           4 :     _dio.interceptors.add(_authInterceptor);</span></span>
 <span id="L27"><span class="lineNum">      27</span>              : </span>
 <span id="L28"><span class="lineNum">      28</span>              :     // 프로덕션 환경에서는 민감한 정보 로깅 비활성화</span>
-<span id="L29"><span class="lineNum">      29</span> <span class="tlaUNC">           0 :     _dio.interceptors.add(</span></span>
-<span id="L30"><span class="lineNum">      30</span> <span class="tlaUNC">           0 :       LogInterceptor(</span></span>
-<span id="L31"><span class="lineNum">      31</span> <span class="tlaUNC">           0 :         requestBody: AppConfig.enableNetworkBodyLogging,</span></span>
-<span id="L32"><span class="lineNum">      32</span> <span class="tlaUNC">           0 :         responseBody: AppConfig.enableNetworkBodyLogging,</span></span>
-<span id="L33"><span class="lineNum">      33</span> <span class="tlaUNC">           0 :         requestHeader: AppConfig.enableVerboseLogging,</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">           3 :     _dio.interceptors.add(</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">           1 :       LogInterceptor(</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">           1 :         requestBody: AppConfig.enableNetworkBodyLogging,</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">           1 :         responseBody: AppConfig.enableNetworkBodyLogging,</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">           1 :         requestHeader: AppConfig.enableVerboseLogging,</span></span>
 <span id="L34"><span class="lineNum">      34</span>              :         responseHeader: false,</span>
 <span id="L35"><span class="lineNum">      35</span>              :         error: true,</span>
 <span id="L36"><span class="lineNum">      36</span>              :       ),</span>
 <span id="L37"><span class="lineNum">      37</span>              :     );</span>
 <span id="L38"><span class="lineNum">      38</span>              :   }</span>
 <span id="L39"><span class="lineNum">      39</span>              : </span>
-<span id="L40"><span class="lineNum">      40</span> <span class="tlaUNC">           0 :   Dio get dio =&gt; _dio;</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">           2 :   Dio get dio =&gt; _dio;</span></span>
 <span id="L41"><span class="lineNum">      41</span>              : </span>
 <span id="L42"><span class="lineNum">      42</span> <span class="tlaUNC">           0 :   Future&lt;Response&lt;T&gt;&gt; get&lt;T&gt;(</span></span>
 <span id="L43"><span class="lineNum">      43</span>              :     String path, {</span>

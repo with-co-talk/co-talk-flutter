@@ -1,1 +1,1 @@
-genhtml coverage/lcov.info -o coverage/html --no-function-coverage
+genhtml coverage/lcov.info -o coverage/html --quiet

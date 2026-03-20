@@ -60,6 +60,33 @@ void main() {
           throwsA(isA<ValidationException>()),
         );
       });
+
+      test('throws NetworkException on connection timeout', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            type: DioExceptionType.connectionTimeout,
+          ),
+        );
+
+        await expectLater(dataSource.signUp(request), throwsA(isA<NetworkException>()));
+      });
+
+      test('throws ServerException when signUp fails with 500', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            response: Response(
+              requestOptions: RequestOptions(path: ''),
+              statusCode: 500,
+              data: {'error': 'Internal Server Error'},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+
+        await expectLater(dataSource.signUp(request), throwsA(isA<ServerException>()));
+      });
     });
 
     group('login', () {
@@ -205,6 +232,20 @@ void main() {
           throwsA(isA<ServerException>()),
         );
       });
+
+      test('logout does not send refresh token in body (uses Authorization header only)',
+          () async {
+        when(() => mockDioClient.post(any())).thenAnswer((_) async => Response(
+              requestOptions: RequestOptions(path: ''),
+              statusCode: 200,
+            ));
+
+        await dataSource.logout('any_token');
+
+        // Verify called without data parameter (no body)
+        verify(() => mockDioClient.post(any())).called(1);
+        verifyNever(() => mockDioClient.post(any(), data: any(named: 'data')));
+      });
     });
 
     group('getCurrentUser', () {
@@ -252,6 +293,394 @@ void main() {
 
         expect(
           () => dataSource.getCurrentUser(),
+          throwsA(isA<NetworkException>()),
+        );
+      });
+    });
+
+    group('updateProfile', () {
+      test('completes when update with all fields succeeds', () async {
+        when(() => mockDioClient.put(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await expectLater(
+          dataSource.updateProfile(
+            1,
+            nickname: 'NewNick',
+            statusMessage: 'Hello!',
+            avatarUrl: 'https://example.com/avatar.jpg',
+          ),
+          completes,
+        );
+
+        verify(() => mockDioClient.put(any(), data: any(named: 'data'))).called(1);
+      });
+
+      test('sends only provided fields', () async {
+        when(() => mockDioClient.put(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await dataSource.updateProfile(1, nickname: 'OnlyNick');
+
+        final captured =
+            verify(() => mockDioClient.put(any(), data: captureAny(named: 'data'))).captured;
+        final data = captured.first as Map<String, dynamic>;
+        expect(data.containsKey('nickname'), isTrue);
+        expect(data.containsKey('statusMessage'), isFalse);
+        expect(data.containsKey('avatarUrl'), isFalse);
+      });
+
+      test('sends empty map when no fields provided', () async {
+        when(() => mockDioClient.put(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await dataSource.updateProfile(1);
+
+        final captured =
+            verify(() => mockDioClient.put(any(), data: captureAny(named: 'data'))).captured;
+        final data = captured.first as Map<String, dynamic>;
+        expect(data, isEmpty);
+      });
+
+      test('throws ServerException on 500', () async {
+        when(() => mockDioClient.put(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            response: Response(
+              requestOptions: RequestOptions(path: ''),
+              statusCode: 500,
+              data: {'error': 'Server error'},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+
+        await expectLater(
+          dataSource.updateProfile(1, nickname: 'Nick'),
+          throwsA(isA<ServerException>()),
+        );
+      });
+
+      test('throws AuthException on 401', () async {
+        when(() => mockDioClient.put(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            response: Response(
+              requestOptions: RequestOptions(path: ''),
+              statusCode: 401,
+              data: {'error': 'Unauthorized'},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+
+        await expectLater(
+          dataSource.updateProfile(1, nickname: 'Nick'),
+          throwsA(isA<AuthException>()),
+        );
+      });
+    });
+
+    group('resendVerification', () {
+      test('completes when resend verification succeeds', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await expectLater(
+          dataSource.resendVerification('test@example.com'),
+          completes,
+        );
+      });
+
+      test('sends email in body', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await dataSource.resendVerification('user@test.com');
+
+        final captured =
+            verify(() => mockDioClient.post(any(), data: captureAny(named: 'data'))).captured;
+        final data = captured.first as Map<String, dynamic>;
+        expect(data['email'], 'user@test.com');
+      });
+
+      test('throws NetworkException on send timeout', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            type: DioExceptionType.sendTimeout,
+          ),
+        );
+
+        await expectLater(
+          dataSource.resendVerification('test@example.com'),
+          throwsA(isA<NetworkException>()),
+        );
+      });
+    });
+
+    group('findEmail', () {
+      test('returns map with email data on success', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            data: {'email': 'found@example.com'},
+            statusCode: 200,
+          ),
+        );
+
+        final result = await dataSource.findEmail('TestUser', '010-1234-5678');
+
+        expect(result['email'], 'found@example.com');
+      });
+
+      test('sends nickname and phoneNumber in body', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            data: {'email': 'found@example.com'},
+            statusCode: 200,
+          ),
+        );
+
+        await dataSource.findEmail('MyNick', '010-9876-5432');
+
+        final captured =
+            verify(() => mockDioClient.post(any(), data: captureAny(named: 'data'))).captured;
+        final data = captured.first as Map<String, dynamic>;
+        expect(data['nickname'], 'MyNick');
+        expect(data['phoneNumber'], '010-9876-5432');
+      });
+
+      test('throws ValidationException on 400', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            response: Response(
+              requestOptions: RequestOptions(path: ''),
+              statusCode: 400,
+              data: {'message': 'User not found'},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+
+        await expectLater(
+          dataSource.findEmail('unknown', '000'),
+          throwsA(isA<ValidationException>()),
+        );
+      });
+    });
+
+    group('requestPasswordResetCode', () {
+      test('completes when request succeeds', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await expectLater(
+          dataSource.requestPasswordResetCode('user@example.com'),
+          completes,
+        );
+      });
+
+      test('sends email in body', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await dataSource.requestPasswordResetCode('reset@example.com');
+
+        final captured =
+            verify(() => mockDioClient.post(any(), data: captureAny(named: 'data'))).captured;
+        final data = captured.first as Map<String, dynamic>;
+        expect(data['email'], 'reset@example.com');
+      });
+
+      test('throws NetworkException on connection error', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            type: DioExceptionType.unknown,
+          ),
+        );
+
+        await expectLater(
+          dataSource.requestPasswordResetCode('test@example.com'),
+          throwsA(isA<NetworkException>()),
+        );
+      });
+    });
+
+    group('verifyPasswordResetCode', () {
+      test('returns true when code is valid', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            data: {'valid': true},
+            statusCode: 200,
+          ),
+        );
+
+        final result = await dataSource.verifyPasswordResetCode('user@example.com', '123456');
+
+        expect(result, isTrue);
+      });
+
+      test('returns false when code is invalid', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            data: {'valid': false},
+            statusCode: 200,
+          ),
+        );
+
+        final result = await dataSource.verifyPasswordResetCode('user@example.com', 'wrong');
+
+        expect(result, isFalse);
+      });
+
+      test('returns false when valid key is absent', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            data: <String, dynamic>{},
+            statusCode: 200,
+          ),
+        );
+
+        final result = await dataSource.verifyPasswordResetCode('user@example.com', '000000');
+
+        expect(result, isFalse);
+      });
+
+      test('sends email and code in body', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            data: {'valid': true},
+            statusCode: 200,
+          ),
+        );
+
+        await dataSource.verifyPasswordResetCode('test@example.com', 'ABC123');
+
+        final captured =
+            verify(() => mockDioClient.post(any(), data: captureAny(named: 'data'))).captured;
+        final data = captured.first as Map<String, dynamic>;
+        expect(data['email'], 'test@example.com');
+        expect(data['code'], 'ABC123');
+      });
+
+      test('throws AuthException on 401', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            response: Response(
+              requestOptions: RequestOptions(path: ''),
+              statusCode: 401,
+              data: {'error': 'Unauthorized'},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+
+        await expectLater(
+          dataSource.verifyPasswordResetCode('test@example.com', 'bad'),
+          throwsA(isA<AuthException>()),
+        );
+      });
+    });
+
+    group('resetPasswordWithCode', () {
+      test('completes when password reset succeeds', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await expectLater(
+          dataSource.resetPasswordWithCode('user@example.com', '123456', 'NewPass1!'),
+          completes,
+        );
+      });
+
+      test('sends email, code, and newPassword in body', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
+          (_) async => Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 200,
+          ),
+        );
+
+        await dataSource.resetPasswordWithCode('test@example.com', 'CODE1', 'newPwd!2');
+
+        final captured =
+            verify(() => mockDioClient.post(any(), data: captureAny(named: 'data'))).captured;
+        final data = captured.first as Map<String, dynamic>;
+        expect(data['email'], 'test@example.com');
+        expect(data['code'], 'CODE1');
+        expect(data['newPassword'], 'newPwd!2');
+      });
+
+      test('throws ValidationException on 400', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            response: Response(
+              requestOptions: RequestOptions(path: ''),
+              statusCode: 400,
+              data: {'message': 'Invalid code'},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+
+        await expectLater(
+          dataSource.resetPasswordWithCode('test@example.com', 'bad', 'pwd'),
+          throwsA(isA<ValidationException>()),
+        );
+      });
+
+      test('throws NetworkException on receive timeout', () async {
+        when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            type: DioExceptionType.receiveTimeout,
+          ),
+        );
+
+        await expectLater(
+          dataSource.resetPasswordWithCode('test@example.com', '123', 'pwd'),
           throwsA(isA<NetworkException>()),
         );
       });

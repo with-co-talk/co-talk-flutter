@@ -1,0 +1,116 @@
+# Learnings: Dio Leak + Search Avatar + WebSocket Reconnect UI
+
+## Date: 2026-02-11
+
+## TDD Approach Success
+
+Successfully applied TDD methodology:
+1. **RED**: Wrote failing tests first
+2. **GREEN**: Implemented minimal code to pass tests
+3. **REFACTOR**: Cleaned up code quality (analyzer warnings)
+
+All three fixes followed this pattern rigorously.
+
+## Fix 1: Dio Instance Leak Prevention
+
+### Problem
+- `NotificationService._downloadImage()` created Dio instances without closing them
+- `WebSocketService._refreshTokenForReconnect()` created Dio instances without closing them
+- Resource leak on every avatar download attempt or token refresh
+
+### Solution
+- Added `finally` block to close Dio instances after use
+- Pattern:
+  ```dart
+  Dio? dio;
+  try {
+    dio = Dio();
+    // ... use dio
+  } finally {
+    dio?.close();
+  }
+  ```
+
+### Learnings
+- Always close HTTP clients after use, even on error paths
+- Use nullable variable + finally block for guaranteed cleanup
+- This pattern prevents resource exhaustion in long-running apps
+
+## Fix 2: Search Avatar Display
+
+### Problem
+- Friend search results showed only first letter in CircleAvatar
+- User's `avatarUrl` was completely ignored in `_AddFriendBottomSheet`
+
+### Solution
+- Added `backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null`
+- Made `child` conditional: only show text if `avatarUrl` is null
+- Pattern already existed in friend list items, just needed to be applied to search results
+
+### Learnings
+- **Widget Test Gotcha**: Testing `NetworkImage` requires checking `CircleAvatar.backgroundImage` property
+- Can't test by finding `NetworkImage` widget in tree (it's not a widget, it's an ImageProvider)
+- Network requests in tests fail by design - that's expected and OK
+- Finding widgets within modal bottom sheets requires careful use of `find.descendant(of: find.byType(ListView))`
+
+## Fix 3: WebSocket Reconnect UI
+
+### Problem
+- After 20 failed reconnect attempts, connection enters `failed` state with no UI indication
+- User has no way to manually retry connection
+- Silent failure leads to confusion
+
+### Solution
+- Created `ConnectionStatusBanner` widget that:
+  - Listens to `WebSocketService.connectionState` stream
+  - Shows banner only when `disconnected` or `failed`
+  - Provides "재연결" button that calls `resetReconnectAttempts()` + `connect()`
+  - Uses Material design with SafeArea for proper layout
+- Integrated into `ChatRoomPage` via `StreamBuilder` wrapping the main Stack
+
+### Learnings
+- **Stream-driven UI**: Use `StreamBuilder` for reactive connection state display
+- **User Control**: Always provide manual retry for automatic processes that can fail
+- **Visual Feedback**: Different colors for temporary disconnect (orange) vs permanent failure (red)
+- **DI Integration**: Used `GetIt.instance<WebSocketService>()` for direct service access
+- Fixed deprecation: `withOpacity()` → `withValues(alpha:)` in Flutter 3.32+
+
+## Testing Best Practices
+
+### Widget Tests
+- Use `find.descendant()` to locate widgets within specific parents
+- Use `tester.widget<T>(finder)` to access widget properties for assertion
+- Network-dependent widgets will trigger HTTP errors in tests - ignore if functionally correct
+
+### Unit Tests
+- Document expected behavior in test names and comments
+- RED tests serve as living documentation of bugs being fixed
+
+## Code Quality
+- Run `flutter analyze` after every fix
+- Fix all warnings before claiming completion
+- Modern Flutter deprecations: prefer `.withValues()` over `.withOpacity()`
+
+## Files Modified
+
+### Core Services
+- `lib/core/services/notification_service.dart` - Added Dio cleanup
+- `lib/core/network/websocket_service.dart` - Added Dio cleanup
+
+### UI Components
+- `lib/presentation/pages/friends/friend_list_page.dart` - Added avatar display in search
+- `lib/presentation/pages/chat/chat_room_page.dart` - Integrated connection banner
+- `lib/presentation/widgets/connection_status_banner.dart` - NEW: Connection status UI
+
+### Tests
+- `test/services/notification_service_test.dart` - Added leak prevention test
+- `test/presentation/pages/friends/friend_list_page_test.dart` - NEW: Avatar display test
+- `test/presentation/widgets/websocket_connection_banner_test.dart` - NEW: Banner behavior test
+
+## Verification
+
+All checks passed:
+- ✅ `flutter analyze` - No issues
+- ✅ `flutter test` - All existing tests pass
+- ✅ `flutter build apk --debug` - Successful build
+- ✅ TDD cycle completed for all three fixes

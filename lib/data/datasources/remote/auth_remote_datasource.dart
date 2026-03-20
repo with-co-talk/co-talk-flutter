@@ -20,7 +20,7 @@ abstract class AuthRemoteDataSource {
   Future<void> resendVerification(String email);
   Future<Map<String, dynamic>> findEmail(String nickname, String phoneNumber);
   Future<void> requestPasswordResetCode(String email);
-  Future<bool> verifyPasswordResetCode(String email, String code);
+  Future<void> verifyPasswordResetCode(String email, String code);
   Future<void> resetPasswordWithCode(String email, String code, String newPassword);
 }
 
@@ -172,13 +172,12 @@ class AuthRemoteDataSourceImpl extends BaseRemoteDataSource
   }
 
   @override
-  Future<bool> verifyPasswordResetCode(String email, String code) async {
+  Future<void> verifyPasswordResetCode(String email, String code) async {
     try {
-      final response = await _dioClient.post(
+      await _dioClient.post(
         ApiConstants.verifyCode,
         data: {'email': email, 'code': code},
       );
-      return response.data['valid'] as bool? ?? false;
     } on DioException catch (e) {
       throw handleDioError(e);
     }

@@ -119,22 +119,15 @@ class ForgotPasswordBloc extends Bloc<ForgotPasswordEvent, ForgotPasswordState> 
   ) async {
     emit(state.copyWith(status: ForgotPasswordStatus.loading));
     try {
-      final isValid = await _authRepository.verifyPasswordResetCode(
+      await _authRepository.verifyPasswordResetCode(
         email: event.email,
         code: event.code,
       );
-      if (isValid) {
-        emit(state.copyWith(
-          step: ForgotPasswordStep.newPassword,
-          status: ForgotPasswordStatus.success,
-          code: event.code,
-        ));
-      } else {
-        emit(state.copyWith(
-          status: ForgotPasswordStatus.failure,
-          errorMessage: '인증 코드가 유효하지 않습니다. 다시 확인해주세요.',
-        ));
-      }
+      emit(state.copyWith(
+        step: ForgotPasswordStep.newPassword,
+        status: ForgotPasswordStatus.success,
+        code: event.code,
+      ));
     } catch (e) {
       emit(state.copyWith(
         status: ForgotPasswordStatus.failure,

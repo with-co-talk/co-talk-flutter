@@ -1042,6 +1042,326 @@ void main() {
       );
     });
 
+    group('ChatListRefreshRequested - additional branches', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'skips duplicate refresh when _isRefreshing is true',
+        build: () {
+          // Slow response so first refresh holds _isRefreshing = true
+          when(() => mockChatRepository.getChatRooms()).thenAnswer(
+            (_) async {
+              await Future.delayed(const Duration(milliseconds: 200));
+              return [FakeEntities.directChatRoom];
+            },
+          );
+          return createBloc();
+        },
+        act: (bloc) async {
+          // Fire two refreshes almost simultaneously; second should be skipped
+          bloc.add(const ChatListRefreshRequested());
+          await Future.delayed(const Duration(milliseconds: 10));
+          bloc.add(const ChatListRefreshRequested());
+        },
+        wait: const Duration(milliseconds: 400),
+        verify: (_) {
+          // getChatRooms called only once despite two refresh requests
+          verify(() => mockChatRepository.getChatRooms()).called(1);
+        },
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        'emits failure when getChatRooms throws during refresh',
+        build: () {
+          when(() => mockChatRepository.getChatRooms())
+              .thenThrow(Exception('refresh network error'));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const ChatListRefreshRequested()),
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.status,
+            'status',
+            ChatListStatus.failure,
+          ),
+        ],
+      );
+    });
+
+    group('ChatRoomUpdated - new room triggers refresh', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'schedules refresh when updated room is not found in current list',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          when(() => mockChatRepository.getChatRooms())
+              .thenAnswer((_) async => [FakeEntities.directChatRoom]);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [FakeEntities.directChatRoom],
+        ),
+        act: (bloc) async {
+          // Event references a room that is NOT in the list (id=999)
+          bloc.add(const ChatRoomUpdated(
+            chatRoomId: 999,
+            eventType: 'NEW_MESSAGE',
+            lastMessage: 'Hello from new room',
+            unreadCount: 1,
+            senderId: 2,
+          ));
+          // Wait long enough for the 300ms debounce timer and subsequent refresh
+          await Future.delayed(const Duration(milliseconds: 500));
+        },
+        wait: const Duration(milliseconds: 600),
+        verify: (_) {
+          // getChatRooms should have been called by the scheduled refresh
+          verify(() => mockChatRepository.getChatRooms()).called(greaterThanOrEqualTo(1));
+        },
+      );
+    });
+
+    group('ChatRoomUpdated - room re-sorting', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'reorders rooms so the one with the most recent message is first',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(
+              id: 1,
+              lastMessageAt: DateTime(2024, 1, 1, 10, 0),
+            ),
+            FakeEntities.groupChatRoom.copyWith(
+              id: 2,
+              lastMessageAt: DateTime(2024, 1, 1, 9, 0),
+            ),
+          ],
+        ),
+        act: (bloc) async {
+          // room 2 receives a new message at a later time -> should move to top
+          bloc.add(ChatRoomUpdated(
+            chatRoomId: 2,
+            eventType: 'NEW_MESSAGE',
+            lastMessage: 'New group message',
+            lastMessageAt: DateTime(2024, 1, 1, 11, 0),
+            unreadCount: 1,
+            senderId: 3,
+          ));
+        },
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.first.id,
+            'first room id after sort',
+            2, // room 2 should be first now
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        'uses createdAt as fallback sort key when lastMessageAt is null',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(
+              id: 1,
+              lastMessageAt: null,
+              createdAt: DateTime(2024, 1, 1),
+            ),
+            FakeEntities.groupChatRoom.copyWith(
+              id: 2,
+              lastMessageAt: null,
+              createdAt: DateTime(2024, 1, 2),
+            ),
+          ],
+        ),
+        act: (bloc) async {
+          // Update room 1 with a new lastMessage but still null lastMessageAt
+          bloc.add(const ChatRoomUpdated(
+            chatRoomId: 1,
+            eventType: 'NEW_MESSAGE',
+            lastMessage: 'Updated',
+            unreadCount: 1,
+            senderId: 3,
+          ));
+        },
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.first.id,
+            'first room id — newer createdAt wins',
+            2, // room 2 has createdAt=2024-01-02 which is newer
+          ),
+        ],
+      );
+    });
+
+    group('ChatListSubscriptionStarted - WebSocket degraded', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'emits isWebSocketDegraded=true when connect throws',
+        build: () {
+          when(() => mockWebSocketService.isConnected).thenReturn(false);
+          when(() => mockWebSocketService.currentConnectionState)
+              .thenReturn(WebSocketConnectionState.disconnected);
+          when(() => mockWebSocketService.connectionState).thenAnswer(
+            (_) => const Stream<WebSocketConnectionState>.empty(),
+          );
+          when(() => mockWebSocketService.connect())
+              .thenThrow(Exception('connection refused'));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const ChatListSubscriptionStarted(1)),
+        wait: const Duration(milliseconds: 200),
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.isWebSocketDegraded,
+            'isWebSocketDegraded',
+            true,
+          ),
+        ],
+        verify: (_) {
+          verify(() => mockWebSocketService.connect()).called(1);
+        },
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        'emits isWebSocketDegraded=false when already connected',
+        build: () {
+          when(() => mockWebSocketService.isConnected).thenReturn(true);
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const ChatListSubscriptionStarted(1)),
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.isWebSocketDegraded,
+            'isWebSocketDegraded',
+            false,
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        'emits isWebSocketDegraded=false when WebSocket connects via stream',
+        build: () {
+          when(() => mockWebSocketService.isConnected).thenReturn(false);
+          when(() => mockWebSocketService.currentConnectionState)
+              .thenReturn(WebSocketConnectionState.disconnected);
+          when(() => mockWebSocketService.connect()).thenAnswer((_) async {});
+
+          // Stream that emits connected state quickly
+          final controller = StreamController<WebSocketConnectionState>.broadcast();
+          when(() => mockWebSocketService.connectionState)
+              .thenAnswer((_) => controller.stream);
+
+          // Emit connected state shortly after connect is called
+          Future.delayed(const Duration(milliseconds: 50), () {
+            if (!controller.isClosed) {
+              controller.add(WebSocketConnectionState.connected);
+            }
+          });
+
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const ChatListSubscriptionStarted(1)),
+        wait: const Duration(milliseconds: 300),
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.isWebSocketDegraded,
+            'isWebSocketDegraded',
+            false,
+          ),
+        ],
+      );
+    });
+
+    group('GroupChatRoomCreated - error branch', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'emits failure when createGroupChatRoom throws',
+        build: () {
+          when(() => mockChatRepository.createGroupChatRoom(any(), any()))
+              .thenThrow(Exception('server error'));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const GroupChatRoomCreated(
+          name: 'New Group',
+          memberIds: [2, 3],
+        )),
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.status,
+            'status',
+            ChatListStatus.failure,
+          ),
+        ],
+      );
+    });
+
+    group('ChatRoomUpdated - null field fallbacks', () {
+      blocTest<ChatListBloc, ChatListState>(
+        'keeps existing lastMessage when event lastMessage is null',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(
+              id: 1,
+              lastMessage: 'original message',
+              unreadCount: 3, // non-zero so update causes state change
+            ),
+          ],
+        ),
+        act: (bloc) => bloc.add(const ChatRoomUpdated(
+          chatRoomId: 1,
+          eventType: 'READ',
+          // lastMessage intentionally null — should preserve existing
+          unreadCount: 0,
+          senderId: 1,
+        )),
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.first.lastMessage,
+            'lastMessage preserved',
+            'original message',
+          ),
+        ],
+      );
+
+      blocTest<ChatListBloc, ChatListState>(
+        'keeps existing unreadCount when event unreadCount is null',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
+          return createBloc();
+        },
+        seed: () => ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: [
+            FakeEntities.directChatRoom.copyWith(id: 1, unreadCount: 7),
+          ],
+        ),
+        act: (bloc) => bloc.add(const ChatRoomUpdated(
+          chatRoomId: 1,
+          eventType: 'UPDATE',
+          lastMessage: 'some update',
+          // unreadCount intentionally null
+          senderId: 2,
+        )),
+        expect: () => [
+          isA<ChatListState>().having(
+            (s) => s.chatRooms.first.unreadCount,
+            'unreadCount preserved when event.unreadCount is null',
+            7,
+          ),
+        ],
+      );
+    });
+
     group('ChatListResetRequested', () {
       blocTest<ChatListBloc, ChatListState>(
         'clears all state and returns to initial when reset is requested',
