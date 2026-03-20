@@ -1,16 +1,16 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import 'package:rxdart/rxdart.dart';
 
+import '../../../../core/utils/debug_logger.dart';
 import '../../../../domain/repositories/chat_repository.dart';
 import 'message_search_event.dart';
 import 'message_search_state.dart';
 
 @injectable
-class MessageSearchBloc extends Bloc<MessageSearchEvent, MessageSearchState> {
+class MessageSearchBloc extends Bloc<MessageSearchEvent, MessageSearchState> with DebugLogger {
   final ChatRepository _chatRepository;
 
   static const _debounceDuration = Duration(milliseconds: 300);
@@ -24,12 +24,6 @@ class MessageSearchBloc extends Bloc<MessageSearchEvent, MessageSearchState> {
     );
     on<MessageSearchCleared>(_onCleared);
     on<MessageSearchResultSelected>(_onResultSelected);
-  }
-
-  void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[MessageSearchBloc] $message');
-    }
   }
 
   Future<void> _onQueryChanged(
@@ -62,7 +56,7 @@ class MessageSearchBloc extends Bloc<MessageSearchEvent, MessageSearchState> {
     ));
 
     try {
-      _log('Searching for: $query, chatRoomId: ${event.chatRoomId}');
+      log('Searching for: $query, chatRoomId: ${event.chatRoomId}');
 
       final results = await _chatRepository.searchMessages(
         query,
@@ -70,14 +64,14 @@ class MessageSearchBloc extends Bloc<MessageSearchEvent, MessageSearchState> {
         limit: 50,
       );
 
-      _log('Found ${results.length} results');
+      log('Found ${results.length} results');
 
       emit(state.copyWith(
         status: MessageSearchStatus.success,
         results: results,
       ));
     } catch (e, stackTrace) {
-      _log('Search error: $e\n$stackTrace');
+      log('Search error: $e\n$stackTrace');
 
       emit(state.copyWith(
         status: MessageSearchStatus.failure,

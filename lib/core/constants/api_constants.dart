@@ -9,7 +9,6 @@ class ApiConstants {
   static String get baseUrl {
     switch (_environment) {
       case 'prod':
-        // 프로덕션 URL (Synology NAS)
         const prodUrl =
             String.fromEnvironment('API_URL', defaultValue: 'https://co-talk.sgyj-dev.synology.me');
         return prodUrl;
@@ -37,6 +36,10 @@ class ApiConstants {
   static const String refresh = '/auth/refresh';
   static const String logout = '/auth/logout';
   static const String resendVerification = '/auth/resend-verification';
+  static const String findEmail = '/auth/find-email';
+  static const String resetRequestCode = '/password/reset-request-code';
+  static const String verifyCode = '/password/verify-code';
+  static const String resetWithCode = '/password/reset-with-code';
 
   // User Endpoints
   static const String users = '/users';

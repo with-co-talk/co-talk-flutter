@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/debug_logger.dart';
 import '../../../../core/network/websocket_service.dart';
 import '../../../../data/datasources/local/auth_local_datasource.dart';
 import '../../../../domain/entities/message.dart';
@@ -15,7 +15,7 @@ import '../../../../domain/repositories/chat_repository.dart';
 /// - Message deletion
 /// - File attachments
 /// - Message reactions
-class MessageHandler {
+class MessageHandler with DebugLogger {
   final ChatRepository _chatRepository;
   final WebSocketService _webSocketService;
   final AuthLocalDataSource _authLocalDataSource;
@@ -25,12 +25,6 @@ class MessageHandler {
     this._webSocketService,
     this._authLocalDataSource,
   );
-
-  void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[MessageHandler] $message');
-    }
-  }
 
   /// Sends a text message.
   ///
@@ -51,19 +45,19 @@ class MessageHandler {
       }
     }
 
-    _log('Sending message: roomId=$roomId, isConnected=${_webSocketService.isConnected}');
+    log('Sending message: roomId=$roomId, isConnected=${_webSocketService.isConnected}');
 
     // 연결이 안 되어 있으면 재연결 시도
     if (!_webSocketService.isConnected) {
-      _log('WebSocket not connected, attempting to reconnect...');
+      log('WebSocket not connected, attempting to reconnect...');
       final connected = await _webSocketService.ensureConnected(
         timeout: const Duration(seconds: 10),
       );
       if (!connected) {
-        _log('Failed to reconnect WebSocket');
+        log('Failed to reconnect WebSocket');
         throw Exception('메시지 전송에 실패했습니다. 네트워크 연결을 확인해주세요.');
       }
-      _log('WebSocket reconnected successfully');
+      log('WebSocket reconnected successfully');
     }
 
     var success = _webSocketService.sendMessage(
@@ -74,7 +68,7 @@ class MessageHandler {
     // Retry once: the STOMP connection may have dropped between isConnected
     // check and the actual send (stale stompClient.connected state).
     if (!success) {
-      _log('First send attempt failed, retrying after ensureConnected...');
+      log('First send attempt failed, retrying after ensureConnected...');
       final reconnected = await _webSocketService.ensureConnected(
         timeout: const Duration(seconds: 10),
       );
@@ -85,14 +79,14 @@ class MessageHandler {
         );
       }
       if (!success) {
-        _log('Retry also failed, giving up');
+        log('Retry also failed, giving up');
         throw Exception('메시지 전송에 실패했습니다. 네트워크 연결을 확인해주세요.');
       }
-      _log('Message sent successfully on retry');
+      log('Message sent successfully on retry');
       return;
     }
 
-    _log('Message sent successfully');
+    log('Message sent successfully');
   }
 
   /// Updates an existing message.
@@ -105,10 +99,10 @@ class MessageHandler {
         messageId,
         content,
       );
-      _log('Message updated: id=$messageId');
+      log('Message updated: id=$messageId');
       return updatedMessage;
     } catch (e) {
-      _log('Failed to update message: $e');
+      log('Failed to update message: $e');
       rethrow;
     }
   }
@@ -117,9 +111,9 @@ class MessageHandler {
   Future<void> deleteMessage(int messageId) async {
     try {
       await _chatRepository.deleteMessage(messageId);
-      _log('Message deleted: id=$messageId');
+      log('Message deleted: id=$messageId');
     } catch (e) {
-      _log('Failed to delete message: $e');
+      log('Failed to delete message: $e');
       rethrow;
     }
   }
@@ -128,9 +122,9 @@ class MessageHandler {
   Future<void> markAsRead(int roomId) async {
     try {
       await _chatRepository.markAsRead(roomId);
-      _log('Marked as read: roomId=$roomId');
+      log('Marked as read: roomId=$roomId');
     } catch (e) {
-      _log('Failed to mark as read: $e');
+      log('Failed to mark as read: $e');
     }
   }
 
@@ -140,7 +134,7 @@ class MessageHandler {
     required String filePath,
     required Function(double) onProgress,
   }) async {
-    _log('handleFileAttachment: filePath=$filePath');
+    log('handleFileAttachment: filePath=$filePath');
 
     final file = File(filePath);
     if (!await file.exists()) {
@@ -158,7 +152,7 @@ class MessageHandler {
 
     try {
       final uploadResult = await _chatRepository.uploadFile(file);
-      _log('File uploaded: ${uploadResult.fileUrl}');
+      log('File uploaded: ${uploadResult.fileUrl}');
 
       onProgress(0.5);
 
@@ -174,7 +168,7 @@ class MessageHandler {
       onProgress(1.0);
       return uploadResult;
     } catch (e) {
-      _log('File attachment failed: $e');
+      log('File attachment failed: $e');
       rethrow;
     }
   }
@@ -183,9 +177,9 @@ class MessageHandler {
   Future<void> leaveChatRoom(int roomId) async {
     try {
       await _chatRepository.leaveChatRoom(roomId);
-      _log('Left chat room: roomId=$roomId');
+      log('Left chat room: roomId=$roomId');
     } catch (e) {
-      _log('Failed to leave chat room: $e');
+      log('Failed to leave chat room: $e');
       rethrow;
     }
   }
@@ -197,9 +191,9 @@ class MessageHandler {
   }) async {
     try {
       await _chatRepository.reinviteUser(roomId, inviteeId);
-      _log('User reinvited: roomId=$roomId, inviteeId=$inviteeId');
+      log('User reinvited: roomId=$roomId, inviteeId=$inviteeId');
     } catch (e) {
-      _log('Failed to reinvite user: $e');
+      log('Failed to reinvite user: $e');
       rethrow;
     }
   }

@@ -1,0 +1,105 @@
+<svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="headerGradient3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7C3AED"/>
+      <stop offset="100%" style="stop-color:#8B5CF6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1080" height="1920" fill="#F8F7FC"/>
+
+  <!-- Status Bar -->
+  <rect width="1080" height="80" fill="url(#headerGradient3)"/>
+  <text x="50" y="52" font-family="Arial" font-size="28" fill="white">9:41</text>
+  <text x="950" y="52" font-family="Arial" font-size="28" fill="white">100%</text>
+
+  <!-- Chat Header -->
+  <rect y="80" width="1080" height="140" fill="url(#headerGradient3)"/>
+  <text x="50" y="160" font-family="Arial" font-size="36" fill="white">←</text>
+  <circle cx="150" cy="150" r="40" fill="white" fill-opacity="0.2"/>
+  <text x="150" y="165" font-size="36" text-anchor="middle">👥</text>
+  <text x="220" y="140" font-family="Arial" font-size="32" font-weight="bold" fill="white">개발팀 채팅방</text>
+  <text x="220" y="180" font-family="Arial" font-size="22" fill="white" fill-opacity="0.8">멤버 5명</text>
+  <text x="980" y="160" font-size="36" text-anchor="middle" fill="white">⋮</text>
+
+  <!-- Chat Messages -->
+  <!-- Date separator -->
+  <text x="540" y="290" font-family="Arial" font-size="22" text-anchor="middle" fill="#9CA3AF">오늘</text>
+
+  <!-- Member 1 message -->
+  <g transform="translate(40, 320)">
+    <circle cx="30" cy="30" r="25" fill="#DDD6FE"/>
+    <text x="30" y="40" font-size="24" text-anchor="middle">👨‍💻</text>
+    <text x="70" y="25" font-family="Arial" font-size="22" fill="#8B5CF6">이수현</text>
+    <rect x="70" y="40" width="480" height="70" rx="18" fill="white"/>
+    <text x="95" y="85" font-family="Arial" font-size="26" fill="#1F2937">배포 준비 완료했습니다! 🚀</text>
+  </g>
+  <text x="560" y="430" font-family="Arial" font-size="20" fill="#9CA3AF">오전 11:30</text>
+
+  <!-- Member 2 message -->
+  <g transform="translate(40, 460)">
+    <circle cx="30" cy="30" r="25" fill="#FED7AA"/>
+    <text x="30" y="40" font-size="24" text-anchor="middle">👩‍💻</text>
+    <text x="70" y="25" font-family="Arial" font-size="22" fill="#8B5CF6">박은지</text>
+    <rect x="70" y="40" width="400" height="70" rx="18" fill="white"/>
+    <text x="95" y="85" font-family="Arial" font-size="26" fill="#1F2937">테스트 통과 확인했어요 ✅</text>
+  </g>
+  <text x="480" y="570" font-family="Arial" font-size="20" fill="#9CA3AF">오전 11:35</text>
+
+  <!-- Member 3 message -->
+  <g transform="translate(40, 600)">
+    <circle cx="30" cy="30" r="25" fill="#A5B4FC"/>
+    <text x="30" y="40" font-size="24" text-anchor="middle">👨</text>
+    <text x="70" y="25" font-family="Arial" font-size="22" fill="#8B5CF6">김철수</text>
+    <rect x="70" y="40" width="380" height="70" rx="18" fill="white"/>
+    <text x="95" y="85" font-family="Arial" font-size="26" fill="#1F2937">수고하셨습니다! 👏👏</text>
+  </g>
+  <text x="460" y="710" font-family="Arial" font-size="20" fill="#9CA3AF">오전 11:38</text>
+
+  <!-- My message -->
+  <g transform="translate(380, 740)">
+    <rect width="660" height="70" rx="18" fill="#8B5CF6"/>
+    <text x="30" y="45" font-family="Arial" font-size="26" fill="white">다들 고생 많으셨어요! 🎉🎉</text>
+  </g>
+  <text x="330" y="830" font-family="Arial" font-size="20" fill="#9CA3AF" text-anchor="end">오전 11:40 ✓✓</text>
+
+  <!-- Member 1 reaction -->
+  <g transform="translate(40, 860)">
+    <circle cx="30" cy="30" r="25" fill="#DDD6FE"/>
+    <text x="30" y="40" font-size="24" text-anchor="middle">👨‍💻</text>
+    <text x="70" y="25" font-family="Arial" font-size="22" fill="#8B5CF6">이수현</text>
+    <rect x="70" y="40" width="500" height="70" rx="18" fill="white"/>
+    <text x="95" y="85" font-family="Arial" font-size="26" fill="#1F2937">점심 뭐 먹을까요? 추천 좀요!</text>
+  </g>
+  <text x="580" y="970" font-family="Arial" font-size="20" fill="#9CA3AF">오전 11:42</text>
+
+  <!-- Feature Banner -->
+  <g transform="translate(40, 1020)">
+    <rect width="1000" height="200" rx="20" fill="#8B5CF6"/>
+    <text x="500" y="80" font-family="Arial" font-size="36" font-weight="bold" text-anchor="middle" fill="white">그룹 채팅</text>
+    <text x="500" y="130" font-family="Arial" font-size="28" text-anchor="middle" fill="white" fill-opacity="0.9">팀, 친구, 가족과 함께 대화하세요</text>
+    <text x="500" y="170" font-family="Arial" font-size="24" text-anchor="middle" fill="white" fill-opacity="0.7">멤버 관리 • 멘션 • 공지 기능</text>
+  </g>
+
+  <!-- Members Preview -->
+  <g transform="translate(40, 1260)">
+    <rect width="1000" height="160" rx="20" fill="white"/>
+    <text x="40" y="50" font-family="Arial" font-size="28" font-weight="bold" fill="#1F2937">참여 멤버</text>
+    <g transform="translate(40, 70)">
+      <circle cx="40" cy="40" r="35" fill="#DDD6FE"/><text x="40" y="50" font-size="30" text-anchor="middle">👨‍💻</text>
+      <circle cx="120" cy="40" r="35" fill="#FED7AA"/><text x="120" y="50" font-size="30" text-anchor="middle">👩‍💻</text>
+      <circle cx="200" cy="40" r="35" fill="#A5B4FC"/><text x="200" y="50" font-size="30" text-anchor="middle">👨</text>
+      <circle cx="280" cy="40" r="35" fill="#E9D5FF"/><text x="280" y="50" font-size="30" text-anchor="middle">👩</text>
+      <circle cx="360" cy="40" r="35" fill="#C4B5FD"/><text x="360" y="50" font-size="30" text-anchor="middle">🧑</text>
+    </g>
+    <text x="920" y="105" font-family="Arial" font-size="26" fill="#8B5CF6">더보기 →</text>
+  </g>
+
+  <!-- Input Area -->
+  <rect y="1760" width="1080" height="160" fill="white"/>
+  <rect x="30" y="1790" width="820" height="80" rx="40" fill="#F3F4F6"/>
+  <text x="70" y="1840" font-family="Arial" font-size="28" fill="#9CA3AF">메시지를 입력하세요...</text>
+  <circle cx="960" cy="1830" r="50" fill="#8B5CF6"/>
+  <text x="960" y="1845" font-size="36" text-anchor="middle" fill="white">➤</text>
+</svg>

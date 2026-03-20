@@ -1,0 +1,149 @@
+# Co-Talk macOS Fastlane 설정
+# 문서: https://docs.fastlane.tools
+
+default_platform(:mac)
+
+platform :mac do
+  # ============================================
+  # TestFlight 배포 (Flutter 빌드 포함)
+  # ============================================
+  desc "TestFlight에 배포 (Flutter 빌드 포함)"
+  lane :beta do
+    # 1. Flutter 빌드 (프로덕션 환경)
+    flutter_build
+
+    # 2. Archive 및 업로드
+    beta_upload
+  end
+
+  # ============================================
+  # TestFlight 업로드만 (Flutter 빌드 이미 완료된 경우)
+  # ============================================
+  desc "TestFlight에 업로드만 (flutter build macos 이미 실행한 경우)"
+  lane :beta_upload do
+    # 1. 빌드 번호 자동 증가
+    increment_build_number(
+      xcodeproj: "Runner.xcodeproj",
+      build_number: latest_testflight_build_number(
+        username: ENV["APPLE_ID"],
+        team_id: ENV["TEAM_ID"],
+        platform: "osx"
+      ) + 1
+    )
+
+    # 2. Archive 및 서명
+    build_mac_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "com.cotalk.coTalkFlutter" => "Co-Talk macOS App Store"
+        }
+      }
+    )
+
+    # 3. TestFlight 업로드
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      apple_id: ENV["APP_APPLE_ID"],
+      platform: "osx"
+    )
+
+    # 4. 완료 알림
+    notification(
+      subtitle: "Co-Talk macOS",
+      message: "TestFlight 업로드 완료!"
+    )
+  end
+
+  # ============================================
+  # App Store 배포
+  # ============================================
+  desc "App Store에 배포"
+  lane :release do
+    flutter_build
+
+    increment_build_number(
+      xcodeproj: "Runner.xcodeproj",
+      build_number: latest_testflight_build_number(
+        username: ENV["APPLE_ID"],
+        team_id: ENV["TEAM_ID"],
+        platform: "osx"
+      ) + 1
+    )
+
+    build_mac_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store"
+    )
+
+    upload_to_app_store(
+      skip_metadata: true,
+      skip_screenshots: true,
+      platform: "osx",
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  # ============================================
+  # 빌드만 (업로드 없이)
+  # ============================================
+  desc "로컬 빌드만 수행"
+  lane :build do
+    flutter_build
+
+    build_mac_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store"
+    )
+  end
+
+  # ============================================
+  # 빠른 TestFlight 배포 (수동 빌드 번호)
+  # ============================================
+  desc "빠른 TestFlight 배포 - 빌드 번호 수동 지정"
+  lane :beta_quick do |options|
+    build_num = options[:build] || "1"
+
+    increment_build_number(
+      xcodeproj: "Runner.xcodeproj",
+      build_number: build_num
+    )
+
+    build_mac_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store"
+    )
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      platform: "osx"
+    )
+
+    notification(
+      subtitle: "Co-Talk macOS",
+      message: "TestFlight 업로드 완료! (Build #{build_num})"
+    )
+  end
+
+  # ============================================
+  # Helper Methods
+  # ============================================
+  private_lane :flutter_build do
+    # Flutter 프로젝트 루트로 이동하여 빌드
+    Dir.chdir("..") do
+      flutter_path = `which flutter`.strip
+      sh(flutter_path, "clean")
+      sh(flutter_path, "pub", "get")
+      sh(flutter_path, "build", "macos", "--release", "--dart-define=ENVIRONMENT=prod")
+    end
+  end
+end

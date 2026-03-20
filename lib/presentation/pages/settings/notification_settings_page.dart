@@ -24,7 +24,10 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   @override
   void initState() {
     super.initState();
-    context.read<NotificationSettingsCubit>().loadSettings();
+    final cubit = context.read<NotificationSettingsCubit>();
+    if (cubit.state.status == NotificationSettingsStatus.initial) {
+      cubit.loadSettings();
+    }
   }
 
   @override

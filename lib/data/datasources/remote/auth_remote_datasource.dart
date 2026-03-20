@@ -18,6 +18,10 @@ abstract class AuthRemoteDataSource {
   Future<void> updateProfile(int userId, {String? nickname, String? statusMessage, String? avatarUrl});
   Future<String> uploadFile(File file);
   Future<void> resendVerification(String email);
+  Future<Map<String, dynamic>> findEmail(String nickname, String phoneNumber);
+  Future<void> requestPasswordResetCode(String email);
+  Future<void> verifyPasswordResetCode(String email, String code);
+  Future<void> resetPasswordWithCode(String email, String code, String newPassword);
 }
 
 @LazySingleton(as: AuthRemoteDataSource)
@@ -133,6 +137,62 @@ class AuthRemoteDataSourceImpl extends BaseRemoteDataSource
       await _dioClient.post(
         ApiConstants.resendVerification,
         data: {'email': email},
+      );
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> findEmail(String nickname, String phoneNumber) async {
+    try {
+      final response = await _dioClient.post(
+        ApiConstants.findEmail,
+        data: {
+          'nickname': nickname,
+          'phoneNumber': phoneNumber,
+        },
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<void> requestPasswordResetCode(String email) async {
+    try {
+      await _dioClient.post(
+        ApiConstants.resetRequestCode,
+        data: {'email': email},
+      );
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<void> verifyPasswordResetCode(String email, String code) async {
+    try {
+      await _dioClient.post(
+        ApiConstants.verifyCode,
+        data: {'email': email, 'code': code},
+      );
+    } on DioException catch (e) {
+      throw handleDioError(e);
+    }
+  }
+
+  @override
+  Future<void> resetPasswordWithCode(String email, String code, String newPassword) async {
+    try {
+      await _dioClient.post(
+        ApiConstants.resetWithCode,
+        data: {
+          'email': email,
+          'code': code,
+          'newPassword': newPassword,
+        },
       );
     } on DioException catch (e) {
       throw handleDioError(e);

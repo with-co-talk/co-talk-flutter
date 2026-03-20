@@ -39,35 +39,17 @@ jobs:
   # ===========================================
   test:
     name: Test & Analyze
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Run analyzer
-        run: flutter analyze --no-fatal-infos
-
-      - name: Run tests
-        run: flutter test
+    uses: ./.github/workflows/test.yml
 
   # ===========================================
-  # 2단계: Windows MSIX 빌드
+  # 2단계: Windows MSIX 빌드 (push/dispatch만, PR은 스킵)
   # ===========================================
   build-windows:
     name: Build Windows MSIX
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
+    timeout-minutes: 30
     permissions:
       contents: write
 
@@ -114,15 +96,16 @@ jobs:
           --install-certificate false
           --certificate-path "${{ github.workspace }}\certificate.pfx"
           --certificate-password "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}"
-          --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }}"
+          --build-windows false
+          --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }} --build-number=${{ github.run_number }}"
 
-      # MSIX 생성 (자체 서명 - 기본)
+      # Windows 빌드 + MSIX 생성 (자체 서명 - 기본)
       - name: Create MSIX (self-signed)
         if: github.event_name != 'workflow_dispatch' || inputs.certificate_sign != true
         run: >
           dart run msix:create
           --install-certificate false
-          --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }}"
+          --windows-build-args "--dart-define=ENVIRONMENT=${{ steps.env.outputs.environment }} --build-number=${{ github.run_number }}"
 
       # MSIX 파일 생성 확인
       - name: Verify MSIX file exists
@@ -202,7 +185,7 @@ jobs:
           retention-days: 30
 
   # ===========================================
-  # 3단계: GitHub Release 생성 (main 브랜치, 태그 푸시 시)
+  # 3단계: GitHub Release 생성 (main 브랜치 push 시)
   # ===========================================
   release:
     name: Create Release
@@ -231,10 +214,14 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}-windows
-          name: Co-Talk Windows v${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}-windows-${{ github.run_number }}
+          name: Co-Talk Windows v${{ steps.version.outputs.version }} (Build ${{ github.run_number }})
           body: |
             ## Co-Talk Windows Desktop v${{ steps.version.outputs.version }}
+
+            ### Build Info
+            - Build Number: ${{ github.run_number }}
+            - Commit: ${{ github.sha }}
 
             ### 설치 방법
             1. `CoTalk-Windows-v${{ steps.version.outputs.version }}.zip` 파일을 다운로드합니다

@@ -1,82 +1,13 @@
-import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
+import '../../../core/utils/error_message_mapper.dart';
 import '../../../data/datasources/remote/chat_remote_datasource.dart';
-import '../../../data/models/media_gallery_model.dart';
+import 'media_gallery_event.dart';
+import 'media_gallery_state.dart';
 
-// Events
-abstract class MediaGalleryEvent extends Equatable {
-  const MediaGalleryEvent();
+export 'media_gallery_event.dart';
+export 'media_gallery_state.dart';
 
-  @override
-  List<Object?> get props => [];
-}
-
-class MediaGalleryLoadRequested extends MediaGalleryEvent {
-  final int roomId;
-  final MediaType type;
-
-  const MediaGalleryLoadRequested({required this.roomId, required this.type});
-
-  @override
-  List<Object?> get props => [roomId, type];
-}
-
-class MediaGalleryLoadMoreRequested extends MediaGalleryEvent {
-  const MediaGalleryLoadMoreRequested();
-}
-
-// State
-enum MediaGalleryStatus { initial, loading, success, failure }
-
-class MediaGalleryState extends Equatable {
-  final MediaGalleryStatus status;
-  final List<MediaGalleryItem> items;
-  final int? nextCursor;
-  final bool hasMore;
-  final int currentPage;
-  final MediaType? currentType;
-  final int? roomId;
-  final String? errorMessage;
-
-  const MediaGalleryState({
-    this.status = MediaGalleryStatus.initial,
-    this.items = const [],
-    this.nextCursor,
-    this.hasMore = false,
-    this.currentPage = 0,
-    this.currentType,
-    this.roomId,
-    this.errorMessage,
-  });
-
-  MediaGalleryState copyWith({
-    MediaGalleryStatus? status,
-    List<MediaGalleryItem>? items,
-    int? nextCursor,
-    bool? hasMore,
-    int? currentPage,
-    MediaType? currentType,
-    int? roomId,
-    String? errorMessage,
-  }) {
-    return MediaGalleryState(
-      status: status ?? this.status,
-      items: items ?? this.items,
-      nextCursor: nextCursor ?? this.nextCursor,
-      hasMore: hasMore ?? this.hasMore,
-      currentPage: currentPage ?? this.currentPage,
-      currentType: currentType ?? this.currentType,
-      roomId: roomId ?? this.roomId,
-      errorMessage: errorMessage,
-    );
-  }
-
-  @override
-  List<Object?> get props => [status, items, nextCursor, hasMore, currentPage, currentType, roomId, errorMessage];
-}
-
-// Bloc
 @injectable
 class MediaGalleryBloc extends Bloc<MediaGalleryEvent, MediaGalleryState> {
   final ChatRemoteDataSource _chatRemoteDataSource;
@@ -113,7 +44,7 @@ class MediaGalleryBloc extends Bloc<MediaGalleryEvent, MediaGalleryState> {
     } catch (e) {
       emit(state.copyWith(
         status: MediaGalleryStatus.failure,
-        errorMessage: e.toString(),
+        errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e),
       ));
     }
   }
@@ -141,7 +72,7 @@ class MediaGalleryBloc extends Bloc<MediaGalleryEvent, MediaGalleryState> {
         currentPage: nextPage,
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: ErrorMessageMapper.toUserFriendlyMessage(e)));
     }
   }
 }

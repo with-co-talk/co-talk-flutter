@@ -322,6 +322,116 @@ lane :bump_build do |options|
 end
 
 # ============================================
+# App Store 제출 (심사 제출)
+# ============================================
+
+desc "iOS App Store 심사 제출 (메타데이터 + 스크린샷 + 빌드)"
+desc "TestFlight에 업로드된 빌드를 App Store에 제출합니다"
+lane :submit_ios do |options|
+  api_key = get_api_key
+  project_root = File.expand_path("..", Dir.pwd)
+
+  deliver(
+    api_key: api_key,
+    app_identifier: "com.cotalk.coTalkFlutter",
+    skip_binary_upload: true,  # 이미 TestFlight에 업로드된 빌드 사용
+    skip_screenshots: options[:skip_screenshots] || false,
+    skip_metadata: options[:skip_metadata] || false,
+    force: options[:force] || false,  # true면 확인 없이 바로 제출
+    submit_for_review: true,
+    automatic_release: options[:auto_release] || false,  # true면 심사 통과 시 자동 출시
+    submission_information: {
+      add_id_info_uses_idfa: false
+    },
+    metadata_path: "#{Dir.pwd}/metadata",
+    screenshots_path: "#{Dir.pwd}/metadata",
+    precheck_include_in_app_purchases: false
+  )
+
+  UI.success("iOS App Store 심사 제출 완료!")
+end
+
+desc "macOS App Store 심사 제출"
+lane :submit_macos do |options|
+  api_key = get_api_key
+
+  deliver(
+    api_key: api_key,
+    app_identifier: "com.cotalk.coTalkFlutter",
+    platform: "osx",
+    skip_binary_upload: true,
+    skip_screenshots: options[:skip_screenshots] || false,
+    skip_metadata: options[:skip_metadata] || false,
+    force: options[:force] || false,
+    submit_for_review: true,
+    automatic_release: options[:auto_release] || false,
+    submission_information: {
+      add_id_info_uses_idfa: false
+    },
+    metadata_path: "#{Dir.pwd}/metadata",
+    screenshots_path: "#{Dir.pwd}/metadata",
+    precheck_include_in_app_purchases: false
+  )
+
+  UI.success("macOS App Store 심사 제출 완료!")
+end
+
+desc "메타데이터만 업로드 (심사 제출 없이)"
+lane :upload_metadata do |options|
+  api_key = get_api_key
+
+  deliver(
+    api_key: api_key,
+    app_identifier: "com.cotalk.coTalkFlutter",
+    skip_binary_upload: true,
+    skip_screenshots: options[:skip_screenshots] || false,
+    skip_metadata: false,
+    submit_for_review: false,
+    metadata_path: "#{Dir.pwd}/metadata",
+    screenshots_path: "#{Dir.pwd}/metadata",
+    precheck_include_in_app_purchases: false
+  )
+
+  UI.success("메타데이터 업로드 완료!")
+end
+
+desc "iOS 빌드 + TestFlight + App Store 심사 제출 (풀 파이프라인)"
+lane :release_ios do |options|
+  # 1. 빌드 + TestFlight 업로드
+  deploy_ios(skip_bump: options[:skip_bump])
+
+  # 2. 빌드 처리 대기
+  UI.message("App Store Connect에서 빌드 처리 대기 중...")
+  api_key = get_api_key
+
+  # 3. App Store 심사 제출
+  submit_ios(
+    force: options[:force] || false,
+    auto_release: options[:auto_release] || false,
+    skip_screenshots: options[:skip_screenshots] || false
+  )
+end
+
+desc "iOS + macOS 모두 App Store 심사 제출"
+lane :submit_all do |options|
+  UI.header("iOS App Store 제출")
+  submit_ios(
+    force: options[:force] || false,
+    auto_release: options[:auto_release] || false,
+    skip_screenshots: options[:skip_screenshots] || false
+  )
+
+  UI.header("macOS App Store 제출")
+  submit_macos(
+    force: options[:force] || false,
+    auto_release: options[:auto_release] || false,
+    skip_screenshots: options[:skip_screenshots] || false
+  )
+
+  UI.success("iOS + macOS App Store 심사 제출 완료!")
+end
+
+# ============================================
 # Android 전용
 # ============================================
 
@@ -336,7 +446,7 @@ lane :build_android do
   UI.message("Flutter Android 빌드 중...")
   project_root = File.expand_path("..", Dir.pwd)
 
-  system("cd #{project_root} && flutter build appbundle --release") || UI.user_error!("Flutter Android 빌드 실패")
+  system("cd #{project_root} && flutter build appbundle --release --dart-define=ENVIRONMENT=prod") || UI.user_error!("Flutter Android 빌드 실패")
   UI.success("Android AAB 빌드 완료")
 end
 

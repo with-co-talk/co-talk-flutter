@@ -1,0 +1,113 @@
+<svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="headerGradient4" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7C3AED"/>
+      <stop offset="100%" style="stop-color:#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="cardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="100%" style="stop-color:#A78BFA"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1080" height="1920" fill="#F5F5F5"/>
+
+  <!-- Status Bar -->
+  <rect width="1080" height="80" fill="url(#headerGradient4)"/>
+  <text x="50" y="52" font-family="Arial" font-size="28" fill="white">9:41</text>
+  <text x="950" y="52" font-family="Arial" font-size="28" fill="white">100%</text>
+
+  <!-- App Header -->
+  <rect y="80" width="1080" height="140" fill="url(#headerGradient4)"/>
+  <text x="50" y="160" font-family="Arial" font-size="36" fill="white">←</text>
+  <text x="540" y="165" font-family="Arial" font-size="40" font-weight="bold" text-anchor="middle" fill="white">알림 설정</text>
+
+  <!-- Settings Cards -->
+  <!-- Push Notification Toggle -->
+  <g transform="translate(40, 260)">
+    <rect width="1000" height="140" rx="20" fill="white"/>
+    <text x="100" y="75" font-size="50" text-anchor="middle">🔔</text>
+    <text x="150" y="65" font-family="Arial" font-size="30" font-weight="bold" fill="#1F2937">푸시 알림</text>
+    <text x="150" y="105" font-family="Arial" font-size="24" fill="#6B7280">새 메시지 알림을 받습니다</text>
+    <!-- Toggle ON -->
+    <rect x="840" y="45" width="100" height="50" rx="25" fill="#8B5CF6"/>
+    <circle cx="910" cy="70" r="20" fill="white"/>
+  </g>
+
+  <!-- Sound Toggle -->
+  <g transform="translate(40, 420)">
+    <rect width="1000" height="140" rx="20" fill="white"/>
+    <text x="100" y="75" font-size="50" text-anchor="middle">🔊</text>
+    <text x="150" y="65" font-family="Arial" font-size="30" font-weight="bold" fill="#1F2937">알림 소리</text>
+    <text x="150" y="105" font-family="Arial" font-size="24" fill="#6B7280">메시지 수신 시 소리 재생</text>
+    <!-- Toggle ON -->
+    <rect x="840" y="45" width="100" height="50" rx="25" fill="#8B5CF6"/>
+    <circle cx="910" cy="70" r="20" fill="white"/>
+  </g>
+
+  <!-- Vibration Toggle -->
+  <g transform="translate(40, 580)">
+    <rect width="1000" height="140" rx="20" fill="white"/>
+    <text x="100" y="75" font-size="50" text-anchor="middle">📳</text>
+    <text x="150" y="65" font-family="Arial" font-size="30" font-weight="bold" fill="#1F2937">진동</text>
+    <text x="150" y="105" font-family="Arial" font-size="24" fill="#6B7280">메시지 수신 시 진동</text>
+    <!-- Toggle ON -->
+    <rect x="840" y="45" width="100" height="50" rx="25" fill="#8B5CF6"/>
+    <circle cx="910" cy="70" r="20" fill="white"/>
+  </g>
+
+  <!-- DND Mode -->
+  <g transform="translate(40, 740)">
+    <rect width="1000" height="140" rx="20" fill="white"/>
+    <text x="100" y="75" font-size="50" text-anchor="middle">🌙</text>
+    <text x="150" y="65" font-family="Arial" font-size="30" font-weight="bold" fill="#1F2937">방해 금지 모드</text>
+    <text x="150" y="105" font-family="Arial" font-size="24" fill="#6B7280">밤 10시 ~ 아침 7시</text>
+    <!-- Toggle OFF -->
+    <rect x="840" y="45" width="100" height="50" rx="25" fill="#E5E7EB"/>
+    <circle cx="870" cy="70" r="20" fill="white"/>
+  </g>
+
+  <!-- Preview Banner -->
+  <g transform="translate(40, 940)">
+    <rect width="1000" height="280" rx="20" fill="url(#cardGradient)"/>
+    <text x="500" y="60" font-family="Arial" font-size="28" text-anchor="middle" fill="white" fill-opacity="0.9">알림 미리보기</text>
+
+    <!-- Notification Preview -->
+    <g transform="translate(50, 90)">
+      <rect width="900" height="140" rx="16" fill="white" fill-opacity="0.95"/>
+      <circle cx="70" cy="70" r="40" fill="#E9D5FF"/>
+      <text x="70" y="85" font-size="40" text-anchor="middle">👩</text>
+      <text x="130" y="55" font-family="Arial" font-size="26" font-weight="bold" fill="#1F2937">Co-Talk • 김지영</text>
+      <text x="130" y="95" font-family="Arial" font-size="24" fill="#6B7280">오늘 저녁에 시간 있어요? 🍽️</text>
+      <text x="850" y="55" font-family="Arial" font-size="20" fill="#9CA3AF">지금</text>
+    </g>
+  </g>
+
+  <!-- Feature Banner -->
+  <g transform="translate(40, 1280)">
+    <rect width="1000" height="200" rx="20" fill="#8B5CF6"/>
+    <text x="500" y="80" font-family="Arial" font-size="36" font-weight="bold" text-anchor="middle" fill="white">푸시 알림</text>
+    <text x="500" y="130" font-family="Arial" font-size="28" text-anchor="middle" fill="white" fill-opacity="0.9">중요한 메시지를 놓치지 마세요</text>
+    <text x="500" y="170" font-family="Arial" font-size="24" text-anchor="middle" fill="white" fill-opacity="0.7">소리 • 진동 • 방해 금지 모드</text>
+  </g>
+
+  <!-- Bottom Navigation -->
+  <rect y="1760" width="1080" height="160" fill="white"/>
+  <g transform="translate(135, 1790)">
+    <text x="0" y="30" font-size="40" text-anchor="middle">💬</text>
+    <text x="0" y="70" font-family="Arial" font-size="20" text-anchor="middle" fill="#9CA3AF">채팅</text>
+  </g>
+  <g transform="translate(405, 1790)">
+    <text x="0" y="30" font-size="40" text-anchor="middle">👥</text>
+    <text x="0" y="70" font-family="Arial" font-size="20" text-anchor="middle" fill="#9CA3AF">연락처</text>
+  </g>
+  <g transform="translate(675, 1790)">
+    <text x="0" y="30" font-size="40" text-anchor="middle">🔔</text>
+    <text x="0" y="70" font-family="Arial" font-size="20" text-anchor="middle" fill="#8B5CF6">알림</text>
+  </g>
+  <g transform="translate(945, 1790)">
+    <text x="0" y="30" font-size="40" text-anchor="middle">⚙️</text>
+    <text x="0" y="70" font-family="Arial" font-size="20" text-anchor="middle" fill="#9CA3AF">설정</text>
+  </g>
+</svg>

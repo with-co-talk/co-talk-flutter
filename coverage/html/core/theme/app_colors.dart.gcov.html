@@ -37,8 +37,12 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-01-21 21:14:22</td>
+            <td class="headerValue">2026-02-03 17:19:24</td>
             <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
           </tr>
                   <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
                 </table>
@@ -58,52 +62,72 @@
 <pre class="source">
 <span id="L1"><span class="lineNum">       1</span>              : import 'package:flutter/material.dart';</span>
 <span id="L2"><span class="lineNum">       2</span>              : </span>
-<span id="L3"><span class="lineNum">       3</span>              : class AppColors {</span>
-<span id="L4"><span class="lineNum">       4</span> <span class="tlaUNC">           0 :   AppColors._();</span></span>
-<span id="L5"><span class="lineNum">       5</span>              : </span>
-<span id="L6"><span class="lineNum">       6</span>              :   // Primary Colors</span>
-<span id="L7"><span class="lineNum">       7</span>              :   static const Color primary = Color(0xFF2196F3);</span>
-<span id="L8"><span class="lineNum">       8</span>              :   static const Color primaryLight = Color(0xFF64B5F6);</span>
-<span id="L9"><span class="lineNum">       9</span>              :   static const Color primaryDark = Color(0xFF1976D2);</span>
-<span id="L10"><span class="lineNum">      10</span>              : </span>
-<span id="L11"><span class="lineNum">      11</span>              :   // Secondary Colors</span>
-<span id="L12"><span class="lineNum">      12</span>              :   static const Color secondary = Color(0xFF03A9F4);</span>
-<span id="L13"><span class="lineNum">      13</span>              :   static const Color secondaryLight = Color(0xFF4FC3F7);</span>
-<span id="L14"><span class="lineNum">      14</span>              :   static const Color secondaryDark = Color(0xFF0288D1);</span>
-<span id="L15"><span class="lineNum">      15</span>              : </span>
-<span id="L16"><span class="lineNum">      16</span>              :   // Background Colors</span>
-<span id="L17"><span class="lineNum">      17</span>              :   static const Color background = Color(0xFFF5F5F5);</span>
-<span id="L18"><span class="lineNum">      18</span>              :   static const Color backgroundDark = Color(0xFF121212);</span>
-<span id="L19"><span class="lineNum">      19</span>              :   static const Color surface = Color(0xFFFFFFFF);</span>
-<span id="L20"><span class="lineNum">      20</span>              :   static const Color surfaceDark = Color(0xFF1E1E1E);</span>
-<span id="L21"><span class="lineNum">      21</span>              : </span>
-<span id="L22"><span class="lineNum">      22</span>              :   // Text Colors</span>
-<span id="L23"><span class="lineNum">      23</span>              :   static const Color textPrimary = Color(0xFF212121);</span>
-<span id="L24"><span class="lineNum">      24</span>              :   static const Color textSecondary = Color(0xFF757575);</span>
-<span id="L25"><span class="lineNum">      25</span>              :   static const Color textPrimaryDark = Color(0xFFFFFFFF);</span>
-<span id="L26"><span class="lineNum">      26</span>              :   static const Color textSecondaryDark = Color(0xFFB0B0B0);</span>
-<span id="L27"><span class="lineNum">      27</span>              : </span>
-<span id="L28"><span class="lineNum">      28</span>              :   // Chat Colors</span>
-<span id="L29"><span class="lineNum">      29</span>              :   static const Color myMessageBubble = Color(0xFF2196F3);</span>
-<span id="L30"><span class="lineNum">      30</span>              :   static const Color otherMessageBubble = Color(0xFFE0E0E0);</span>
-<span id="L31"><span class="lineNum">      31</span>              :   static const Color myMessageBubbleDark = Color(0xFF1565C0);</span>
-<span id="L32"><span class="lineNum">      32</span>              :   static const Color otherMessageBubbleDark = Color(0xFF424242);</span>
-<span id="L33"><span class="lineNum">      33</span>              : </span>
-<span id="L34"><span class="lineNum">      34</span>              :   // Status Colors</span>
-<span id="L35"><span class="lineNum">      35</span>              :   static const Color online = Color(0xFF4CAF50);</span>
-<span id="L36"><span class="lineNum">      36</span>              :   static const Color offline = Color(0xFF9E9E9E);</span>
-<span id="L37"><span class="lineNum">      37</span>              :   static const Color away = Color(0xFFFFC107);</span>
-<span id="L38"><span class="lineNum">      38</span>              : </span>
-<span id="L39"><span class="lineNum">      39</span>              :   // Semantic Colors</span>
-<span id="L40"><span class="lineNum">      40</span>              :   static const Color success = Color(0xFF4CAF50);</span>
-<span id="L41"><span class="lineNum">      41</span>              :   static const Color error = Color(0xFFF44336);</span>
-<span id="L42"><span class="lineNum">      42</span>              :   static const Color warning = Color(0xFFFFC107);</span>
-<span id="L43"><span class="lineNum">      43</span>              :   static const Color info = Color(0xFF2196F3);</span>
-<span id="L44"><span class="lineNum">      44</span>              : </span>
-<span id="L45"><span class="lineNum">      45</span>              :   // Divider</span>
-<span id="L46"><span class="lineNum">      46</span>              :   static const Color divider = Color(0xFFE0E0E0);</span>
-<span id="L47"><span class="lineNum">      47</span>              :   static const Color dividerDark = Color(0xFF424242);</span>
-<span id="L48"><span class="lineNum">      48</span>              : }</span>
+<span id="L3"><span class="lineNum">       3</span>              : /// Context 기반 다크 모드 대응 색상 확장</span>
+<span id="L4"><span class="lineNum">       4</span> <span class="tlaUNC">           0 : extension AppColorsExtension on BuildContext {</span></span>
+<span id="L5"><span class="lineNum">       5</span>              :   bool get isDarkMode =&gt; Theme.of(this).brightness == Brightness.dark;</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              :   Color get backgroundColor =&gt;</span>
+<span id="L8"><span class="lineNum">       8</span>              :       isDarkMode ? AppColors.backgroundDark : AppColors.background;</span>
+<span id="L9"><span class="lineNum">       9</span>              :   Color get surfaceColor =&gt;</span>
+<span id="L10"><span class="lineNum">      10</span>              :       isDarkMode ? AppColors.surfaceDark : AppColors.surface;</span>
+<span id="L11"><span class="lineNum">      11</span>              :   Color get textPrimaryColor =&gt;</span>
+<span id="L12"><span class="lineNum">      12</span>              :       isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimary;</span>
+<span id="L13"><span class="lineNum">      13</span>              :   Color get textSecondaryColor =&gt;</span>
+<span id="L14"><span class="lineNum">      14</span>              :       isDarkMode ? AppColors.textSecondaryDark : AppColors.textSecondary;</span>
+<span id="L15"><span class="lineNum">      15</span>              :   Color get dividerColor =&gt;</span>
+<span id="L16"><span class="lineNum">      16</span>              :       isDarkMode ? AppColors.dividerDark : AppColors.divider;</span>
+<span id="L17"><span class="lineNum">      17</span>              :   Color get myMessageBubbleColor =&gt;</span>
+<span id="L18"><span class="lineNum">      18</span>              :       isDarkMode ? AppColors.myMessageBubbleDark : AppColors.myMessageBubble;</span>
+<span id="L19"><span class="lineNum">      19</span>              :   Color get otherMessageBubbleColor =&gt;</span>
+<span id="L20"><span class="lineNum">      20</span>              :       isDarkMode ? AppColors.otherMessageBubbleDark : AppColors.otherMessageBubble;</span>
+<span id="L21"><span class="lineNum">      21</span>              : }</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              : class AppColors {</span>
+<span id="L24"><span class="lineNum">      24</span>              :   AppColors._();</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              :   // Primary Colors - 보라색 계열 (Violet)</span>
+<span id="L27"><span class="lineNum">      27</span>              :   static const Color primary = Color(0xFF8B5CF6); // violet-500</span>
+<span id="L28"><span class="lineNum">      28</span>              :   static const Color primaryLight = Color(0xFFA78BFA); // violet-400</span>
+<span id="L29"><span class="lineNum">      29</span>              :   static const Color primaryDark = Color(0xFF7C3AED); // violet-600</span>
+<span id="L30"><span class="lineNum">      30</span>              : </span>
+<span id="L31"><span class="lineNum">      31</span>              :   // Secondary Colors - 보라색 계열 (더 밝은 톤)</span>
+<span id="L32"><span class="lineNum">      32</span>              :   static const Color secondary = Color(0xFFA78BFA); // violet-400</span>
+<span id="L33"><span class="lineNum">      33</span>              :   static const Color secondaryLight = Color(0xFFC4B5FD); // violet-300</span>
+<span id="L34"><span class="lineNum">      34</span>              :   static const Color secondaryDark = Color(0xFF7C3AED); // violet-600</span>
+<span id="L35"><span class="lineNum">      35</span>              : </span>
+<span id="L36"><span class="lineNum">      36</span>              :   // Background Colors - 더 부드러운 톤</span>
+<span id="L37"><span class="lineNum">      37</span>              :   static const Color background = Color(0xFFFAFAFA); // 더 밝고 깔끔한 배경</span>
+<span id="L38"><span class="lineNum">      38</span>              :   static const Color backgroundDark = Color(0xFF121212);</span>
+<span id="L39"><span class="lineNum">      39</span>              :   static const Color surface = Color(0xFFFFFFFF);</span>
+<span id="L40"><span class="lineNum">      40</span>              :   static const Color surfaceDark = Color(0xFF1E1E1E);</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              :   // Text Colors</span>
+<span id="L43"><span class="lineNum">      43</span>              :   static const Color textPrimary = Color(0xFF212121);</span>
+<span id="L44"><span class="lineNum">      44</span>              :   static const Color textSecondary = Color(0xFF757575);</span>
+<span id="L45"><span class="lineNum">      45</span>              :   static const Color textPrimaryDark = Color(0xFFFFFFFF);</span>
+<span id="L46"><span class="lineNum">      46</span>              :   static const Color textSecondaryDark = Color(0xFFB0B0B0);</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span>              :   // Chat Colors</span>
+<span id="L49"><span class="lineNum">      49</span>              :   static const Color myMessageBubble = Color(0xFF8B5CF6); // primary 보라색</span>
+<span id="L50"><span class="lineNum">      50</span>              :   static const Color otherMessageBubble = Color(0xFFF3F4F6); // 더 부드러운 회색</span>
+<span id="L51"><span class="lineNum">      51</span>              :   static const Color myMessageBubbleDark = Color(0xFF7C3AED); // 더 진한 보라색</span>
+<span id="L52"><span class="lineNum">      52</span>              :   static const Color otherMessageBubbleDark = Color(0xFF374151); // 다크 모드용 회색</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span>              :   // Status Colors</span>
+<span id="L55"><span class="lineNum">      55</span>              :   static const Color online = Color(0xFF4CAF50);</span>
+<span id="L56"><span class="lineNum">      56</span>              :   static const Color offline = Color(0xFF9E9E9E);</span>
+<span id="L57"><span class="lineNum">      57</span>              :   static const Color away = Color(0xFFFFC107);</span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              :   // Semantic Colors</span>
+<span id="L60"><span class="lineNum">      60</span>              :   static const Color success = Color(0xFF4CAF50);</span>
+<span id="L61"><span class="lineNum">      61</span>              :   static const Color error = Color(0xFFF44336);</span>
+<span id="L62"><span class="lineNum">      62</span>              :   static const Color warning = Color(0xFFFFC107);</span>
+<span id="L63"><span class="lineNum">      63</span>              :   static const Color info = Color(0xFF8B5CF6); // primary 보라색으로 변경</span>
+<span id="L64"><span class="lineNum">      64</span>              : </span>
+<span id="L65"><span class="lineNum">      65</span>              :   // Divider - 더 부드러운 톤</span>
+<span id="L66"><span class="lineNum">      66</span>              :   static const Color divider = Color(0xFFE5E7EB); // 더 부드러운 회색</span>
+<span id="L67"><span class="lineNum">      67</span>              :   static const Color dividerDark = Color(0xFF424242);</span>
+<span id="L68"><span class="lineNum">      68</span>              : }</span>
         </pre>
               </td>
             </tr>

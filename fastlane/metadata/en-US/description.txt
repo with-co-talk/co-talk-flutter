@@ -1,0 +1,29 @@
+Co-Talk is a fast and secure real-time messenger.
+
+Stay connected with friends and colleagues anytime, anywhere. Send text, images, and videos freely, and communicate with multiple people at once through group chats.
+
+Key Features:
+
+Real-Time Chat
+- Supports 1:1 conversations and group chats
+- Messages are delivered in real time
+- See unread message counts at a glance
+
+Media Sharing
+- Send photos and videos easily
+- Browse shared files in the chat media gallery
+- Edit images with built-in tools
+
+Friend Management
+- Add, block, and hide friends
+- Set profile photos and status messages
+
+Security
+- Lock the app with biometrics (Face ID, fingerprint)
+- Secure data encryption protects your conversations
+
+Notifications
+- Get push notifications for new messages instantly
+- Manage notification settings per chat room
+
+Connect with the people who matter most with Co-Talk.

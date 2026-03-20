@@ -1,0 +1,8 @@
+First release of Co-Talk.
+
+- Real-time 1:1 and group chat
+- Image and video sharing
+- Push notifications
+- Biometric app lock
+- Friend management (add, block, hide)
+- Profile settings

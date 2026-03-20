@@ -1,0 +1,5 @@
+This is a real-time messaging app. To test, please create an account using any email and password on the sign-up screen. You can then explore chat rooms, send messages, and manage friends.
+
+Test account:
+Email: test@cotalk.com
+Password: test1234!

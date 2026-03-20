@@ -208,16 +208,48 @@ void main() {
             )).called(1);
       });
 
-      test('does not show notification when notification is null', () async {
+      test('does not show notification when notification is null and data has no title/body', () async {
         fcmService.handleForegroundMessage(const RemoteMessage(
           data: {'chatRoomId': '123'},
         ));
+
+        await Future.delayed(const Duration(milliseconds: 50));
 
         verifyNever(() => mockNotificationService.showNotification(
               title: any(named: 'title'),
               body: any(named: 'body'),
               payload: any(named: 'payload'),
             ));
+      });
+
+      test('shows notification using data fields when notification is null but data has title/body', () async {
+        when(() => mockNotificationService.showNotification(
+              title: any(named: 'title'),
+              body: any(named: 'body'),
+              payload: any(named: 'payload'),
+              soundEnabled: any(named: 'soundEnabled'),
+              vibrationEnabled: any(named: 'vibrationEnabled'),
+            )).thenAnswer((_) async {});
+
+        // FCM message with data-only (no notification field) but title/body in data
+        fcmService.handleForegroundMessage(const RemoteMessage(
+          data: {
+            'chatRoomId': '123',
+            'title': 'Data Title',
+            'body': 'Data Body',
+            'type': 'NEW_MESSAGE',
+          },
+        ));
+
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        verify(() => mockNotificationService.showNotification(
+              title: 'Data Title',
+              body: 'Data Body',
+              payload: any(named: 'payload'),
+              soundEnabled: any(named: 'soundEnabled'),
+              vibrationEnabled: any(named: 'vibrationEnabled'),
+            )).called(1);
       });
     });
 

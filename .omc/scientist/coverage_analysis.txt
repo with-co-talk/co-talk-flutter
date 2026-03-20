@@ -1,0 +1,34 @@
+Co-Talk Flutter Coverage Analysis
+========================================================================================================================
+
+TOP 20 HIGH-IMPACT TARGETS (Most Uncovered Lines)
+------------------------------------------------------------------------------------------------------------------------
+Rank File Path                                                               Uncovered    Cov %   Has Test
+------------------------------------------------------------------------------------------------------------------------
+   1 lib/data/datasources/local/database/app_database.g.dart                      1244   20.31%         NO
+   2 lib/presentation/pages/chat/widgets/message_bubble.dart                       470   27.13%         NO
+   3 lib/presentation/pages/profile/profile_view_page.dart                         398    0.00%         NO
+   4 lib/presentation/pages/profile/edit_profile_page.dart                         268    0.37%         NO
+   5 lib/presentation/pages/chat/widgets/message_input.dart                        230   31.14%         NO
+   6 lib/presentation/pages/profile/profile_history_page.dart                      230    0.00%         NO
+   7 lib/data/datasources/remote/chat_remote_datasource.dart                       199   34.11%         NO
+   8 lib/presentation/pages/settings/chat_settings_page.dart                       162    0.61%         NO
+   9 lib/presentation/pages/chat/media_gallery_page.dart                           159    0.00%         NO
+  10 lib/core/network/websocket_service.dart                                       149   31.34%         NO
+  11 lib/presentation/pages/settings/account_deletion_page.dart                    142    0.70%         NO
+  12 lib/presentation/pages/settings/notification_settings_page.dart               139    0.71%         NO
+  13 lib/data/datasources/remote/friend_remote_datasource.dart                     135   27.81%         NO
+  14 lib/presentation/pages/auth/forgot_password_page.dart                         127    0.78%         NO
+  15 lib/presentation/pages/friends/friend_list_page.dart                          124   65.17%         NO
+  16 lib/presentation/pages/chat/chat_room_page.dart                               120   64.50%         NO
+  17 lib/presentation/blocs/chat/chat_room_bloc.dart                               115   79.43%         NO
+  18 lib/presentation/pages/profile/widgets/profile_dialogs.dart                   115    0.00%         NO
+  19 lib/data/datasources/local/database/converters/entity_converters.dart         108    0.00%         NO
+  20 lib/presentation/pages/settings/change_password_page.dart                      96    1.03%         NO
+
+
+LAYER SUMMARY
+------------------------------------------------------------------------------------------------------------------------
+Layer                             Files  Lines Found  Lines Hit  Coverage %  Uncovered
+------------------------------------------------------------------------------------------------------------------------
+other                               198        13472       5699      42.30%       7773

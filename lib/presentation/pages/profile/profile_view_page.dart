@@ -234,6 +234,7 @@ class _ProfileViewContent extends StatelessWidget {
     ProfileHistoryType type,
     User user,
   ) {
+    // GoRouter 미적용: BlocProvider.value로 BLoC 전달 필요 + ProfileHistoryPage 라우트 미등록
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BlocProvider.value(
@@ -571,6 +572,7 @@ class _ProfileViewContent extends StatelessWidget {
   }
 
   void _showFullScreenImage(BuildContext context, String imageUrl) {
+    // GoRouter 미적용: 커스텀 전환 효과(FadeTransition + opaque:false) 필요
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,

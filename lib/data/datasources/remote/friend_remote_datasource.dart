@@ -3,6 +3,7 @@ import 'package:injectable/injectable.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/utils/date_utils.dart';
 import '../../models/friend_model.dart';
 import '../../models/user_model.dart';
 import '../base_remote_datasource.dart';
@@ -56,21 +57,7 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
           if (json.containsKey('nickname') && !json.containsKey('user')) {
             final friendUserId = json['id'] as int?;
 
-            // lastActiveAt 파싱 (배열 또는 문자열)
-            DateTime? lastActiveAt;
-            final rawLastActiveAt = json['lastActiveAt'];
-            if (rawLastActiveAt is List && rawLastActiveAt.length >= 6) {
-              lastActiveAt = DateTime(
-                rawLastActiveAt[0] as int,
-                rawLastActiveAt[1] as int,
-                rawLastActiveAt[2] as int,
-                rawLastActiveAt[3] as int,
-                rawLastActiveAt[4] as int,
-                rawLastActiveAt[5] as int,
-              );
-            } else if (rawLastActiveAt is String) {
-              lastActiveAt = DateTime.tryParse(rawLastActiveAt);
-            }
+            final lastActiveAt = AppDateUtils.parseDateTimeFromArrayOrString(json['lastActiveAt']);
 
             // user 객체 생성
             final userJson = <String, dynamic>{
@@ -292,21 +279,7 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
             // friendId가 실제 사용자 ID
             final friendUserId = json['friendId'] as int?;
 
-            // hiddenAt 파싱 (배열 또는 문자열)
-            DateTime? hiddenAt;
-            final rawHiddenAt = json['hiddenAt'];
-            if (rawHiddenAt is List && rawHiddenAt.length >= 6) {
-              hiddenAt = DateTime(
-                rawHiddenAt[0] as int,
-                rawHiddenAt[1] as int,
-                rawHiddenAt[2] as int,
-                rawHiddenAt[3] as int,
-                rawHiddenAt[4] as int,
-                rawHiddenAt[5] as int,
-              );
-            } else if (rawHiddenAt is String) {
-              hiddenAt = DateTime.tryParse(rawHiddenAt);
-            }
+            final hiddenAt = AppDateUtils.parseDateTimeFromArrayOrString(json['hiddenAt']);
 
             // user 객체 생성
             final userJson = <String, dynamic>{
@@ -332,21 +305,7 @@ class FriendRemoteDataSourceImpl extends BaseRemoteDataSource
           else if (json.containsKey('nickname') && !json.containsKey('user')) {
             final friendUserId = json['id'] as int?;
 
-            // lastActiveAt 파싱 (배열 또는 문자열)
-            DateTime? lastActiveAt;
-            final rawLastActiveAt = json['lastActiveAt'];
-            if (rawLastActiveAt is List && rawLastActiveAt.length >= 6) {
-              lastActiveAt = DateTime(
-                rawLastActiveAt[0] as int,
-                rawLastActiveAt[1] as int,
-                rawLastActiveAt[2] as int,
-                rawLastActiveAt[3] as int,
-                rawLastActiveAt[4] as int,
-                rawLastActiveAt[5] as int,
-              );
-            } else if (rawLastActiveAt is String) {
-              lastActiveAt = DateTime.tryParse(rawLastActiveAt);
-            }
+            final lastActiveAt = AppDateUtils.parseDateTimeFromArrayOrString(json['lastActiveAt']);
 
             // user 객체 생성
             final userJson = <String, dynamic>{

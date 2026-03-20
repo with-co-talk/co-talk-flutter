@@ -18,10 +18,10 @@ class AppDateUtils {
     }
 
     if (dateTime.year == now.year) {
-      return DateFormat('M월 d일', 'ko_KR').format(dateTime);
+      return DateFormat('M월 d일 a h:mm', 'ko_KR').format(dateTime);
     }
 
-    return DateFormat('yyyy년 M월 d일', 'ko_KR').format(dateTime);
+    return DateFormat('yyyy년 M월 d일 a h:mm', 'ko_KR').format(dateTime);
   }
 
   static String formatChatListTime(DateTime dateTime) {
@@ -58,5 +58,23 @@ class AppDateUtils {
     return date1.year == date2.year &&
         date1.month == date2.month &&
         date1.day == date2.day;
+  }
+
+  /// API 응답에서 DateTime 파싱 (배열 [y,M,d,H,m,s] 또는 ISO 문자열)
+  static DateTime? parseDateTimeFromArrayOrString(dynamic raw) {
+    if (raw is List && raw.length >= 6) {
+      return DateTime(
+        raw[0] as int,
+        raw[1] as int,
+        raw[2] as int,
+        raw[3] as int,
+        raw[4] as int,
+        raw[5] as int,
+      );
+    }
+    if (raw is String) {
+      return DateTime.tryParse(raw);
+    }
+    return null;
   }
 }

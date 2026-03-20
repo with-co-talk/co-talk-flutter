@@ -37,8 +37,12 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-01-21 21:14:22</td>
+            <td class="headerValue">2026-02-03 17:19:24</td>
             <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
           </tr>
                   <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
                 </table>
@@ -62,11 +66,11 @@
 <span id="L4"><span class="lineNum">       4</span>              : /// Exception을 Failure로 변환하는 유틸리티</span>
 <span id="L5"><span class="lineNum">       5</span>              : class ExceptionToFailureMapper {</span>
 <span id="L6"><span class="lineNum">       6</span>              :   /// Exception을 Failure로 변환</span>
-<span id="L7"><span class="lineNum">       7</span> <span class="tlaGNC">           1 :   static Failure toFailure(dynamic exception) {</span></span>
-<span id="L8"><span class="lineNum">       8</span> <span class="tlaGNC">           1 :     if (exception is ServerException) {</span></span>
-<span id="L9"><span class="lineNum">       9</span> <span class="tlaGNC">           1 :       return ServerFailure(</span></span>
-<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC">           1 :         message: exception.message,</span></span>
-<span id="L11"><span class="lineNum">      11</span> <span class="tlaGNC">           1 :         statusCode: exception.statusCode,</span></span>
+<span id="L7"><span class="lineNum">       7</span> <span class="tlaGNC">           2 :   static Failure toFailure(dynamic exception) {</span></span>
+<span id="L8"><span class="lineNum">       8</span> <span class="tlaGNC">           2 :     if (exception is ServerException) {</span></span>
+<span id="L9"><span class="lineNum">       9</span> <span class="tlaGNC">           2 :       return ServerFailure(</span></span>
+<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC">           2 :         message: exception.message,</span></span>
+<span id="L11"><span class="lineNum">      11</span> <span class="tlaGNC">           2 :         statusCode: exception.statusCode,</span></span>
 <span id="L12"><span class="lineNum">      12</span>              :       );</span>
 <span id="L13"><span class="lineNum">      13</span>              :     }</span>
 <span id="L14"><span class="lineNum">      14</span>              :     </span>

@@ -29,6 +29,10 @@ class ErrorMessageMapper {
       return error.message;
     }
 
+    if (error is PasswordMismatchException) {
+      return error.message;
+    }
+
     if (error is PlatformException) {
       return '기기 저장소 오류가 발생했습니다. 앱을 재시작해주세요.';
     }

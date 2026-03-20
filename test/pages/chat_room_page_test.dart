@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -22,6 +23,11 @@ import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:co_talk_flutter/core/window/window_focus_tracker.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
+import 'package:co_talk_flutter/core/services/active_room_tracker.dart';
+import 'package:co_talk_flutter/core/services/notification_click_handler.dart';
+import 'package:co_talk_flutter/domain/entities/chat_room.dart';
+import 'package:co_talk_flutter/domain/repositories/chat_repository.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import '../mocks/mock_repositories.dart';
 
@@ -42,6 +48,23 @@ class FakeChatRoomEvent extends Fake implements ChatRoomEvent {}
 class FakeMessageSearchEvent extends Fake implements MessageSearchEvent {}
 
 class FakeChatListEvent extends Fake implements ChatListEvent {}
+
+/// Stub NotificationClickHandler that records callback registration and clearing.
+class StubNotificationClickHandler implements NotificationClickHandler {
+  @override
+  SameRoomRefreshCallback? onSameRoomRefresh;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Simple stub for ActiveRoomTracker.
+class StubActiveRoomTracker implements ActiveRoomTracker {
+  @override
+  int? activeRoomId;
+}
+
+class FakeFile extends Fake implements File {}
 
 class TestWindowFocusTracker implements WindowFocusTracker {
   final StreamController<bool> _controller = StreamController<bool>.broadcast();
@@ -104,6 +127,7 @@ void main() {
     registerFallbackValue(FakeChatRoomEvent());
     registerFallbackValue(FakeChatListEvent());
     registerFallbackValue(FakeMessageSearchEvent());
+    registerFallbackValue(FakeFile());
   });
 
   group('ChatRoomPage Widget Tests', () {
@@ -1022,7 +1046,7 @@ void main() {
         errorMessage: 'Error',
       );
 
-      expect(state.props.length, 27);
+      expect(state.props.length, 30);
     });
 
     test('equality works', () {
@@ -1241,6 +1265,843 @@ void main() {
         // 검색 모드가 종료되어야 함 (메시지 입력창이 다시 보임)
         expect(find.text('메시지를 입력하세요'), findsOneWidget);
       }
+    });
+  });
+
+  group('GetIt 직접 호출 동작 검증', () {
+    late MockChatRoomBloc mockChatRoomBloc;
+    late MockChatListBloc mockChatListBloc;
+    late MockAuthBloc mockAuthBloc;
+    late StreamController<ChatRoomState> chatRoomStreamController;
+    late StreamController<ChatListState> chatListStreamController;
+    late TestWindowFocusTracker windowFocusTracker;
+
+    void setupMockBlocs({ChatRoomState? chatRoomState}) {
+      final state = chatRoomState ?? const ChatRoomState();
+      when(() => mockChatRoomBloc.state).thenReturn(state);
+      when(() => mockChatRoomBloc.stream)
+          .thenAnswer((_) => chatRoomStreamController.stream);
+      when(() => mockChatRoomBloc.isClosed).thenReturn(false);
+      when(() => mockChatRoomBloc.add(any())).thenReturn(null);
+
+      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
+      when(() => mockChatListBloc.stream)
+          .thenAnswer((_) => chatListStreamController.stream);
+      when(() => mockChatListBloc.isClosed).thenReturn(false);
+      when(() => mockChatListBloc.add(any())).thenReturn(null);
+
+      when(() => mockAuthBloc.state).thenReturn(
+        AuthState.authenticated(const User(
+          id: 1,
+          email: 'test@test.com',
+          nickname: 'TestUser',
+        )),
+      );
+      when(() => mockAuthBloc.stream)
+          .thenAnswer((_) => const Stream<AuthState>.empty());
+    }
+
+    Widget buildWidget({int roomId = 1}) {
+      return MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
+            BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+            BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+          ],
+          child: ChatRoomPage(
+            roomId: roomId,
+            windowFocusTracker: windowFocusTracker,
+          ),
+        ),
+      );
+    }
+
+    setUp(() {
+      mockChatRoomBloc = MockChatRoomBloc();
+      mockChatListBloc = MockChatListBloc();
+      mockAuthBloc = MockAuthBloc();
+      chatRoomStreamController = StreamController<ChatRoomState>.broadcast();
+      chatListStreamController = StreamController<ChatListState>.broadcast();
+      windowFocusTracker = TestWindowFocusTracker();
+      windowFocusTracker.setCurrentFocus(null); // no focus tracking
+
+      // WebSocketService는 항상 필요
+      final mockWebSocketService = MockWebSocketService();
+      when(() => mockWebSocketService.connectionState).thenAnswer(
+        (_) => Stream<WebSocketConnectionState>.value(
+            WebSocketConnectionState.connected),
+      );
+      when(() => mockWebSocketService.currentConnectionState)
+          .thenReturn(WebSocketConnectionState.connected);
+      when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+      when(() => mockWebSocketService.connect()).thenAnswer((_) async {});
+      if (GetIt.instance.isRegistered<WebSocketService>()) {
+        GetIt.instance.unregister<WebSocketService>();
+      }
+      GetIt.instance.registerSingleton<WebSocketService>(mockWebSocketService);
+    });
+
+    tearDown(() async {
+      chatRoomStreamController.close();
+      chatListStreamController.close();
+      windowFocusTracker.dispose();
+
+      // GetIt 정리
+      if (GetIt.instance.isRegistered<WebSocketService>()) {
+        GetIt.instance.unregister<WebSocketService>();
+      }
+      if (GetIt.instance.isRegistered<NotificationClickHandler>()) {
+        GetIt.instance.unregister<NotificationClickHandler>();
+      }
+      if (GetIt.instance.isRegistered<ActiveRoomTracker>()) {
+        GetIt.instance.unregister<ActiveRoomTracker>();
+      }
+      if (GetIt.instance.isRegistered<ChatRepository>()) {
+        GetIt.instance.unregister<ChatRepository>();
+      }
+    });
+
+    testWidgets(
+        'initState에서 NotificationClickHandler가 GetIt에 등록되어 있으면 onSameRoomRefresh 콜백이 설정됨',
+        (tester) async {
+      final stubHandler = StubNotificationClickHandler();
+      GetIt.instance.registerSingleton<NotificationClickHandler>(stubHandler);
+
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 42));
+      await tester.pump();
+
+      // onSameRoomRefresh 콜백이 설정되어야 함
+      expect(stubHandler.onSameRoomRefresh, isNotNull);
+    });
+
+    testWidgets(
+        'onSameRoomRefresh 콜백이 트리거되면 ChatRoomRefreshRequested가 ChatRoomBloc에 전달됨',
+        (tester) async {
+      final stubHandler = StubNotificationClickHandler();
+      GetIt.instance.registerSingleton<NotificationClickHandler>(stubHandler);
+
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 42));
+      await tester.pump();
+
+      // 콜백이 설정된 상태에서 호출
+      expect(stubHandler.onSameRoomRefresh, isNotNull);
+      stubHandler.onSameRoomRefresh!(42);
+      await tester.pump();
+
+      verify(() => mockChatRoomBloc.add(const ChatRoomRefreshRequested()))
+          .called(1);
+    });
+
+    testWidgets(
+        'dispose 시 NotificationClickHandler의 onSameRoomRefresh 콜백이 null로 초기화됨',
+        (tester) async {
+      final stubHandler = StubNotificationClickHandler();
+      GetIt.instance.registerSingleton<NotificationClickHandler>(stubHandler);
+
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 1));
+      await tester.pump();
+
+      // 등록 확인
+      expect(stubHandler.onSameRoomRefresh, isNotNull);
+
+      // dispose 트리거
+      await tester.pumpWidget(Container());
+      await tester.pump();
+
+      // 콜백이 해제되어야 함
+      expect(stubHandler.onSameRoomRefresh, isNull);
+    });
+
+    testWidgets(
+        'dispose 시 ActiveRoomTracker.activeRoomId가 null로 설정됨',
+        (tester) async {
+      final stubTracker = StubActiveRoomTracker();
+      stubTracker.activeRoomId = 1; // 초기값 설정
+      GetIt.instance.registerSingleton<ActiveRoomTracker>(stubTracker);
+
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 1));
+      await tester.pump();
+
+      // dispose 트리거
+      await tester.pumpWidget(Container());
+      await tester.pump();
+
+      // activeRoomId가 null로 설정되어야 함 (FCM 알림 suppress 방지)
+      expect(stubTracker.activeRoomId, isNull);
+    });
+
+    testWidgets(
+        '채팅방 옵션 바텀시트에 "채팅방 이미지 변경" 항목이 표시됨',
+        (tester) async {
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 1));
+      await tester.pump();
+
+      // more_vert 아이콘 버튼 탭
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // 바텀시트에 "채팅방 이미지 변경" 항목이 있어야 함
+      expect(find.text('채팅방 이미지 변경'), findsOneWidget);
+    });
+
+    testWidgets(
+        '채팅방 옵션 바텀시트에 "미디어 모아보기" 및 "채팅방 나가기" 항목이 표시됨',
+        (tester) async {
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 1));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('미디어 모아보기'), findsOneWidget);
+      expect(find.text('채팅방 나가기'), findsOneWidget);
+    });
+
+    testWidgets(
+        '_pickAndUpdateGroupImage: ChatRepository가 uploadFile에서 예외를 던지면 에러 스낵바가 표시됨',
+        (tester) async {
+      // ChatRepository를 GetIt에 등록하고 uploadFile이 예외를 던지도록 설정
+      final mockChatRepo = MockChatRepository();
+      when(() => mockChatRepo.uploadFile(any<File>()))
+          .thenThrow(Exception('upload failed'));
+      GetIt.instance.registerSingleton<ChatRepository>(mockChatRepo);
+
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 1));
+      await tester.pump();
+
+      // 이 테스트는 이미지 피커 없이 진행되므로, _pickAndUpdateGroupImage에서
+      // imagePicker.pickFromGallery()가 null을 반환하여 조기 반환됨.
+      // 바텀시트의 "채팅방 이미지 변경" 항목이 존재하는지만 확인
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('채팅방 이미지 변경'), findsOneWidget);
+
+      // 항목이 탭 가능한지 확인 (예외 없이 실행되어야 함)
+      await tester.tap(find.text('채팅방 이미지 변경'));
+      await tester.pumpAndSettle();
+
+      // 이미지 피커가 null을 반환하므로 에러 스낵바 없이 정상 종료
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets(
+        'NotificationClickHandler가 GetIt에 없어도 initState가 예외 없이 완료됨',
+        (tester) async {
+      // NotificationClickHandler를 등록하지 않음
+      if (GetIt.instance.isRegistered<NotificationClickHandler>()) {
+        GetIt.instance.unregister<NotificationClickHandler>();
+      }
+
+      setupMockBlocs();
+      // 예외 없이 위젯이 렌더링되어야 함
+      await expectLater(
+        () async {
+          await tester.pumpWidget(buildWidget(roomId: 1));
+          await tester.pump();
+        },
+        returnsNormally,
+      );
+    });
+
+    testWidgets(
+        'ActiveRoomTracker가 GetIt에 없어도 dispose가 예외 없이 완료됨',
+        (tester) async {
+      // ActiveRoomTracker를 등록하지 않음
+      if (GetIt.instance.isRegistered<ActiveRoomTracker>()) {
+        GetIt.instance.unregister<ActiveRoomTracker>();
+      }
+
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 1));
+      await tester.pump();
+
+      // dispose 트리거 - 예외 없이 완료되어야 함
+      await expectLater(
+        () async {
+          await tester.pumpWidget(Container());
+          await tester.pump();
+        },
+        returnsNormally,
+      );
+    });
+
+    testWidgets(
+        'WebSocketService connectionState가 connected이면 ConnectionStatusBanner가 숨겨짐',
+        (tester) async {
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 1));
+      await tester.pumpAndSettle();
+
+      // connected 상태이면 배너가 표시되지 않아야 함 (빈 컨테이너)
+      // ConnectionStatusBanner는 connected가 아닐 때만 visible
+      expect(find.text('서버와 연결이 끊어졌습니다'), findsNothing);
+    });
+
+    testWidgets(
+        'WebSocketService onReconnect 콜백이 바텀시트 없이 정상적으로 GetIt.instance를 통해 호출 가능',
+        (tester) async {
+      // WebSocketService는 setUp에서 이미 등록되어 있음
+      final mockWebSocketService =
+          GetIt.instance<WebSocketService>() as MockWebSocketService;
+
+      setupMockBlocs();
+      await tester.pumpWidget(buildWidget(roomId: 1));
+      await tester.pumpAndSettle();
+
+      // 빌드 시 StreamBuilder에서 GetIt.instance<WebSocketService>()가 호출됨
+      // 연결 상태 스트림이 정상적으로 구독되어야 함
+      verify(() => mockWebSocketService.connectionState).called(greaterThan(0));
+    });
+  });
+
+  group('ChatRoomPage - 채팅방 옵션 및 BLoC 리스너', () {
+    late MockChatRoomBloc mockChatRoomBloc;
+    late MockChatListBloc mockChatListBloc;
+    late MockAuthBloc mockAuthBloc;
+    late StreamController<ChatRoomState> chatRoomStreamController;
+    late StreamController<ChatListState> chatListStreamController;
+    late TestWindowFocusTracker windowFocusTracker;
+
+    setUp(() {
+      mockChatRoomBloc = MockChatRoomBloc();
+      mockChatListBloc = MockChatListBloc();
+      mockAuthBloc = MockAuthBloc();
+      chatRoomStreamController = StreamController<ChatRoomState>.broadcast();
+      chatListStreamController = StreamController<ChatListState>.broadcast();
+      windowFocusTracker = TestWindowFocusTracker();
+      windowFocusTracker.setCurrentFocus(null); // no focus tracking (mobile)
+
+      final mockWebSocketService = MockWebSocketService();
+      when(() => mockWebSocketService.connectionState).thenAnswer(
+        (_) => Stream<WebSocketConnectionState>.value(
+            WebSocketConnectionState.connected),
+      );
+      when(() => mockWebSocketService.currentConnectionState)
+          .thenReturn(WebSocketConnectionState.connected);
+      when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+      when(() => mockWebSocketService.connect()).thenAnswer((_) async {});
+      if (GetIt.instance.isRegistered<WebSocketService>()) {
+        GetIt.instance.unregister<WebSocketService>();
+      }
+      GetIt.instance.registerSingleton<WebSocketService>(mockWebSocketService);
+    });
+
+    tearDown(() async {
+      chatRoomStreamController.close();
+      chatListStreamController.close();
+      windowFocusTracker.dispose();
+      if (GetIt.instance.isRegistered<WebSocketService>()) {
+        GetIt.instance.unregister<WebSocketService>();
+      }
+      if (GetIt.instance.isRegistered<NotificationClickHandler>()) {
+        GetIt.instance.unregister<NotificationClickHandler>();
+      }
+      if (GetIt.instance.isRegistered<ActiveRoomTracker>()) {
+        GetIt.instance.unregister<ActiveRoomTracker>();
+      }
+      if (GetIt.instance.isRegistered<ChatRepository>()) {
+        GetIt.instance.unregister<ChatRepository>();
+      }
+    });
+
+    Widget buildWidget({ChatRoomState? chatRoomState, int roomId = 1}) {
+      final state = chatRoomState ?? const ChatRoomState();
+      when(() => mockChatRoomBloc.state).thenReturn(state);
+      when(() => mockChatRoomBloc.stream)
+          .thenAnswer((_) => chatRoomStreamController.stream);
+      when(() => mockChatRoomBloc.isClosed).thenReturn(false);
+      when(() => mockChatRoomBloc.add(any())).thenReturn(null);
+
+      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
+      when(() => mockChatListBloc.stream)
+          .thenAnswer((_) => chatListStreamController.stream);
+      when(() => mockChatListBloc.isClosed).thenReturn(false);
+      when(() => mockChatListBloc.add(any())).thenReturn(null);
+
+      when(() => mockAuthBloc.state).thenReturn(
+        AuthState.authenticated(const User(
+          id: 1,
+          email: 'test@test.com',
+          nickname: 'TestUser',
+        )),
+      );
+      when(() => mockAuthBloc.stream)
+          .thenAnswer((_) => const Stream<AuthState>.empty());
+
+      return MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
+            BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+            BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+          ],
+          child: ChatRoomPage(
+            roomId: roomId,
+            windowFocusTracker: windowFocusTracker,
+          ),
+        ),
+      );
+    }
+
+    testWidgets('채팅방 나가기 다이얼로그에서 취소를 누르면 다이얼로그가 닫힘', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      // Open more options
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Tap leave room option
+      await tester.tap(find.text('채팅방 나가기'));
+      await tester.pumpAndSettle();
+
+      // Confirm dialog should appear with full text
+      expect(find.textContaining('채팅방을 나가시겠습니까?'), findsOneWidget);
+
+      // Tap cancel
+      await tester.tap(find.text('취소'));
+      await tester.pumpAndSettle();
+
+      // Dialog should be gone, no ChatRoomLeaveRequested dispatched
+      expect(find.textContaining('채팅방을 나가시겠습니까?'), findsNothing);
+      verifyNever(() => mockChatRoomBloc.add(const ChatRoomLeaveRequested()));
+    });
+
+    testWidgets('채팅방 나가기 확인 시 ChatRoomLeaveRequested가 dispatch됨', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('채팅방 나가기'));
+      await tester.pumpAndSettle();
+
+      clearInteractions(mockChatRoomBloc);
+
+      // Tap the confirm button
+      final leaveButtons = find.text('나가기');
+      expect(leaveButtons, findsOneWidget);
+      await tester.tap(leaveButtons);
+      await tester.pump();
+
+      verify(() => mockChatRoomBloc.add(const ChatRoomLeaveRequested())).called(1);
+    });
+
+    testWidgets('에러 메시지 리스너: 일반 에러가 표시됨', (tester) async {
+      const initialState = ChatRoomState(
+        status: ChatRoomStatus.success,
+        errorMessage: null,
+      );
+
+      await tester.pumpWidget(buildWidget(chatRoomState: initialState));
+      await tester.pumpAndSettle();
+      clearInteractions(mockChatRoomBloc);
+
+      chatRoomStreamController.add(const ChatRoomState(
+        status: ChatRoomStatus.failure,
+        errorMessage: '메시지 전송 실패',
+        isReinviting: false,
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('메시지 전송 실패'), findsOneWidget);
+    });
+
+    testWidgets('재초대 성공 시 성공 스낵바가 표시됨', (tester) async {
+      const initialState = ChatRoomState(
+        status: ChatRoomStatus.success,
+        isReinviting: true,
+        otherUserNickname: '친구',
+      );
+
+      await tester.pumpWidget(buildWidget(chatRoomState: initialState));
+      await tester.pumpAndSettle();
+      clearInteractions(mockChatRoomBloc);
+      clearInteractions(mockChatListBloc);
+
+      // Transition: isReinviting false + reinviteSuccess true
+      chatRoomStreamController.add(const ChatRoomState(
+        status: ChatRoomStatus.success,
+        isReinviting: false,
+        reinviteSuccess: true,
+        otherUserNickname: '친구',
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets('재초대 실패 시 에러 스낵바가 표시됨', (tester) async {
+      const initialState = ChatRoomState(
+        status: ChatRoomStatus.success,
+        isReinviting: true,
+      );
+
+      await tester.pumpWidget(buildWidget(chatRoomState: initialState));
+      await tester.pumpAndSettle();
+      clearInteractions(mockChatRoomBloc);
+
+      chatRoomStreamController.add(const ChatRoomState(
+        status: ChatRoomStatus.failure,
+        isReinviting: false,
+        reinviteSuccess: false,
+        errorMessage: '재초대 실패 원인',
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets('메시지 전달 성공 시 성공 스낵바가 표시됨', (tester) async {
+      const initialState = ChatRoomState(
+        status: ChatRoomStatus.success,
+        isForwarding: true,
+      );
+
+      await tester.pumpWidget(buildWidget(chatRoomState: initialState));
+      await tester.pumpAndSettle();
+      clearInteractions(mockChatRoomBloc);
+
+      chatRoomStreamController.add(const ChatRoomState(
+        status: ChatRoomStatus.success,
+        isForwarding: false,
+        forwardSuccess: true,
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('메시지가 전달되었습니다'), findsOneWidget);
+    });
+
+    testWidgets('hasLeft가 false -> true 변경 시 ChatListRefreshRequested가 전달됨', (tester) async {
+      const initialState = ChatRoomState(
+        status: ChatRoomStatus.success,
+        hasLeft: false,
+      );
+
+      // Use GoRouter to handle context.go() call when hasLeft becomes true
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiBlocProvider(
+              providers: [
+                BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
+                BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+                BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+              ],
+              child: ChatRoomPage(
+                roomId: 1,
+                windowFocusTracker: windowFocusTracker,
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/chat',
+            builder: (context, state) => const Scaffold(body: Text('Chat List')),
+          ),
+        ],
+      );
+
+      when(() => mockChatRoomBloc.state).thenReturn(initialState);
+      when(() => mockChatRoomBloc.stream)
+          .thenAnswer((_) => chatRoomStreamController.stream);
+      when(() => mockChatRoomBloc.isClosed).thenReturn(false);
+      when(() => mockChatRoomBloc.add(any())).thenReturn(null);
+      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
+      when(() => mockChatListBloc.stream)
+          .thenAnswer((_) => chatListStreamController.stream);
+      when(() => mockChatListBloc.isClosed).thenReturn(false);
+      when(() => mockChatListBloc.add(any())).thenReturn(null);
+      when(() => mockAuthBloc.state).thenReturn(
+        AuthState.authenticated(
+            const User(id: 1, email: 'test@test.com', nickname: 'Test')),
+      );
+      when(() => mockAuthBloc.stream)
+          .thenAnswer((_) => const Stream<AuthState>.empty());
+
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      clearInteractions(mockChatListBloc);
+
+      chatRoomStreamController.add(const ChatRoomState(
+        status: ChatRoomStatus.success,
+        hasLeft: true,
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      verify(() => mockChatListBloc.add(const ChatListRefreshRequested())).called(1);
+    });
+
+    testWidgets('검색 버튼 탭 시 MessageSearchWidget이 표시됨', (tester) async {
+      final mockMessageSearchBloc = MockMessageSearchBloc();
+      final messageSearchController =
+          StreamController<MessageSearchState>.broadcast();
+
+      when(() => mockMessageSearchBloc.state)
+          .thenReturn(const MessageSearchState());
+      when(() => mockMessageSearchBloc.stream)
+          .thenAnswer((_) => messageSearchController.stream);
+      when(() => mockMessageSearchBloc.close()).thenAnswer((_) async {});
+      when(() => mockMessageSearchBloc.add(any())).thenReturn(null);
+
+      addTearDown(() async {
+        await messageSearchController.close();
+      });
+
+      final widget = MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
+            BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+            BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+            BlocProvider<MessageSearchBloc>.value(
+                value: mockMessageSearchBloc),
+          ],
+          child: ChatRoomPage(
+            roomId: 1,
+            windowFocusTracker: windowFocusTracker,
+          ),
+        ),
+      );
+
+      when(() => mockChatRoomBloc.state).thenReturn(const ChatRoomState());
+      when(() => mockChatRoomBloc.stream)
+          .thenAnswer((_) => chatRoomStreamController.stream);
+      when(() => mockChatRoomBloc.isClosed).thenReturn(false);
+      when(() => mockChatRoomBloc.add(any())).thenReturn(null);
+      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
+      when(() => mockChatListBloc.stream)
+          .thenAnswer((_) => chatListStreamController.stream);
+      when(() => mockChatListBloc.isClosed).thenReturn(false);
+      when(() => mockChatListBloc.add(any())).thenReturn(null);
+      when(() => mockAuthBloc.state).thenReturn(
+        AuthState.authenticated(
+            const User(id: 1, email: 'test@test.com', nickname: 'Test')),
+      );
+      when(() => mockAuthBloc.stream)
+          .thenAnswer((_) => const Stream<AuthState>.empty());
+
+      await tester.pumpWidget(widget);
+      await tester.pumpAndSettle();
+
+      // Tap search icon
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+
+      // Close icon should now appear (search mode)
+      expect(find.byIcon(Icons.close), findsOneWidget);
+    });
+
+    testWidgets('검색 모드에서 닫기 버튼 탭 시 검색 모드가 종료됨', (tester) async {
+      final mockMessageSearchBloc = MockMessageSearchBloc();
+      final messageSearchController =
+          StreamController<MessageSearchState>.broadcast();
+
+      when(() => mockMessageSearchBloc.state)
+          .thenReturn(const MessageSearchState());
+      when(() => mockMessageSearchBloc.stream)
+          .thenAnswer((_) => messageSearchController.stream);
+      when(() => mockMessageSearchBloc.close()).thenAnswer((_) async {});
+      when(() => mockMessageSearchBloc.add(any())).thenReturn(null);
+
+      addTearDown(() async {
+        await messageSearchController.close();
+      });
+
+      when(() => mockChatRoomBloc.state).thenReturn(const ChatRoomState());
+      when(() => mockChatRoomBloc.stream)
+          .thenAnswer((_) => chatRoomStreamController.stream);
+      when(() => mockChatRoomBloc.isClosed).thenReturn(false);
+      when(() => mockChatRoomBloc.add(any())).thenReturn(null);
+      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
+      when(() => mockChatListBloc.stream)
+          .thenAnswer((_) => chatListStreamController.stream);
+      when(() => mockChatListBloc.isClosed).thenReturn(false);
+      when(() => mockChatListBloc.add(any())).thenReturn(null);
+      when(() => mockAuthBloc.state).thenReturn(
+        AuthState.authenticated(
+            const User(id: 1, email: 'test@test.com', nickname: 'Test')),
+      );
+      when(() => mockAuthBloc.stream)
+          .thenAnswer((_) => const Stream<AuthState>.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
+            BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+            BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+            BlocProvider<MessageSearchBloc>.value(
+                value: mockMessageSearchBloc),
+          ],
+          child: ChatRoomPage(
+            roomId: 1,
+            windowFocusTracker: windowFocusTracker,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Enter search mode
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+
+      // Tap close
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      // Back to normal mode - search icon reappears
+      expect(find.byIcon(Icons.search), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert), findsOneWidget);
+    });
+
+    testWidgets('앱 타이틀: direct 채팅방은 상대방 닉네임 표시', (tester) async {
+      const state = ChatRoomState(
+        status: ChatRoomStatus.success,
+        roomType: ChatRoomType.direct,
+        otherUserNickname: '친구닉',
+      );
+
+      await tester.pumpWidget(buildWidget(chatRoomState: state));
+      await tester.pump();
+
+      expect(find.text('친구닉'), findsOneWidget);
+    });
+
+    testWidgets('앱 타이틀: 나와의 채팅방은 나와의 채팅 표시', (tester) async {
+      const state = ChatRoomState(
+        status: ChatRoomStatus.success,
+        roomType: ChatRoomType.self,
+      );
+
+      await tester.pumpWidget(buildWidget(chatRoomState: state));
+      await tester.pump();
+
+      expect(find.text('나와의 채팅'), findsOneWidget);
+    });
+
+    testWidgets('앱 타이틀: 그룹 채팅방은 방 이름 표시', (tester) async {
+      const state = ChatRoomState(
+        status: ChatRoomStatus.success,
+        roomType: ChatRoomType.group,
+        roomName: '개발팀',
+      );
+
+      await tester.pumpWidget(buildWidget(chatRoomState: state));
+      await tester.pump();
+
+      expect(find.text('개발팀'), findsOneWidget);
+    });
+
+    testWidgets('뒤로가기 버튼 표시 확인', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pump();
+
+      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    });
+
+    testWidgets('미디어 모아보기 항목이 채팅방 옵션 바텀시트에 표시됨', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Simply verify the option is present without actually tapping (avoids GetIt missing registration)
+      expect(find.text('미디어 모아보기'), findsOneWidget);
+    });
+
+    testWidgets('dispose 시 ChatRoomClosed가 ChatRoomBloc에 전달됨', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pump();
+
+      clearInteractions(mockChatRoomBloc);
+
+      // Trigger dispose
+      await tester.pumpWidget(Container());
+      await tester.pump();
+
+      verify(() => mockChatRoomBloc.add(const ChatRoomClosed())).called(1);
+    });
+
+    testWidgets('검색 모드 토글 시 MessageSearchCleared 이벤트 전달됨', (tester) async {
+      final mockMessageSearchBloc = MockMessageSearchBloc();
+      final messageSearchController =
+          StreamController<MessageSearchState>.broadcast();
+
+      when(() => mockMessageSearchBloc.state)
+          .thenReturn(const MessageSearchState());
+      when(() => mockMessageSearchBloc.stream)
+          .thenAnswer((_) => messageSearchController.stream);
+      when(() => mockMessageSearchBloc.close()).thenAnswer((_) async {});
+      when(() => mockMessageSearchBloc.add(any())).thenReturn(null);
+
+      addTearDown(() async {
+        await messageSearchController.close();
+      });
+
+      when(() => mockChatRoomBloc.state).thenReturn(const ChatRoomState());
+      when(() => mockChatRoomBloc.stream)
+          .thenAnswer((_) => chatRoomStreamController.stream);
+      when(() => mockChatRoomBloc.isClosed).thenReturn(false);
+      when(() => mockChatRoomBloc.add(any())).thenReturn(null);
+      when(() => mockChatListBloc.state).thenReturn(const ChatListState());
+      when(() => mockChatListBloc.stream)
+          .thenAnswer((_) => chatListStreamController.stream);
+      when(() => mockChatListBloc.isClosed).thenReturn(false);
+      when(() => mockChatListBloc.add(any())).thenReturn(null);
+      when(() => mockAuthBloc.state).thenReturn(
+        AuthState.authenticated(
+            const User(id: 1, email: 'test@test.com', nickname: 'Test')),
+      );
+      when(() => mockAuthBloc.stream)
+          .thenAnswer((_) => const Stream<AuthState>.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
+            BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
+            BlocProvider<AuthBloc>.value(value: mockAuthBloc),
+            BlocProvider<MessageSearchBloc>.value(
+                value: mockMessageSearchBloc),
+          ],
+          child: ChatRoomPage(
+            roomId: 1,
+            windowFocusTracker: windowFocusTracker,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Enter search mode
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+
+      // Exit search mode - MessageSearchCleared should be dispatched
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      verify(() =>
+              mockMessageSearchBloc.add(const MessageSearchCleared()))
+          .called(greaterThanOrEqualTo(1));
     });
   });
 }

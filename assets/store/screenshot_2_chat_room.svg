@@ -1,0 +1,87 @@
+<svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="headerGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7C3AED"/>
+      <stop offset="100%" style="stop-color:#8B5CF6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1080" height="1920" fill="#F8F7FC"/>
+
+  <!-- Status Bar -->
+  <rect width="1080" height="80" fill="url(#headerGradient2)"/>
+  <text x="50" y="52" font-family="Arial" font-size="28" fill="white">9:41</text>
+  <text x="950" y="52" font-family="Arial" font-size="28" fill="white">100%</text>
+
+  <!-- Chat Header -->
+  <rect y="80" width="1080" height="140" fill="url(#headerGradient2)"/>
+  <text x="50" y="160" font-family="Arial" font-size="36" fill="white">←</text>
+  <circle cx="150" cy="150" r="40" fill="white" fill-opacity="0.2"/>
+  <text x="150" y="165" font-size="36" text-anchor="middle">👩</text>
+  <text x="220" y="145" font-family="Arial" font-size="36" font-weight="bold" fill="white">김지영</text>
+  <text x="220" y="180" font-family="Arial" font-size="24" fill="white" fill-opacity="0.8">온라인</text>
+  <text x="980" y="160" font-size="36" text-anchor="middle" fill="white">⋮</text>
+
+  <!-- Chat Messages -->
+  <!-- Date separator -->
+  <text x="540" y="290" font-family="Arial" font-size="22" text-anchor="middle" fill="#9CA3AF">오늘</text>
+
+  <!-- Received message 1 -->
+  <g transform="translate(40, 320)">
+    <rect width="500" height="80" rx="20" fill="white"/>
+    <text x="30" y="50" font-family="Arial" font-size="28" fill="#1F2937">안녕하세요! 잘 지내세요? 😊</text>
+  </g>
+  <text x="550" y="420" font-family="Arial" font-size="20" fill="#9CA3AF">오후 2:15</text>
+
+  <!-- Sent message 1 -->
+  <g transform="translate(480, 440)">
+    <rect width="560" height="80" rx="20" fill="#8B5CF6"/>
+    <text x="30" y="50" font-family="Arial" font-size="28" fill="white">네! 잘 지내고 있어요 ㅎㅎ</text>
+  </g>
+  <text x="430" y="540" font-family="Arial" font-size="20" fill="#9CA3AF" text-anchor="end">오후 2:16 ✓✓</text>
+
+  <!-- Received message 2 -->
+  <g transform="translate(40, 560)">
+    <rect width="600" height="80" rx="20" fill="white"/>
+    <text x="30" y="50" font-family="Arial" font-size="28" fill="#1F2937">오늘 저녁에 시간 있어요? 🍽️</text>
+  </g>
+  <text x="650" y="660" font-family="Arial" font-size="20" fill="#9CA3AF">오후 2:20</text>
+
+  <!-- Received message 3 -->
+  <g transform="translate(40, 680)">
+    <rect width="520" height="80" rx="20" fill="white"/>
+    <text x="30" y="50" font-family="Arial" font-size="28" fill="#1F2937">같이 저녁 먹으러 갈까요?</text>
+  </g>
+  <text x="570" y="780" font-family="Arial" font-size="20" fill="#9CA3AF">오후 2:20</text>
+
+  <!-- Sent message 2 -->
+  <g transform="translate(380, 800)">
+    <rect width="660" height="80" rx="20" fill="#8B5CF6"/>
+    <text x="30" y="50" font-family="Arial" font-size="28" fill="white">좋아요! 어디서 만날까요? 🙌</text>
+  </g>
+  <text x="330" y="900" font-family="Arial" font-size="20" fill="#9CA3AF" text-anchor="end">오후 2:25 ✓✓</text>
+
+  <!-- Received message 4 -->
+  <g transform="translate(40, 920)">
+    <rect width="580" height="120" rx="20" fill="white"/>
+    <text x="30" y="45" font-family="Arial" font-size="28" fill="#1F2937">강남역 어때요?</text>
+    <text x="30" y="90" font-family="Arial" font-size="28" fill="#1F2937">6시에 만나요! 😄</text>
+  </g>
+  <text x="630" y="1060" font-family="Arial" font-size="20" fill="#9CA3AF">오후 2:30</text>
+
+  <!-- Feature Banner -->
+  <g transform="translate(40, 1100)">
+    <rect width="1000" height="200" rx="20" fill="#8B5CF6"/>
+    <text x="500" y="80" font-family="Arial" font-size="36" font-weight="bold" text-anchor="middle" fill="white">실시간 채팅</text>
+    <text x="500" y="130" font-family="Arial" font-size="28" text-anchor="middle" fill="white" fill-opacity="0.9">빠르고 자연스러운 대화를 경험하세요</text>
+    <text x="500" y="170" font-family="Arial" font-size="24" text-anchor="middle" fill="white" fill-opacity="0.7">읽음 확인 • 실시간 전송 • 이모지 지원</text>
+  </g>
+
+  <!-- Input Area -->
+  <rect y="1760" width="1080" height="160" fill="white"/>
+  <rect x="30" y="1790" width="820" height="80" rx="40" fill="#F3F4F6"/>
+  <text x="70" y="1840" font-family="Arial" font-size="28" fill="#9CA3AF">메시지를 입력하세요...</text>
+  <circle cx="960" cy="1830" r="50" fill="#8B5CF6"/>
+  <text x="960" y="1845" font-size="36" text-anchor="middle" fill="white">➤</text>
+</svg>

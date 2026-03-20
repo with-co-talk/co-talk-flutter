@@ -47,6 +47,8 @@ class CoTalkApp extends StatelessWidget {
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
           return BlocBuilder<ChatSettingsCubit, ChatSettingsState>(
+            buildWhen: (previous, current) =>
+                previous.settings.fontSize != current.settings.fontSize,
             builder: (context, chatSettingsState) {
               final appRouter = getIt<AppRouter>();
 
@@ -102,6 +104,8 @@ class _AppLifecycleHandlerState extends State<_AppLifecycleHandler> with Widgets
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // 앱 최초 실행 시 생체 인증 체크
+    context.read<AppLockCubit>().checkLockOnLaunch();
   }
 
   @override
