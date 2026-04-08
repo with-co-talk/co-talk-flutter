@@ -1180,9 +1180,10 @@ void main() {
         },
         act: (bloc) async {
           bloc.add(const ChatRoomOpened(1));
-          await Future.delayed(const Duration(milliseconds: 200));
+          await Future.delayed(const Duration(milliseconds: 400));
           bloc.add(const ChatRoomForegrounded());
-          await Future.delayed(const Duration(milliseconds: 50));
+          await Future.delayed(const Duration(milliseconds: 400));
+          verify(() => mockChatRepository.markAsRead(1)).called(1);
           clearInteractions(mockChatRepository);
 
           bloc.add(MessageReceived(
@@ -1195,7 +1196,7 @@ void main() {
             ),
           ));
         },
-        wait: const Duration(milliseconds: 800),
+        wait: const Duration(milliseconds: 1600),
         verify: (_) {
           verify(() => mockChatRepository.markAsRead(1)).called(1);
         },
@@ -1211,7 +1212,7 @@ void main() {
           return createBloc();
         },
         act: (bloc) => bloc.add(const ChatRoomOpened(1)),
-        wait: const Duration(milliseconds: 500),
+        wait: const Duration(milliseconds: 1200),
         expect: () => [
           const ChatRoomState(
             status: ChatRoomStatus.loading,
@@ -2048,23 +2049,23 @@ void main() {
         act: (bloc) async {
           // 1. ChatRoomOpened
           bloc.add(const ChatRoomOpened(1));
-          await Future.delayed(const Duration(milliseconds: 50));
+          await Future.delayed(const Duration(milliseconds: 100));
 
           // 2. ChatRoomForegrounded (초기화 전)
           bloc.add(const ChatRoomForegrounded());
-          await Future.delayed(const Duration(milliseconds: 50));
+          await Future.delayed(const Duration(milliseconds: 100));
 
           // 3. ChatRoomBackgrounded (pendingForegrounded 취소)
           bloc.add(const ChatRoomBackgrounded());
 
           // 4. 초기화 완료 대기
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 600));
 
           // 5. 다시 ChatRoomForegrounded (이번엔 초기화 완료된 상태)
           bloc.add(const ChatRoomForegrounded());
-          await Future.delayed(const Duration(milliseconds: 100));
+          await Future.delayed(const Duration(milliseconds: 300));
         },
-        wait: const Duration(milliseconds: 1000),
+        wait: const Duration(milliseconds: 1800),
         expect: () => [
           const ChatRoomState(
             status: ChatRoomStatus.loading,

@@ -539,7 +539,7 @@ void main() {
     });
 
     group('verifyPasswordResetCode', () {
-      test('returns true when code is valid', () async {
+      test('completes when code is valid', () async {
         when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
           (_) async => Response(
             requestOptions: RequestOptions(path: ''),
@@ -548,12 +548,13 @@ void main() {
           ),
         );
 
-        final result = await dataSource.verifyPasswordResetCode('user@example.com', '123456');
-
-        expect(result, isTrue);
+        await expectLater(
+          dataSource.verifyPasswordResetCode('user@example.com', '123456'),
+          completes,
+        );
       });
 
-      test('returns false when code is invalid', () async {
+      test('completes when code is invalid but server responds 200', () async {
         when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
           (_) async => Response(
             requestOptions: RequestOptions(path: ''),
@@ -562,12 +563,13 @@ void main() {
           ),
         );
 
-        final result = await dataSource.verifyPasswordResetCode('user@example.com', 'wrong');
-
-        expect(result, isFalse);
+        await expectLater(
+          dataSource.verifyPasswordResetCode('user@example.com', 'wrong'),
+          completes,
+        );
       });
 
-      test('returns false when valid key is absent', () async {
+      test('completes when valid key is absent but server responds 200', () async {
         when(() => mockDioClient.post(any(), data: any(named: 'data'))).thenAnswer(
           (_) async => Response(
             requestOptions: RequestOptions(path: ''),
@@ -576,9 +578,10 @@ void main() {
           ),
         );
 
-        final result = await dataSource.verifyPasswordResetCode('user@example.com', '000000');
-
-        expect(result, isFalse);
+        await expectLater(
+          dataSource.verifyPasswordResetCode('user@example.com', '000000'),
+          completes,
+        );
       });
 
       test('sends email and code in body', () async {

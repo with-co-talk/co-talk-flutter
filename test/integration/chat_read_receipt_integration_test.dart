@@ -28,6 +28,7 @@ void main() {
     late StreamController<WebSocketChatMessage> messageController;
     late StreamController<WebSocketReadEvent> readEventController;
     late StreamController<WebSocketChatRoomUpdateEvent> chatRoomUpdateController;
+    late List<ChatListBloc> auxiliaryChatListBlocs;
 
     setUp(() {
       mockChatRepository = MockChatRepository();
@@ -41,6 +42,7 @@ void main() {
       messageController = StreamController<WebSocketChatMessage>.broadcast();
       readEventController = StreamController<WebSocketReadEvent>.broadcast();
       chatRoomUpdateController = StreamController<WebSocketChatRoomUpdateEvent>.broadcast();
+      auxiliaryChatListBlocs = [];
 
       when(() => mockWebSocketService.messages)
           .thenAnswer((_) => messageController.stream);
@@ -111,10 +113,13 @@ void main() {
       when(() => mockWebSocketService.connect()).thenAnswer((_) async => {});
     });
 
-    tearDown(() {
-      messageController.close();
-      readEventController.close();
-      chatRoomUpdateController.close();
+    tearDown(() async {
+      for (final bloc in auxiliaryChatListBlocs) {
+        await bloc.close();
+      }
+      await messageController.close();
+      await readEventController.close();
+      await chatRoomUpdateController.close();
     });
 
     ChatRoomBloc createChatRoomBloc() => ChatRoomBloc(
@@ -133,6 +138,12 @@ void main() {
           mockAuthLocalDataSource,
         );
 
+    ChatListBloc createAuxiliaryChatListBloc() {
+      final bloc = createChatListBloc();
+      auxiliaryChatListBlocs.add(bloc);
+      return bloc;
+    }
+
     setUpAll(() {
       registerFallbackValue(FakeEntities.textMessage);
       registerFallbackValue(const Duration(seconds: 5));
@@ -150,7 +161,7 @@ void main() {
           );
 
           final chatRoomBloc = createChatRoomBloc();
-          final chatListBloc = createChatListBloc();
+          final chatListBloc = createAuxiliaryChatListBloc();
 
           // ChatListBloc 구독 시작
           chatListBloc.add(const ChatListSubscriptionStarted(1));
@@ -190,7 +201,7 @@ void main() {
             (_) async => [FakeEntities.directChatRoom.copyWith(unreadCount: 5)],
           );
 
-          final bloc = createChatListBloc();
+          final bloc = createAuxiliaryChatListBloc();
 
           // 구독 시작
           bloc.add(const ChatListSubscriptionStarted(1));
@@ -378,7 +389,7 @@ void main() {
           );
 
           final chatRoomBloc = createChatRoomBloc();
-          final chatListBloc = createChatListBloc();
+          final chatListBloc = createAuxiliaryChatListBloc();
 
           chatListBloc.add(const ChatListSubscriptionStarted(1));
           chatListBloc.add(const ChatListLoadRequested());
@@ -425,7 +436,7 @@ void main() {
               )).thenReturn(null);
 
           final chatRoomBloc = createChatRoomBloc();
-          final chatListBloc = createChatListBloc();
+          final chatListBloc = createAuxiliaryChatListBloc();
 
           chatListBloc.add(const ChatListSubscriptionStarted(1));
           chatListBloc.add(const ChatListLoadRequested());
