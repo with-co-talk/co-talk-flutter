@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../domain/repositories/settings_repository.dart';
@@ -73,17 +74,15 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
     } catch (e, stackTrace) {
       // 디버그 모드에서 상세 에러 로깅
       assert(() {
-        // ignore: avoid_print
-        print('[AccountDeletionBloc] Error: $e');
-        // ignore: avoid_print
-        print('[AccountDeletionBloc] StackTrace: $stackTrace');
+        debugPrint('[AccountDeletionBloc] Error: $e');
+        debugPrint('[AccountDeletionBloc] StackTrace: $stackTrace');
         return true;
       }());
 
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
       // 에러 메시지가 너무 일반적인 경우 더 구체적인 메시지 제공
       if (message.contains('알 수 없는 오류')) {
-        emit(AccountDeletionState.error('회원 탈퇴 처리 중 오류가 발생했습니다. 비밀번호를 확인해주세요.'));
+        emit(AccountDeletionState.error('회원 탈퇴 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'));
       } else {
         emit(AccountDeletionState.error(message));
       }

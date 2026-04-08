@@ -88,14 +88,14 @@ void main() async {
   } catch (e, stackTrace) {
     debugPrint('App initialization error: $e');
     debugPrint('Stack trace: $stackTrace');
-    // 에러 발생 시에도 앱을 표시하여 사용자가 문제를 인지할 수 있도록 함
+    // 에러 발생 시에도 앱을 표시하되, 내부 예외를 그대로 노출하지 않음
     runApp(MaterialApp(
       home: Scaffold(
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'App initialization failed:\n$e',
+              '앱을 시작하는 중 문제가 발생했습니다.\n잠시 후 다시 시도해주세요.',
               style: const TextStyle(color: Colors.red),
               textAlign: TextAlign.center,
             ),

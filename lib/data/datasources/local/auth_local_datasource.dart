@@ -29,12 +29,20 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     required String accessToken,
     required String refreshToken,
   }) async {
-    await _writeWithRetry(AppConstants.accessTokenKey, accessToken);
-    await _writeWithRetry(AppConstants.refreshTokenKey, refreshToken);
+    try {
+      await _writeWithRetry(AppConstants.accessTokenKey, accessToken);
+      await _writeWithRetry(AppConstants.refreshTokenKey, refreshToken);
+    } catch (_) {
+      await Future.wait([
+        _secureStorage.delete(key: AppConstants.accessTokenKey),
+        _secureStorage.delete(key: AppConstants.refreshTokenKey),
+      ]);
+      rethrow;
+    }
   }
 
   /// macOS/iOS Keychain 중복 키 에러(-25299) 처리
-  /// 에러 발생 시 삭제 후 재시도, 그래도 실패 시 전체 삭제 후 재시도
+  /// 에러 발생 시 해당 키만 삭제 후 재시도
   Future<void> _writeWithRetry(String key, String value) async {
     try {
       await _secureStorage.write(key: key, value: value);
@@ -46,11 +54,13 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
           await _secureStorage.delete(key: key);
           await _secureStorage.write(key: key, value: value);
         } on PlatformException {
-          // 그래도 실패 시 전체 키체인 초기화 후 재시도
+          // 그래도 실패 시 동일 키만 한 번 더 정리 후 재시도
           if (kDebugMode) {
-            debugPrint('[AuthLocalDataSource] Keychain error - clearing all and retrying');
+            debugPrint(
+              '[AuthLocalDataSource] Keychain error - retrying write for key: $key',
+            );
           }
-          await _secureStorage.deleteAll();
+          await _secureStorage.delete(key: key);
           await _secureStorage.write(key: key, value: value);
         }
       } else {
