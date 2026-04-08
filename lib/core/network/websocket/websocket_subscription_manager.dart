@@ -312,6 +312,7 @@ class WebSocketSubscriptionManager {
     _onlineStatusSubscription = null;
     _profileUpdateSubscription = null;
     _errorSubscription = null;
+    subscribedUserId = null;
   }
 
   /// Disposes all subscriptions properly.

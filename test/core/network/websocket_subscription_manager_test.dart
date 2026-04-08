@@ -9,15 +9,6 @@ import 'package:co_talk_flutter/core/network/websocket/websocket_subscription_ma
 
 class MockStompClient extends Mock implements StompClient {}
 
-/// A minimal StompUnsubscribe that records whether it was called.
-class _TrackingUnsubscribe {
-  bool called = false;
-
-  void call({Map<String, String>? unsubscribeHeaders}) => called = true;
-
-  StompUnsubscribe get fn => ({Map<String, String>? unsubscribeHeaders}) => called = true;
-}
-
 void main() {
   late WebSocketSubscriptionManager manager;
 
@@ -193,7 +184,11 @@ void main() {
       when(() => mockClient.subscribe(
             destination: any(named: 'destination'),
             callback: any(named: 'callback'),
-          )).thenReturn(() => unsubscribeCalled = true);
+          )).thenReturn(({
+            Map<String, String>? unsubscribeHeaders,
+          }) {
+            unsubscribeCalled = true;
+          });
 
       manager.subscribeToChatRoom(
         roomId: 20,
@@ -580,7 +575,11 @@ void main() {
       when(() => mockClient.subscribe(
             destination: any(named: 'destination'),
             callback: any(named: 'callback'),
-          )).thenAnswer((_) => () => unsubscribeCount++);
+          )).thenAnswer((_) => ({
+            Map<String, String>? unsubscribeHeaders,
+          }) {
+            unsubscribeCount++;
+          });
 
       manager.subscribeToChatRoom(
         roomId: 300,
