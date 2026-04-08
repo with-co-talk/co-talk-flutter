@@ -1,22 +1,44 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+
 class ApiConstants {
   ApiConstants._();
 
   // 환경 설정 (빌드 시 --dart-define으로 설정)
   static const String _environment =
       String.fromEnvironment('ENVIRONMENT', defaultValue: 'dev');
+  static const String _configuredApiUrl =
+      String.fromEnvironment('API_URL', defaultValue: '');
+
+  static String get _devBaseUrl {
+    if (_configuredApiUrl.isNotEmpty) {
+      return _configuredApiUrl;
+    }
+
+    if (!kIsWeb && Platform.isAndroid) {
+      return 'http://10.0.2.2:8080';
+    }
+
+    return 'http://localhost:8080';
+  }
 
   // Base URL - 환경별 자동 설정
   static String get baseUrl {
     switch (_environment) {
       case 'prod':
-        const prodUrl =
-            String.fromEnvironment('API_URL', defaultValue: 'https://co-talk.sgyj-dev.synology.me');
+        const prodUrl = String.fromEnvironment(
+          'API_URL',
+          defaultValue: 'https://co-talk.sgyj-dev.synology.me',
+        );
         return prodUrl;
       case 'staging':
-        return 'https://staging-api.cotalk.com';
+        return _configuredApiUrl.isNotEmpty
+            ? _configuredApiUrl
+            : 'https://staging-api.cotalk.com';
       case 'dev':
       default:
-        return 'http://localhost:8080';
+        return _devBaseUrl;
     }
   }
 
