@@ -67,7 +67,15 @@ class CoTalkApp extends StatelessWidget {
                       child: Stack(
                         children: [
                           child ?? const SizedBox.shrink(),
-                          BlocBuilder<AppLockCubit, AppLockState>(
+                          BlocConsumer<AppLockCubit, AppLockState>(
+                            listenWhen: (prev, curr) => prev.status != curr.status,
+                            listener: (context, lockState) {
+                              // 잠금 화면이 뜰 때, 이전 화면에서 올라와 있던 키보드를 내려
+                              // 인증 버튼이 가려지지 않도록 한다.
+                              if (lockState.status != AppLockStatus.unlocked) {
+                                FocusManager.instance.primaryFocus?.unfocus();
+                              }
+                            },
                             builder: (context, lockState) {
                               if (lockState.status == AppLockStatus.unlocked) {
                                 return const SizedBox.shrink();
@@ -112,8 +120,18 @@ class _AppLifecycleHandlerState extends State<_AppLifecycleHandler> with Widgets
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      context.read<AppLockCubit>().checkLockOnResume();
+    final cubit = context.read<AppLockCubit>();
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        // 실제 백그라운드 전환 시각 기록(inactive는 생체 인증 프롬프트 등
+        // 일시적 인터럽트에서도 발생하므로 제외한다).
+        cubit.onBackgrounded();
+      case AppLifecycleState.resumed:
+        cubit.checkLockOnResume();
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break;
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:co_talk_flutter/core/services/active_room_tracker.dart';
+import 'package:co_talk_flutter/core/services/app_badge_service.dart';
 import 'package:co_talk_flutter/core/services/desktop_notification_bridge.dart';
 import 'package:co_talk_flutter/data/datasources/local/auth_local_datasource.dart';
 import 'package:co_talk_flutter/domain/repositories/auth_repository.dart';
@@ -29,3 +30,12 @@ class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
 class MockDesktopNotificationBridge extends Mock implements DesktopNotificationBridge {}
 
 class MockActiveRoomTracker extends Mock implements ActiveRoomTracker {}
+
+/// 테스트용 no-op 앱 배지 서비스(플랫폼 채널 호출 없이 동작).
+class FakeAppBadgeService implements AppBadgeService {
+  @override
+  Future<void> updateBadge(int count) async {}
+
+  @override
+  Future<void> clear() async {}
+}
