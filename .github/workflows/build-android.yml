@@ -1,12 +1,7 @@
 name: Build & Deploy Android
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
+  # 자동 배포 비활성화: 푸시 시 실행하지 않고, 필요할 때 수동(workflow_dispatch)으로만 배포한다.
   workflow_dispatch:
     inputs:
       skip_upload:
@@ -112,16 +107,13 @@ jobs:
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
         run: |
           mkdir -p android/keystore
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/keystore/co-talk-release.jks
-          cat <<'EOF' > android/key.properties
-          storePassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          keyAlias=co-talk
-          storeFile=../keystore/co-talk-release.jks
-          EOF
-          sed -i 's/^ *//' android/key.properties
+          # key.properties는 통째로 저장된 시크릿(ANDROID_KEY_PROPERTIES)에서 그대로 기록한다.
+          # (storePassword/keyPassword/keyAlias/storeFile 포함)
+          printf '%s\n' "$ANDROID_KEY_PROPERTIES" > android/key.properties
 
       # Firebase google-services.json 설정
       - name: Set up Firebase

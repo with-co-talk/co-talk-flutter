@@ -1,15 +1,7 @@
 name: Build Windows MSIX
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-  pull_request:
-    branches:
-      - main
+  # 자동 빌드 비활성화: 푸시/PR 시 실행하지 않고, 필요할 때 수동(workflow_dispatch)으로만 빌드한다.
   workflow_dispatch:
     inputs:
       environment:

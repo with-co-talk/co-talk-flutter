@@ -1,12 +1,7 @@
 name: Build & Deploy iOS
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
+  # 자동 배포 비활성화: 푸시 시 실행하지 않고, 필요할 때 수동(workflow_dispatch)으로만 배포한다.
   workflow_dispatch:
     inputs:
       skip_upload:
