@@ -54,6 +54,23 @@ void main() {
       });
     });
 
+    test('30s TTL 경계 안에 최소 2회 ping이 들어간다(단일 누락 허용 계약)', () {
+      // 이 PR의 의도(주석: TTL 30s > 2×ping 24s → 단일 ping 누락에도
+      // 시청 중 presence가 만료되지 않음)를 직접 단언한다.
+      // t=0 즉시 1회 + t=12s, t=24s 두 번 → 30s 경계 직전까지 총 3회.
+      // 주기를 16s 등으로 잘못 늘리면(2×16=32>30) 이 단언이 깨져 계약 위반을 잡는다.
+      fakeAsync((async) {
+        presenceManager.startPresencePing(1, 100);
+
+        // 30s TTL 직전(29s): 즉시 1회 + 12s + 24s = 총 3회가 송신되어,
+        // 단일 ping이 누락되어도 두 번째 ping(24s)이 30s 경계 안에 들어온다.
+        async.elapse(const Duration(seconds: 29));
+        verify(() => mockWebSocketService.sendPresencePing(roomId: 1)).called(3);
+
+        presenceManager.dispose();
+      });
+    });
+
     test('stopPresencePing 이후에는 주기 ping이 더 이상 나가지 않는다', () {
       fakeAsync((async) {
         presenceManager.startPresencePing(1, 100);
@@ -64,6 +81,8 @@ void main() {
 
         verifyNever(
             () => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')));
+
+        presenceManager.dispose();
       });
     });
   });
