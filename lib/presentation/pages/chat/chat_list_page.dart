@@ -10,6 +10,7 @@ import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_list_state.dart';
+import '../../widgets/skeletons/list_skeleton.dart';
 
 class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
@@ -176,7 +177,7 @@ class _ChatListPageState extends State<ChatListPage> {
         builder: (context, state) {
           if (state.status == ChatListStatus.loading &&
               state.chatRooms.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
+            return const ListSkeleton();
           }
 
           if (state.status == ChatListStatus.failure) {

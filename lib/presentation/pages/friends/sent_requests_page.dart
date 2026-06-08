@@ -9,6 +9,7 @@ import '../../../domain/entities/friend.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
+import '../../widgets/skeletons/list_skeleton.dart';
 
 class SentRequestsPage extends StatelessWidget {
   const SentRequestsPage({super.key});
@@ -65,7 +66,7 @@ class _SentRequestsView extends StatelessWidget {
         body: BlocBuilder<FriendBloc, FriendState>(
           builder: (context, state) {
             if (state.status == FriendStatus.loading && state.sentRequests.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
+              return const ListSkeleton();
             }
 
             if (state.errorMessage != null && state.sentRequests.isEmpty) {
