@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:co_talk_flutter/core/theme/app_theme.dart';
 import 'package:co_talk_flutter/core/theme/app_colors.dart';
@@ -26,6 +27,14 @@ void main() {
       expect(appBar.titleTextStyle?.fontWeight, FontWeight.w600);
       expect(appBar.titleTextStyle?.fontSize, 18);
       expect(appBar.titleTextStyle?.color, AppColors.textPrimary);
+    });
+
+    test('icon color matches textPrimary', () {
+      expect(appBar.iconTheme?.color, AppColors.textPrimary);
+    });
+
+    test('systemOverlayStyle is dark (dark icons on light surface)', () {
+      expect(appBar.systemOverlayStyle, SystemUiOverlayStyle.dark);
     });
   });
 
@@ -64,6 +73,14 @@ void main() {
     test('has no scroll-under elevation tint', () {
       expect(appBar.scrolledUnderElevation, 0);
       expect(appBar.surfaceTintColor, Colors.transparent);
+    });
+
+    test('icon color matches textPrimaryDark', () {
+      expect(appBar.iconTheme?.color, AppColors.textPrimaryDark);
+    });
+
+    test('systemOverlayStyle is light (light icons on dark surface)', () {
+      expect(appBar.systemOverlayStyle, SystemUiOverlayStyle.light);
     });
   });
 }

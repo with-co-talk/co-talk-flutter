@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'app_colors.dart';
+
+const double _kAppBarTitleSize = 18.0;
 
 class AppTheme {
   AppTheme._();
@@ -24,10 +27,11 @@ class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         titleTextStyle: TextStyle(
           fontFamily: 'Pretendard',
           color: AppColors.textPrimary,
-          fontSize: 18,
+          fontSize: _kAppBarTitleSize,
           fontWeight: FontWeight.w600,
         ),
         iconTheme: IconThemeData(color: AppColors.textPrimary),
@@ -115,10 +119,11 @@ class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         titleTextStyle: TextStyle(
           fontFamily: 'Pretendard',
           color: AppColors.textPrimaryDark,
-          fontSize: 18,
+          fontSize: _kAppBarTitleSize,
           fontWeight: FontWeight.w600,
         ),
         iconTheme: IconThemeData(color: AppColors.textPrimaryDark),
