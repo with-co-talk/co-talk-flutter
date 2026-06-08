@@ -221,6 +221,13 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
         // Don't do anything here - wait for paused if it's a real background.
         break;
       case AppLifecycleState.paused:
+        // Send presence-inactive immediately (independent of _hasResumedOnce
+        // and the debounce). This is lightweight and idempotent on the server,
+        // so the server stops suppressing push even if the OS suspends the app
+        // before the 1.5s debounce fires. WebSocket disconnect stays debounced.
+        if (!_chatRoomBloc.isClosed) {
+          _chatRoomBloc.add(const ChatRoomViewInactive());
+        }
         if (!_hasResumedOnce) return;
         // Debounce: only dispatch backgrounded after 1.5 seconds.
         // iOS fires paused for brief interruptions like notification center.
@@ -251,6 +258,10 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
         break;
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
+        // Send presence-inactive immediately (see paused case above).
+        if (!_chatRoomBloc.isClosed) {
+          _chatRoomBloc.add(const ChatRoomViewInactive());
+        }
         if (!_hasResumedOnce) return;
         // For detached/hidden, also debounce
         _backgroundDebounceTimer?.cancel();

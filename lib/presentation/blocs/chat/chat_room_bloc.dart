@@ -70,6 +70,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Register event handlers
     on<ChatRoomOpened>(_onOpened);
     on<ChatRoomClosed>(_onClosed);
+    on<ChatRoomViewInactive>(_onViewInactive);
     on<ChatRoomBackgrounded>(_onBackgrounded);
     on<ChatRoomForegrounded>(_onForegrounded);
     on<MessagesLoadMoreRequested>(_onLoadMore);
@@ -418,6 +419,25 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       await _messageHandler.markAsRead(state.roomId!);
       emit(state.copyWith(isReadMarked: true));
     }
+  }
+
+  /// 앱이 백그라운드로 전환되는 즉시 presence-inactive만 전송한다.
+  ///
+  /// WebSocket disconnect/markAsRead 타이머 취소 등 무거운 정리는 하지 않는다.
+  /// 그 작업들은 1.5초 디바운스 뒤 [ChatRoomBackgrounded]가 처리한다.
+  /// presence-inactive를 즉시 보내야 OS가 디바운스 전에 앱을 정지시켜도
+  /// 서버가 사용자를 "active"로 오인하여 푸시를 억제하는 일을 막을 수 있다.
+  void _onViewInactive(
+    ChatRoomViewInactive event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    _log('_onViewInactive: roomId=${state.roomId}');
+
+    if (state.roomId == null || state.currentUserId == null || !_subscriptionManager.isRoomSubscribed) {
+      return;
+    }
+
+    _presenceManager.sendPresenceInactive(state.roomId!, state.currentUserId!);
   }
 
   void _onBackgrounded(

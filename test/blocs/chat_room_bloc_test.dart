@@ -344,6 +344,51 @@ void main() {
         },
       );
 
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sends presenceInactive immediately but does NOT disconnect on ViewInactive',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          // opened 단계의 호출은 제외하고 "ViewInactive 전환"만 검증한다.
+          clearInteractions(mockWebSocketService);
+          bloc.add(const ChatRoomViewInactive());
+        },
+        wait: const Duration(milliseconds: 200),
+        verify: (_) {
+          // presence-inactive는 즉시 전송
+          verify(() => mockWebSocketService.sendPresenceInactive(roomId: 1)).called(1);
+          // disconnect는 호출되지 않아야 함 (WebSocket 연결 유지)
+          verifyNever(() => mockWebSocketService.disconnect());
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'ViewInactive does nothing when room is not subscribed',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+        ),
+        act: (bloc) => bloc.add(const ChatRoomViewInactive()),
+        expect: () => [],
+        verify: (_) {
+          verifyNever(() => mockWebSocketService.sendPresenceInactive(
+                roomId: any(named: 'roomId'),
+              ));
+          verifyNever(() => mockWebSocketService.disconnect());
+        },
+      );
+
     });
 
     group('MessageSent', () {
