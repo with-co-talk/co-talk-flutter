@@ -421,6 +421,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
+  /// presence(active/inactive)를 전송할 수 있는 상태인지 여부.
+  ///
+  /// 방/사용자 정보가 준비되고 WebSocket 구독이 활성화된 경우에만 true다.
+  /// [_onViewInactive]와 [_onBackgrounded]가 동일한 규칙을 공유하도록 추출했다.
+  bool get _canTrackPresence =>
+      state.roomId != null &&
+      state.currentUserId != null &&
+      _subscriptionManager.isRoomSubscribed;
+
   /// 앱이 백그라운드로 전환되는 즉시 presence-inactive만 전송한다.
   ///
   /// WebSocket disconnect/markAsRead 타이머 취소 등 무거운 정리는 하지 않는다.
@@ -433,7 +442,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ) {
     _log('_onViewInactive: roomId=${state.roomId}');
 
-    if (state.roomId == null || state.currentUserId == null || !_subscriptionManager.isRoomSubscribed) {
+    if (!_canTrackPresence) {
       return;
     }
 
@@ -452,7 +461,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _pendingForegrounded = false;
     }
 
-    if (state.roomId == null || state.currentUserId == null || !_subscriptionManager.isRoomSubscribed) {
+    if (!_canTrackPresence) {
       return;
     }
 
