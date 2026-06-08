@@ -26,6 +26,11 @@ class _AnimatedTypingDotsState extends State<AnimatedTypingDots>
   // 각 도트가 애니메이션에 사용하는 구간 길이 (사이클의 40%)
   static const double _dotInterval = 0.4;
 
+  // 도트별 애니메이션을 initState에서 한 번만 생성해 build()에서 재사용한다.
+  // build()가 매 프레임 호출되더라도 Animation/CurvedAnimation 객체를 중복
+  // 생성하지 않도록 캐싱함.
+  late final List<Animation<double>> _dotAnimations;
+
   @override
   void initState() {
     super.initState();
@@ -33,34 +38,34 @@ class _AnimatedTypingDotsState extends State<AnimatedTypingDots>
       vsync: this,
       duration: _cycleDuration,
     )..repeat();
+
+    _dotAnimations = List.generate(3, (index) {
+      final start = _staggerOffsets[index];
+      final end = (start + _dotInterval).clamp(0.0, 1.0);
+      return TweenSequence<double>([
+        TweenSequenceItem(
+          tween: Tween(begin: 0.0, end: -6.0)
+              .chain(CurveTween(curve: AppMotion.emphasized)),
+          weight: 50,
+        ),
+        TweenSequenceItem(
+          tween: Tween(begin: -6.0, end: 0.0)
+              .chain(CurveTween(curve: AppMotion.decelerate)),
+          weight: 50,
+        ),
+      ]).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: Interval(start, end),
+        ),
+      );
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  Animation<double> _dotAnimation(int index) {
-    final start = _staggerOffsets[index];
-    final end = (start + _dotInterval).clamp(0.0, 1.0);
-    return TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 0.0, end: -6.0)
-            .chain(CurveTween(curve: AppMotion.emphasized)),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: -6.0, end: 0.0)
-            .chain(CurveTween(curve: AppMotion.decelerate)),
-        weight: 50,
-      ),
-    ]).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Interval(start, end),
-      ),
-    );
   }
 
   @override
@@ -92,7 +97,7 @@ class _AnimatedTypingDotsState extends State<AnimatedTypingDots>
             return AnimatedBuilder(
               animation: _controller,
               builder: (context, _) {
-                final offset = _dotAnimation(index).value;
+                final offset = _dotAnimations[index].value;
                 return Transform.translate(
                   offset: Offset(0, offset),
                   child: Container(

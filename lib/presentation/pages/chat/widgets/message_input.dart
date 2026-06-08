@@ -659,6 +659,8 @@ class _MessageInputState extends State<MessageInput> {
                   BlocBuilder<ChatRoomBloc, ChatRoomState>(
                     builder: (context, state) {
                       final canSend = _hasText && !state.isSending;
+                      // canSend 전환 시 버튼이 0.85→1.0으로 한 번 스케일업되어
+                      // 활성화되었음을 시각적으로 알린다 (반복 재생 아님).
                       return TweenAnimationBuilder<double>(
                         tween: Tween(begin: 0.85, end: canSend ? 1.0 : 0.85),
                         duration: AppMotion.fast,
