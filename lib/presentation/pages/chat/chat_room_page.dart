@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/notification_click_handler.dart';
 import '../../../core/window/window_focus_tracker.dart';
@@ -327,9 +328,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     _messageController.clear();
     _messageFocusNode.requestFocus();
 
-    // 메시지 전송 시 스크롤 맨 아래로
+    // 메시지 전송 시 부드럽게 스크롤 맨 아래로
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottom(smooth: false);
+      _scrollToBottom();
     });
   }
 
@@ -342,8 +343,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     if (smooth) {
       _scrollController.animateTo(
         0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
+        duration: AppMotion.normal,
+        curve: AppMotion.standard,
       );
     } else {
       _scrollController.jumpTo(0);
