@@ -92,12 +92,16 @@ class MessageList extends StatelessWidget {
                     const AnimatedTypingDots(),
                     const SizedBox(width: 8),
                     if (state.typingIndicatorText.isNotEmpty)
-                      Text(
-                        state.typingIndicatorText,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: context.textSecondaryColor,
-                              fontStyle: FontStyle.italic,
-                            ),
+                      Flexible(
+                        child: Text(
+                          state.typingIndicatorText,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: context.textSecondaryColor,
+                                fontStyle: FontStyle.italic,
+                              ),
+                        ),
                       ),
                   ],
                 ),
