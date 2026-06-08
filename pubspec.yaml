@@ -1,7 +1,7 @@
 name: co_talk_flutter
 description: "Co-Talk - Real-time messaging application"
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.1+100
 
 environment:
   sdk: ^3.8.1
@@ -132,3 +132,15 @@ flutter:
   assets:
     - assets/images/
     - assets/fonts/
+
+  fonts:
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/Pretendard-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Pretendard-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Pretendard-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Pretendard-Bold.ttf
+          weight: 700

@@ -29,6 +29,27 @@ void main() {
     });
   });
 
+  group('AppTheme typography (Pretendard)', () {
+    test('light theme uses Pretendard font family', () {
+      expect(AppTheme.lightTheme.textTheme.bodyMedium?.fontFamily, 'Pretendard');
+    });
+
+    test('dark theme uses Pretendard font family', () {
+      expect(AppTheme.darkTheme.textTheme.bodyMedium?.fontFamily, 'Pretendard');
+    });
+
+    test('AppBar title also uses Pretendard (no system-font fallback)', () {
+      expect(
+        AppTheme.lightTheme.appBarTheme.titleTextStyle?.fontFamily,
+        'Pretendard',
+      );
+      expect(
+        AppTheme.darkTheme.appBarTheme.titleTextStyle?.fontFamily,
+        'Pretendard',
+      );
+    });
+  });
+
   group('AppTheme.darkTheme AppBar', () {
     final appBar = AppTheme.darkTheme.appBarTheme;
 

@@ -8,6 +8,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: 'Pretendard',
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.background,
       colorScheme: const ColorScheme.light(
@@ -24,6 +25,7 @@ class AppTheme {
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
+          fontFamily: 'Pretendard',
           color: AppColors.textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w600,
@@ -97,6 +99,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: 'Pretendard',
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.backgroundDark,
       colorScheme: const ColorScheme.dark(
@@ -113,6 +116,7 @@ class AppTheme {
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
+          fontFamily: 'Pretendard',
           color: AppColors.textPrimaryDark,
           fontSize: 18,
           fontWeight: FontWeight.w600,
