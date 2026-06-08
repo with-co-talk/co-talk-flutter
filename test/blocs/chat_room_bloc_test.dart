@@ -366,8 +366,44 @@ void main() {
         verify: (_) {
           // presence-inactive는 즉시 전송
           verify(() => mockWebSocketService.sendPresenceInactive(roomId: 1)).called(1);
+          // ping 타이머가 멈춰야 한다(stopPresencePing): ViewInactive 이후
+          // periodic ping이 더 이상 나가지 않음.
+          verifyNever(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              ));
           // disconnect는 호출되지 않아야 함 (WebSocket 연결 유지)
           verifyNever(() => mockWebSocketService.disconnect());
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'resumes presence ping when Foregrounded after ViewInactive',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).thenReturn(null);
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          // ViewInactive로 ping을 멈춘 뒤(stopPresencePing) Foregrounded로
+          // 빠르게 복귀하는 경로를 검증한다.
+          bloc.add(const ChatRoomViewInactive());
+          await Future.delayed(const Duration(milliseconds: 50));
+          // opened/ViewInactive 단계 노이즈 제거 후 "재개"만 본다.
+          clearInteractions(mockWebSocketService);
+          bloc.add(const ChatRoomForegrounded());
+        },
+        wait: const Duration(milliseconds: 300),
+        verify: (_) {
+          // Foregrounded → sendPresenceActive → startPresencePing이 ping을 재개.
+          verify(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).called(1);
         },
       );
 
