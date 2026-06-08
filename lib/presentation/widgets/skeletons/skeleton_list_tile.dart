@@ -30,9 +30,9 @@ class SkeletonListTile extends StatelessWidget {
                 const SkeletonBox(height: 14),
                 const SizedBox(height: 8),
                 // 부제 라인 (좁음)
-                FractionallySizedBox(
+                const FractionallySizedBox(
                   widthFactor: 0.6,
-                  child: const SkeletonBox(height: 12),
+                  child: SkeletonBox(height: 12),
                 ),
               ],
             ),

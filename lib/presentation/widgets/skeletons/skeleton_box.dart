@@ -18,12 +18,11 @@ class SkeletonBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: isDark ? Colors.white10 : Colors.black12,
+        color: Colors.black12,
         borderRadius: BorderRadius.circular(borderRadius),
       ),
     );
