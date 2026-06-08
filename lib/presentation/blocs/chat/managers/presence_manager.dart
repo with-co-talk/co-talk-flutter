@@ -31,7 +31,9 @@ class PresenceManager {
     stopPresencePing();
 
     _webSocketService.sendPresencePing(roomId: roomId);
-    _presencePingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+    // 서버 presence TTL(30s) > 2×ping(24s) 유지 — 단일 ping 누락 시에도
+    // 시청 중 사용자 presence가 만료되지 않도록 ping 주기를 12초로 둔다.
+    _presencePingTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       _webSocketService.sendPresencePing(
         roomId: roomId,
       );
