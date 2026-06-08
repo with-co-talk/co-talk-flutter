@@ -6,8 +6,6 @@ import 'package:flutter/animation.dart';
 /// 리듬을 일관되게 유지한다. 매직넘버(`Duration(milliseconds: 200)`)를
 /// 코드 곳곳에 흩뿌리지 않기 위한 단일 출처.
 abstract final class AppMotion {
-  AppMotion._();
-
   // ── Durations ───────────────────────────────────────────────
   /// 작은 상태 변화(버튼 색/스케일, reveal). ~150ms.
   static const Duration fast = Duration(milliseconds: 150);

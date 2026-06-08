@@ -18,15 +18,20 @@ CustomTransitionPage<T> buildPageWithFadeThrough<T>({
     reverseTransitionDuration: AppMotion.fast,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(parent: animation, curve: AppMotion.standard);
+      final fadeIn = animation.drive(CurveTween(curve: AppMotion.standard));
+      final slideIn = animation.drive(
+        Tween<Offset>(begin: const Offset(0, 0.02), end: Offset.zero)
+            .chain(CurveTween(curve: AppMotion.standard)),
+      );
+      final fadeOut = secondaryAnimation.drive(
+        Tween<double>(begin: 1.0, end: 0.0)
+            .chain(CurveTween(curve: AppMotion.standard)),
+      );
       return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 0.02),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
+        opacity: fadeOut,
+        child: FadeTransition(
+          opacity: fadeIn,
+          child: SlideTransition(position: slideIn, child: child),
         ),
       );
     },

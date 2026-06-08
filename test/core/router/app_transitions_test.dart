@@ -24,6 +24,8 @@ void main() {
     expect(find.text('hello'), findsOneWidget);
     // 전환 위젯이 트리에 존재 (페이드)
     expect(find.byType(FadeTransition), findsWidgets);
+    // 슬라이드 전환도 존재해야 함 — 제거 시 회귀를 감지
+    expect(find.byType(SlideTransition), findsWidgets);
   });
 
   testWidgets('uses AppMotion.normal as forward transition duration',

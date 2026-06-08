@@ -6,8 +6,6 @@ import 'package:flutter/services.dart';
 /// 어떤 액션에 어떤 강도를 쓸지 의미 단위로 묶어, 코드 전반의
 /// `HapticFeedback.*` 직접 호출 산재를 막는다.
 abstract final class AppHaptics {
-  AppHaptics._();
-
   /// 가벼운 일상 액션 — 메시지 전송, 1차 버튼 탭 등.
   static void light() => HapticFeedback.lightImpact();
 

@@ -128,6 +128,8 @@ class AppRouter {
         path: AppRoutes.splash,
         builder: (context, state) => const SplashPage(),
       ),
+      // 인증 플로우(로그인·회원가입·이메일 인증)에만 fade-through 전환을 적용한다.
+      // 이후 push로 열리는 전체화면 라우트들은 플랫폼 기본 전환(MaterialPage)을 유지한다.
       GoRoute(
         path: AppRoutes.login,
         pageBuilder: (context, state) => buildPageWithFadeThrough(
