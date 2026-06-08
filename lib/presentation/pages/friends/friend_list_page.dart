@@ -13,6 +13,7 @@ import '../../blocs/auth/auth_state.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
+import '../../widgets/skeletons/list_skeleton.dart';
 
 class FriendListPage extends StatefulWidget {
   const FriendListPage({super.key});
@@ -111,7 +112,7 @@ class _FriendListPageState extends State<FriendListPage> {
         body: BlocBuilder<FriendBloc, FriendState>(
           builder: (context, state) {
             if (state.status == FriendStatus.loading && state.friends.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
+              return const ListSkeleton();
             }
 
             if (state.status == FriendStatus.failure) {
