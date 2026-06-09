@@ -877,6 +877,9 @@ class MessageBubble extends StatelessWidget {
     // Image message
     if (message.type == MessageType.image && message.fileUrl != null) {
       final imageUrl = message.fileUrl!;
+      // TODO(hero-tag): 답장 미리보기 썸네일이나 갤러리 Hero를 추가할 경우
+      // 동일 route 안에서 'chat_image_<id>' 태그가 충돌할 수 있음 →
+      // 용도별로 네임스페이스를 분리해야 함 (예: 'chat_thumb_<id>', 'gallery_<id>' 등).
       final heroTag = 'chat_image_${message.id}';
       final chatSettings = context.read<ChatSettingsCubit>().state.settings;
       final autoDownload = chatSettings.autoDownloadImagesOnWifi; // Use wifi setting as the general toggle
@@ -1333,26 +1336,62 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
       ),
     );
 
+    final borderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(18),
+      topRight: const Radius.circular(18),
+      bottomLeft: Radius.circular(widget.isMe ? 18 : 4),
+      bottomRight: Radius.circular(widget.isMe ? 4 : 18),
+    );
+
+    // ClipRRect를 Hero 자식으로 넣어 Hero 비행 중에도 동일한 클리핑이 유지되도록 함.
+    // (ClipRRect를 Hero 바깥에 두면 비행 오버레이에서는 클리핑이 적용되지 않아 시각적 글리치 발생)
+    Widget imageChild = ClipRRect(
+      borderRadius: borderRadius,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.65,
+          maxHeight: 250,
+        ),
+        child: cachedImage,
+      ),
+    );
+
     return GestureDetector(
       onTap: widget.onTapFullScreen,
       onLongPress: () => widget.onLongPress(context, widget.imageUrl),
-      child: ClipRRect(
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(18),
-          topRight: const Radius.circular(18),
-          bottomLeft: Radius.circular(widget.isMe ? 18 : 4),
-          bottomRight: Radius.circular(widget.isMe ? 4 : 18),
-        ),
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.65,
-            maxHeight: 250,
-          ),
-          child: widget.heroTag != null
-              ? Hero(tag: widget.heroTag!, child: cachedImage)
-              : cachedImage,
-        ),
-      ),
+      child: widget.heroTag != null
+          ? Hero(
+              tag: widget.heroTag!,
+              // 비행 중에도 버블 측 둥근 모서리가 자연스럽게 유지됨
+              flightShuttleBuilder: (_, animation, direction, __, ___) {
+                return AnimatedBuilder(
+                  animation: animation,
+                  builder: (context, child) {
+                    // 출발(버블) → 도착(전체화면) 방향에 따라 radius를 보간
+                    final t = direction == HeroFlightDirection.push
+                        ? animation.value
+                        : 1 - animation.value;
+                    final radius = BorderRadius.lerp(
+                      borderRadius,
+                      BorderRadius.zero,
+                      t,
+                    )!;
+                    return ClipRRect(
+                      borderRadius: radius,
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.65,
+                          maxHeight: 250,
+                        ),
+                        child: cachedImage,
+                      ),
+                    );
+                  },
+                );
+              },
+              child: imageChild,
+            )
+          : imageChild,
     );
   }
 }
@@ -1380,6 +1419,12 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
   late AnimationController _animationController;
   late Animation<double> _animation;
 
+  // InteractiveViewer 줌 상태 추적용 컨트롤러.
+  // scale > 1.0 일 때만 panEnabled = true 로 설정해 드래그-투-디스미스와 충돌 방지.
+  final TransformationController _transformationController =
+      TransformationController();
+  double _currentScale = 1.0;
+
   static const double _dismissThreshold = 100;
   static const double _velocityThreshold = 500;
 
@@ -1403,7 +1448,17 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
   @override
   void dispose() {
     _animationController.dispose();
+    _transformationController.dispose();
     super.dispose();
+  }
+
+  void _onInteractionUpdate(ScaleUpdateDetails details) {
+    final scale = _transformationController.value.getMaxScaleOnAxis();
+    if (scale != _currentScale) {
+      setState(() {
+        _currentScale = scale;
+      });
+    }
   }
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
@@ -1463,7 +1518,11 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
               child: Transform.scale(
                 scale: scale,
                 child: InteractiveViewer(
-                  panEnabled: true,
+                  // scale == 1.0 일 때 pan 을 비활성화하여 드래그-투-디스미스 제스처가 동작하도록 함.
+                  // zoom 상태에서는 pan 활성화하여 정상 이동 가능.
+                  panEnabled: _currentScale > 1.0,
+                  transformationController: _transformationController,
+                  onInteractionUpdate: _onInteractionUpdate,
                   minScale: 0.5,
                   maxScale: 4,
                   child: Builder(
