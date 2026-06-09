@@ -124,11 +124,15 @@ class _MessageListViewState extends State<_MessageListView> {
   String _keyOf(Message m) => m.localId ?? 'id_${m.id}';
 
   @override
+  void initState() {
+    super.initState();
+    // 최초 빌드 시 이미 보이는 메시지들을 시드 — build() 밖에서 1회만 실행
+    _tracker.seedIfNeeded(widget.messages.map(_keyOf));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final messages = widget.messages;
-
-    // 최초 빌드: 이미 보이는 메시지는 진입 애니메이션 제외
-    _tracker.seedIfNeeded(messages.map(_keyOf));
 
     return ListView.builder(
       controller: widget.scrollController,

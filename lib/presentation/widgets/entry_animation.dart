@@ -25,48 +25,55 @@ class EntryAnimation extends StatefulWidget {
 
 class _EntryAnimationState extends State<EntryAnimation>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _opacity;
-  late final Animation<Offset> _slide;
+  // Nullable to avoid LateInitializationError when animate:false.
+  // Only assigned in initState when animate is true.
+  AnimationController? _controller;
+  Animation<double>? _opacity;
+  Animation<Offset>? _slide;
 
   @override
   void initState() {
     super.initState();
     if (!widget.animate) return;
 
-    _controller = AnimationController(
+    final controller = AnimationController(
       vsync: this,
       duration: widget.duration,
     );
 
     _opacity = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: AppMotion.standard),
+      CurvedAnimation(parent: controller, curve: AppMotion.standard),
     );
 
     _slide = Tween<Offset>(
       begin: widget.beginOffset,
       end: Offset.zero,
     ).animate(
-      CurvedAnimation(parent: _controller, curve: AppMotion.standard),
+      CurvedAnimation(parent: controller, curve: AppMotion.standard),
     );
 
-    _controller.forward();
+    _controller = controller;
+    _controller!.forward();
   }
 
   @override
   void dispose() {
-    if (widget.animate) _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.animate) return widget.child;
+    final opacity = _opacity;
+    final slide = _slide;
+    if (!widget.animate || opacity == null || slide == null) {
+      return widget.child;
+    }
 
     return FadeTransition(
-      opacity: _opacity,
+      opacity: opacity,
       child: SlideTransition(
-        position: _slide,
+        position: slide,
         child: widget.child,
       ),
     );
