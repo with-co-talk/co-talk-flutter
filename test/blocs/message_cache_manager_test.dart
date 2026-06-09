@@ -184,6 +184,39 @@ void main() {
       expect(cacheManager.messages.first.sendStatus, MessageSendStatus.pending);
     });
 
+    test('replacePendingMessageWithReal preserves localId so list-key stays stable (이중 애니메이션 방지)', () {
+      // Pending 메시지가 확정 메시지로 교체될 때 localId 가 유지돼야
+      // _keyOf 가 동일한 키를 반환 → MessageEntryTracker 가 재애니메이션 방지
+      final pendingMsg = Message(
+        id: -1,
+        chatRoomId: 1,
+        senderId: 42,
+        content: 'Hello',
+        createdAt: DateTime.now(),
+        sendStatus: MessageSendStatus.pending,
+        localId: 'local-uuid-1',
+      );
+      cacheManager.addPendingMessage(pendingMsg);
+
+      final realMsg = Message(
+        id: 200,
+        chatRoomId: 1,
+        senderId: 42,
+        content: 'Hello',
+        createdAt: DateTime.now(),
+      );
+      final replaced = cacheManager.replacePendingMessageWithReal('Hello', realMsg);
+
+      expect(replaced, isTrue);
+      final confirmed = cacheManager.messages.first;
+      expect(confirmed.id, 200);
+      expect(confirmed.sendStatus, MessageSendStatus.sent);
+      // localId 는 반드시 보존돼야 한다 — 이것이 핵심 regression guard
+      expect(confirmed.localId, 'local-uuid-1',
+          reason: 'localId must be carried over so the list key stays stable '
+              'and the bubble does not animate a second time');
+    });
+
     test('addMessage adds new message at the beginning', () async {
       final msg1 = Message(
         id: 1,
