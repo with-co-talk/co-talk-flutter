@@ -22,76 +22,94 @@ class ConnectionStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = connectionState == WebSocketConnectionState.failed
-        ? Colors.red.shade700
-        : Colors.orange.shade700;
+    // Guard: only compute per-status values when banner is visible,
+    // avoiding unnecessary branching when the banner is hidden.
+    final backgroundColor = _isVisible
+        ? (connectionState == WebSocketConnectionState.failed
+              ? Colors.red.shade700
+              : Colors.orange.shade700)
+        : null;
 
     // AnimatedSize collapses height to 0 when not visible (slide effect).
     // AnimatedOpacity fades the content so there's no hard pop-in.
+    // IgnorePointer prevents the collapsing/hidden banner from intercepting
+    // pointer events on the UI below during the ~250 ms animation window.
     return AnimatedSize(
       duration: AppMotion.normal,
       curve: AppMotion.standard,
-      child: AnimatedOpacity(
-        opacity: _isVisible ? 1.0 : 0.0,
-        duration: AppMotion.normal,
-        curve: AppMotion.standard,
-        child: _isVisible
-            ? Material(
-                color: backgroundColor,
-                elevation: 4,
-                child: SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          connectionState == WebSocketConnectionState.failed
-                              ? Icons.error_outline
-                              : Icons.wifi_off,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
+      child: IgnorePointer(
+        ignoring: !_isVisible,
+        child: AnimatedOpacity(
+          opacity: _isVisible ? 1.0 : 0.0,
+          duration: AppMotion.normal,
+          curve: AppMotion.standard,
+          child: _isVisible
+              ? Material(
+                  color: backgroundColor,
+                  elevation: 4,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
                             connectionState == WebSocketConnectionState.failed
-                                ? '연결 실패 - 재시도가 중단되었습니다'
-                                : '연결이 끊어졌습니다',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
+                                ? Icons.error_outline
+                                : Icons.wifi_off,
+                            color: Colors.white,
+                            size: 20,
                           ),
-                        ),
-                        TextButton.icon(
-                          onPressed: onReconnect,
-                          icon: const Icon(Icons.refresh,
-                              color: Colors.white, size: 18),
-                          label: const Text(
-                            '재연결',
-                            style: TextStyle(
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              connectionState == WebSocketConnectionState.failed
+                                  ? '연결 실패 - 재시도가 중단되었습니다'
+                                  : '연결이 끊어졌습니다',
+                              style: const TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold),
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            backgroundColor:
-                                Colors.white.withValues(alpha: 0.2),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          TextButton.icon(
+                            onPressed: onReconnect,
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            label: const Text(
+                              '재연결',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.2,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              )
-            : const SizedBox.shrink(),
+                )
+              : const SizedBox.shrink(),
+        ),
       ),
     );
   }
