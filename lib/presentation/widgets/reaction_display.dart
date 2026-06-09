@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_motion.dart';
+import '../../core/utils/app_haptics.dart';
 import '../../domain/entities/message.dart';
 
 /// Displays reactions under a message bubble.
@@ -28,7 +30,10 @@ class ReactionDisplay extends StatelessWidget {
       grouped.putIfAbsent(reaction.emoji, () => []).add(reaction);
     }
 
-    return Padding(
+    return AnimatedSize(
+      duration: AppMotion.fast,
+      curve: AppMotion.standard,
+      child: Padding(
       padding: EdgeInsets.only(
         top: 4,
         left: isMe ? 0 : 44, // Align with message bubble (after avatar)
@@ -44,7 +49,10 @@ class ReactionDisplay extends StatelessWidget {
           final hasMyReaction = reactionList.any((r) => r.userId == currentUserId);
 
           return GestureDetector(
-            onTap: () => onReactionTap(emoji),
+            onTap: () {
+              AppHaptics.selection();
+              onReactionTap(emoji);
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -77,6 +85,7 @@ class ReactionDisplay extends StatelessWidget {
           );
         }).toList(),
       ),
+    ),
     );
   }
 }
