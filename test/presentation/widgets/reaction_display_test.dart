@@ -14,9 +14,9 @@ void main() {
       calls.clear();
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        calls.add(call);
-        return null;
-      });
+            calls.add(call);
+            return null;
+          });
     });
 
     tearDown(() {
@@ -24,26 +24,19 @@ void main() {
           .setMockMethodCallHandler(SystemChannels.platform, null);
     });
 
-    List<MessageReaction> _reactions(String emoji, int userId) => [
-          MessageReaction(
-            id: 1,
-            messageId: 10,
-            userId: userId,
-            emoji: emoji,
-          ),
-        ];
+    List<MessageReaction> buildReactions(String emoji, int userId) => [
+      MessageReaction(id: 1, messageId: 10, userId: userId, emoji: emoji),
+    ];
 
     testWidgets('리액션 탭 시 selectionClick 햅틱이 발생한다', (tester) async {
-      String? tappedEmoji;
-
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: ReactionDisplay(
-              reactions: _reactions('👍', 1),
+              reactions: buildReactions('👍', 1),
               currentUserId: 1,
               isMe: false,
-              onReactionTap: (emoji) => tappedEmoji = emoji,
+              onReactionTap: (_) {},
             ),
           ),
         ),
@@ -52,12 +45,16 @@ void main() {
       await tester.tap(find.text('👍'));
       await tester.pump();
 
-      // 햅틱 호출 검증
+      // 햅틱 호출 검증: 정확히 1회만 발생해야 한다 (double-fire 방지)
       expect(
-        calls.any((c) =>
-            c.method == 'HapticFeedback.vibrate' &&
-            c.arguments == 'HapticFeedbackType.selectionClick'),
-        isTrue,
+        calls
+            .where(
+              (c) =>
+                  c.method == 'HapticFeedback.vibrate' &&
+                  c.arguments == 'HapticFeedbackType.selectionClick',
+            )
+            .length,
+        equals(1),
       );
     });
 
@@ -68,7 +65,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ReactionDisplay(
-              reactions: _reactions('❤️', 2),
+              reactions: buildReactions('❤️', 2),
               currentUserId: 1,
               isMe: true,
               onReactionTap: (emoji) => tappedEmoji = emoji,
@@ -88,7 +85,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ReactionDisplay(
-              reactions: _reactions('😂', 3),
+              reactions: buildReactions('😂', 3),
               currentUserId: 1,
               isMe: false,
               onReactionTap: (_) {},
