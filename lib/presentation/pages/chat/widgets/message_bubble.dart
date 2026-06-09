@@ -326,7 +326,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Shows image options bottom sheet (fullscreen, save to gallery, delete)
-  void _showImageOptions(BuildContext context, String imageUrl) {
+  void _showImageOptions(BuildContext context, String imageUrl, {String? heroTag}) {
     final canDelete = isMe && !message.isDeleted && !_isEditTimeExpired;
 
     showModalBottomSheet(
@@ -356,7 +356,7 @@ class MessageBubble extends StatelessWidget {
                 title: const Text('전체 화면 보기'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _showFullScreenImage(context, imageUrl);
+                  _showFullScreenImage(context, imageUrl, heroTag: heroTag);
                 },
               ),
               if (!kIsWeb)
@@ -386,7 +386,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Shows fullscreen image viewer with drag-to-dismiss (KakaoTalk style)
-  void _showFullScreenImage(BuildContext context, String imageUrl) {
+  void _showFullScreenImage(BuildContext context, String imageUrl, {String? heroTag}) {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -394,6 +394,7 @@ class MessageBubble extends StatelessWidget {
         pageBuilder: (context, animation, secondaryAnimation) {
           return _DismissibleImageViewer(
             imageUrl: imageUrl,
+            heroTag: heroTag,
             onSaveToGallery: kIsWeb ? null : () => _saveImageToGallery(context, imageUrl),
           );
         },
@@ -876,15 +877,17 @@ class MessageBubble extends StatelessWidget {
     // Image message
     if (message.type == MessageType.image && message.fileUrl != null) {
       final imageUrl = message.fileUrl!;
+      final heroTag = 'chat_image_${message.id}';
       final chatSettings = context.read<ChatSettingsCubit>().state.settings;
       final autoDownload = chatSettings.autoDownloadImagesOnWifi; // Use wifi setting as the general toggle
 
       bubbleWidget = _AutoDownloadImageWidget(
         imageUrl: imageUrl,
+        heroTag: heroTag,
         isMe: isMe,
         autoDownloadEnabled: autoDownload,
-        onTapFullScreen: () => _showFullScreenImage(context, imageUrl),
-        onLongPress: _showImageOptions,
+        onTapFullScreen: () => _showFullScreenImage(context, imageUrl, heroTag: heroTag),
+        onLongPress: (ctx, url) => _showImageOptions(ctx, url, heroTag: heroTag),
       );
     }
     // Video message
@@ -1230,6 +1233,7 @@ class MessageBubble extends StatelessWidget {
 /// 자동 다운로드 설정에 따라 이미지를 로드하는 위젯
 class _AutoDownloadImageWidget extends StatefulWidget {
   final String imageUrl;
+  final String? heroTag;
   final bool isMe;
   final bool autoDownloadEnabled;
   final VoidCallback onTapFullScreen;
@@ -1237,6 +1241,7 @@ class _AutoDownloadImageWidget extends StatefulWidget {
 
   const _AutoDownloadImageWidget({
     required this.imageUrl,
+    this.heroTag,
     required this.isMe,
     required this.autoDownloadEnabled,
     required this.onTapFullScreen,
@@ -1299,6 +1304,35 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
       );
     }
 
+    final cachedImage = CachedNetworkImage(
+      imageUrl: widget.imageUrl,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Container(
+        width: 200,
+        height: 150,
+        color: context.dividerColor,
+        child: const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+      errorWidget: (context, url, error) => Container(
+        width: 200,
+        height: 150,
+        color: context.dividerColor,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.broken_image, color: context.textSecondaryColor, size: 40),
+            const SizedBox(height: 8),
+            Text(
+              '이미지를 불러올 수 없습니다',
+              style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+
     return GestureDetector(
       onTap: widget.onTapFullScreen,
       onLongPress: () => widget.onLongPress(context, widget.imageUrl),
@@ -1314,34 +1348,9 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
             maxWidth: MediaQuery.of(context).size.width * 0.65,
             maxHeight: 250,
           ),
-          child: CachedNetworkImage(
-            imageUrl: widget.imageUrl,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
-              width: 200,
-              height: 150,
-              color: context.dividerColor,
-              child: const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-            errorWidget: (context, url, error) => Container(
-              width: 200,
-              height: 150,
-              color: context.dividerColor,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.broken_image, color: context.textSecondaryColor, size: 40),
-                  const SizedBox(height: 8),
-                  Text(
-                    '이미지를 불러올 수 없습니다',
-                    style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          child: widget.heroTag != null
+              ? Hero(tag: widget.heroTag!, child: cachedImage)
+              : cachedImage,
         ),
       ),
     );
@@ -1351,10 +1360,12 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
 /// 드래그로 닫을 수 있는 전체화면 이미지 뷰어 (카카오톡 스타일)
 class _DismissibleImageViewer extends StatefulWidget {
   final String imageUrl;
+  final String? heroTag;
   final VoidCallback? onSaveToGallery;
 
   const _DismissibleImageViewer({
     required this.imageUrl,
+    this.heroTag,
     this.onSaveToGallery,
   });
 
@@ -1455,17 +1466,25 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
                   panEnabled: true,
                   minScale: 0.5,
                   maxScale: 4,
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    fit: BoxFit.contain,
-                    placeholder: (context, url) => const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => const Center(
-                      child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      final image = CachedNetworkImage(
+                        imageUrl: widget.imageUrl,
+                        fit: BoxFit.contain,
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => const Center(
+                          child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
+                        ),
+                      );
+                      if (widget.heroTag != null) {
+                        return Hero(tag: widget.heroTag!, child: image);
+                      }
+                      return image;
+                    },
                   ),
                 ),
               ),
