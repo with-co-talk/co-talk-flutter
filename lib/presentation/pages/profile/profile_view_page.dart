@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -689,12 +690,11 @@ class _BackgroundImage extends StatelessWidget {
       );
     }
 
-    return Image.network(
-      url!,
+    return CachedNetworkImage(
+      imageUrl: url!,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        color: AppColors.primaryDark,
-      ),
+      placeholder: (_, __) => Container(color: AppColors.primaryDark),
+      errorWidget: (_, __, ___) => Container(color: AppColors.primaryDark),
     );
   }
 }
@@ -725,7 +725,7 @@ class _ProfileAvatar extends StatelessWidget {
       child: CircleAvatar(
         radius: 50,
         backgroundColor: AppColors.primaryLight,
-        backgroundImage: url != null ? NetworkImage(url!) : null,
+        backgroundImage: url != null ? CachedNetworkImageProvider(url!) : null,
         child: url == null
             ? Text(
                 nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
@@ -1009,22 +1009,13 @@ class _DismissibleProfileImageViewerState
                   panEnabled: true,
                   minScale: 0.5,
                   maxScale: 4,
-                  child: Image.network(
-                    widget.imageUrl,
+                  child: CachedNetworkImage(
+                    imageUrl: widget.imageUrl,
                     fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) => const Center(
+                    placeholder: (_, __) => const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                    errorWidget: (_, __, ___) => const Center(
                       child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
                     ),
                   ),
