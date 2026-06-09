@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -422,7 +423,7 @@ class _ImageViewState extends State<_ImageView> {
     if (_isZoomed) {
       _transformationController.value = Matrix4.identity();
     } else {
-      _transformationController.value = Matrix4.identity()..scale(2.0);
+      _transformationController.value = Matrix4.identity()..scaleByDouble(2.0, 2.0, 2.0, 1.0);
     }
   }
 
@@ -450,22 +451,13 @@ class _ImageViewState extends State<_ImageView> {
         // 확대 중일 때만 pan 활성화 (기본 상태에서는 PageView 스와이프 허용)
         panEnabled: _isZoomed,
         child: Center(
-          child: Image.network(
-            widget.url!,
+          child: CachedNetworkImage(
+            imageUrl: widget.url!,
             fit: BoxFit.contain,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return Center(
-                child: CircularProgressIndicator(
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                      : null,
-                  color: Colors.white,
-                ),
-              );
-            },
-            errorBuilder: (_, __, ___) => const Center(
+            placeholder: (_, __) => const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+            errorWidget: (_, __, ___) => const Center(
               child: Icon(
                 Icons.broken_image,
                 color: Colors.white54,

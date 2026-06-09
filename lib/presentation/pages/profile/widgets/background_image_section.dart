@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
@@ -65,10 +66,20 @@ class BackgroundImageSection extends StatelessWidget {
     }
 
     if (backgroundUrl != null && backgroundUrl!.isNotEmpty) {
-      return Image.network(
-        backgroundUrl!,
+      return CachedNetworkImage(
+        imageUrl: backgroundUrl!,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
+        placeholder: (_, __) => Container(
+          color: AppColors.primaryLight,
+          child: const Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+        errorWidget: (_, __, ___) => Container(
           color: AppColors.primaryLight,
           child: const Center(child: Icon(Icons.broken_image)),
         ),
