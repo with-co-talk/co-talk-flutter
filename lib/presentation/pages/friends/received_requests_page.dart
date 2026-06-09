@@ -10,6 +10,7 @@ import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
 import '../../widgets/skeletons/list_skeleton.dart';
+import '../../../core/utils/app_haptics.dart';
 
 class ReceivedRequestsPage extends StatelessWidget {
   const ReceivedRequestsPage({super.key});
@@ -210,6 +211,7 @@ class _ReceivedRequestTile extends StatelessWidget {
             children: [
               OutlinedButton(
                 onPressed: () {
+                  AppHaptics.selection();
                   context.read<FriendBloc>().add(FriendRequestRejected(request.id));
                 },
                 style: OutlinedButton.styleFrom(
@@ -225,6 +227,7 @@ class _ReceivedRequestTile extends StatelessWidget {
               const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: () {
+                  AppHaptics.light();
                   context.read<FriendBloc>().add(FriendRequestAccepted(request.id));
                 },
                 style: ElevatedButton.styleFrom(
