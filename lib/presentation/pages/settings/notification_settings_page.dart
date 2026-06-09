@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/app_haptics.dart';
 import '../../../domain/entities/notification_settings.dart';
 import '../../blocs/settings/notification_settings_cubit.dart';
 import '../../blocs/settings/notification_settings_state.dart';
@@ -293,7 +294,10 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       title: Text(title),
       subtitle: Text(subtitle),
       value: value,
-      onChanged: onChanged,
+      onChanged: (v) {
+        AppHaptics.selection();
+        onChanged(v);
+      },
     );
   }
 

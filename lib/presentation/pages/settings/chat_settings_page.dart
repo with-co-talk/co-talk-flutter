@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/app_haptics.dart';
 import '../../blocs/settings/chat_settings_cubit.dart';
 import '../../blocs/settings/chat_settings_state.dart';
 
@@ -230,7 +231,10 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
       secondary: Icon(icon),
       title: Text(title),
       value: value,
-      onChanged: onChanged,
+      onChanged: (v) {
+        AppHaptics.selection();
+        onChanged(v);
+      },
     );
   }
 
