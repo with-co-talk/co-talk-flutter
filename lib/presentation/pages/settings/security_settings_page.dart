@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/utils/app_haptics.dart';
 import '../../blocs/settings/biometric_settings_cubit.dart';
 import '../../blocs/settings/biometric_settings_state.dart';
 
@@ -38,7 +39,10 @@ class SecuritySettingsPage extends StatelessWidget {
                 ),
                 value: state.isEnabled,
                 onChanged: state.isSupported
-                    ? (_) => context.read<BiometricSettingsCubit>().toggle()
+                    ? (_) {
+                        AppHaptics.selection();
+                        context.read<BiometricSettingsCubit>().toggle();
+                      }
                     : null,
               ),
               if (state.isEnabled)
