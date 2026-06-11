@@ -3419,6 +3419,34 @@ void main() {
               .having((s) => s.typingUsers[4], 'Charlie', 'Charlie'),
         ],
       );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'auto-clears typing user after the 5s timeout fires',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: true,
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        // 5초 자동 타임아웃 타이머가 만료되며 isTyping=false 이벤트를 자가 발생시킨다.
+        wait: const Duration(seconds: 6),
+        expect: () => [
+          // 1) typing 시작으로 typingUsers에 추가
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers[2], 'user 2 typing', 'Alice'),
+          // 2) 타임아웃 만료 → 자동 해제
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.containsKey(2), 'auto-cleared', false),
+        ],
+      );
     });
 
     group('TypingStatusChanged with showTypingIndicator disabled', () {
