@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -689,17 +690,16 @@ class _BackgroundImage extends StatelessWidget {
       );
     }
 
-    return Image.network(
-      url!,
+    return CachedNetworkImage(
+      imageUrl: url!,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        color: AppColors.primaryDark,
-      ),
+      placeholder: (_, __) => Container(color: AppColors.primaryDark),
+      errorWidget: (_, __, ___) => Container(color: AppColors.primaryDark),
     );
   }
 }
 
-class _ProfileAvatar extends StatelessWidget {
+class _ProfileAvatar extends StatefulWidget {
   final String? url;
   final String nickname;
 
@@ -709,7 +709,28 @@ class _ProfileAvatar extends StatelessWidget {
   });
 
   @override
+  State<_ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends State<_ProfileAvatar> {
+  // 이미지 로드 실패를 추적해 이니셜 텍스트 fallback 으로 되돌린다.
+  // (ImageProvider 경로에는 errorWidget 이 없어 실패 시 빈 원이 남는 문제 방지)
+  bool _imageLoadFailed = false;
+
+  @override
+  void didUpdateWidget(covariant _ProfileAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // url 이 바뀌면 실패 플래그를 초기화해 새 이미지 로드를 다시 시도한다.
+    if (oldWidget.url != widget.url) {
+      _imageLoadFailed = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final url = widget.url;
+    final showImage = url != null && !_imageLoadFailed;
+
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -725,17 +746,27 @@ class _ProfileAvatar extends StatelessWidget {
       child: CircleAvatar(
         radius: 50,
         backgroundColor: AppColors.primaryLight,
-        backgroundImage: url != null ? NetworkImage(url!) : null,
-        child: url == null
-            ? Text(
-                nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
+        backgroundImage:
+            showImage ? CachedNetworkImageProvider(url) : null,
+        onBackgroundImageError: showImage
+            ? (_, __) {
+                if (mounted) {
+                  setState(() => _imageLoadFailed = true);
+                }
+              }
+            : null,
+        child: showImage
+            ? null
+            : Text(
+                widget.nickname.isNotEmpty
+                    ? widget.nickname[0].toUpperCase()
+                    : '?',
                 style: const TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
-              )
-            : null,
+              ),
       ),
     );
   }
@@ -1009,22 +1040,13 @@ class _DismissibleProfileImageViewerState
                   panEnabled: true,
                   minScale: 0.5,
                   maxScale: 4,
-                  child: Image.network(
-                    widget.imageUrl,
+                  child: CachedNetworkImage(
+                    imageUrl: widget.imageUrl,
                     fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) => const Center(
+                    placeholder: (_, __) => const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                    errorWidget: (_, __, ___) => const Center(
                       child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
                     ),
                   ),

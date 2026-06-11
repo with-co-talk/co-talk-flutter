@@ -326,7 +326,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Shows image options bottom sheet (fullscreen, save to gallery, delete)
-  void _showImageOptions(BuildContext context, String imageUrl) {
+  void _showImageOptions(BuildContext context, String imageUrl, {String? heroTag}) {
     final canDelete = isMe && !message.isDeleted && !_isEditTimeExpired;
 
     showModalBottomSheet(
@@ -356,7 +356,7 @@ class MessageBubble extends StatelessWidget {
                 title: const Text('전체 화면 보기'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _showFullScreenImage(context, imageUrl);
+                  _showFullScreenImage(context, imageUrl, heroTag: heroTag);
                 },
               ),
               if (!kIsWeb)
@@ -386,7 +386,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Shows fullscreen image viewer with drag-to-dismiss (KakaoTalk style)
-  void _showFullScreenImage(BuildContext context, String imageUrl) {
+  void _showFullScreenImage(BuildContext context, String imageUrl, {String? heroTag}) {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -394,6 +394,7 @@ class MessageBubble extends StatelessWidget {
         pageBuilder: (context, animation, secondaryAnimation) {
           return _DismissibleImageViewer(
             imageUrl: imageUrl,
+            heroTag: heroTag,
             onSaveToGallery: kIsWeb ? null : () => _saveImageToGallery(context, imageUrl),
           );
         },
@@ -876,15 +877,26 @@ class MessageBubble extends StatelessWidget {
     // Image message
     if (message.type == MessageType.image && message.fileUrl != null) {
       final imageUrl = message.fileUrl!;
+      // Hero 태그는 출처(chat 버블 이미지)를 prefix 로 명시해 추후 충돌 추적을 쉽게 한다.
+      // TODO(hero-tag): 답장 미리보기 썸네일이나 갤러리 Hero를 추가할 경우
+      // 동일 route 안에서 'chat_image_<id>' 태그가 충돌할 수 있음 →
+      // 용도별로 네임스페이스를 분리해야 함 (예: 'chat_thumb_<id>', 'gallery_<id>' 등).
+      // 디버그 빌드에서 잘못된 id(중복 유발 가능)를 일찍 잡기 위한 가드.
+      assert(
+        message.id != 0,
+        'Hero 태그 생성에 유효한 message.id 가 필요합니다 (중복 태그 방지).',
+      );
+      final heroTag = 'chat_image_${message.id}';
       final chatSettings = context.read<ChatSettingsCubit>().state.settings;
       final autoDownload = chatSettings.autoDownloadImagesOnWifi; // Use wifi setting as the general toggle
 
       bubbleWidget = _AutoDownloadImageWidget(
         imageUrl: imageUrl,
+        heroTag: heroTag,
         isMe: isMe,
         autoDownloadEnabled: autoDownload,
-        onTapFullScreen: () => _showFullScreenImage(context, imageUrl),
-        onLongPress: _showImageOptions,
+        onTapFullScreen: () => _showFullScreenImage(context, imageUrl, heroTag: heroTag),
+        onLongPress: (ctx, url) => _showImageOptions(ctx, url, heroTag: heroTag),
       );
     }
     // Video message
@@ -1230,6 +1242,7 @@ class MessageBubble extends StatelessWidget {
 /// 자동 다운로드 설정에 따라 이미지를 로드하는 위젯
 class _AutoDownloadImageWidget extends StatefulWidget {
   final String imageUrl;
+  final String? heroTag;
   final bool isMe;
   final bool autoDownloadEnabled;
   final VoidCallback onTapFullScreen;
@@ -1237,6 +1250,7 @@ class _AutoDownloadImageWidget extends StatefulWidget {
 
   const _AutoDownloadImageWidget({
     required this.imageUrl,
+    this.heroTag,
     required this.isMe,
     required this.autoDownloadEnabled,
     required this.onTapFullScreen,
@@ -1299,51 +1313,99 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
       );
     }
 
+    // 버블 썸네일은 화면상 maxWidth(= 화면폭 * 0.65) 로만 표시되므로,
+    // 디바이스 픽셀비를 곱한 적정 폭으로 memCacheWidth 를 지정해 서버 원본 해상도가
+    // 그대로 디코딩되어 메모리에 상주하는 것을 방지한다. (전체화면 뷰어는 풀해상도 유지)
+    final mq = MediaQuery.of(context);
+    final thumbCacheWidth =
+        (mq.size.width * 0.65 * mq.devicePixelRatio).round();
+
+    final cachedImage = CachedNetworkImage(
+      imageUrl: widget.imageUrl,
+      fit: BoxFit.cover,
+      memCacheWidth: thumbCacheWidth,
+      placeholder: (context, url) => Container(
+        width: 200,
+        height: 150,
+        color: context.dividerColor,
+        child: const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+      errorWidget: (context, url, error) => Container(
+        width: 200,
+        height: 150,
+        color: context.dividerColor,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.broken_image, color: context.textSecondaryColor, size: 40),
+            const SizedBox(height: 8),
+            Text(
+              '이미지를 불러올 수 없습니다',
+              style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final borderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(18),
+      topRight: const Radius.circular(18),
+      bottomLeft: Radius.circular(widget.isMe ? 18 : 4),
+      bottomRight: Radius.circular(widget.isMe ? 4 : 18),
+    );
+
+    // ClipRRect를 Hero 자식으로 넣어 Hero 비행 중에도 동일한 클리핑이 유지되도록 함.
+    // (ClipRRect를 Hero 바깥에 두면 비행 오버레이에서는 클리핑이 적용되지 않아 시각적 글리치 발생)
+    Widget imageChild = ClipRRect(
+      borderRadius: borderRadius,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.65,
+          maxHeight: 250,
+        ),
+        child: cachedImage,
+      ),
+    );
+
     return GestureDetector(
       onTap: widget.onTapFullScreen,
       onLongPress: () => widget.onLongPress(context, widget.imageUrl),
-      child: ClipRRect(
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(18),
-          topRight: const Radius.circular(18),
-          bottomLeft: Radius.circular(widget.isMe ? 18 : 4),
-          bottomRight: Radius.circular(widget.isMe ? 4 : 18),
-        ),
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.65,
-            maxHeight: 250,
-          ),
-          child: CachedNetworkImage(
-            imageUrl: widget.imageUrl,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
-              width: 200,
-              height: 150,
-              color: context.dividerColor,
-              child: const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-            errorWidget: (context, url, error) => Container(
-              width: 200,
-              height: 150,
-              color: context.dividerColor,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.broken_image, color: context.textSecondaryColor, size: 40),
-                  const SizedBox(height: 8),
-                  Text(
-                    '이미지를 불러올 수 없습니다',
-                    style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      child: widget.heroTag != null
+          ? Hero(
+              tag: widget.heroTag!,
+              // 비행 중에도 버블 측 둥근 모서리가 자연스럽게 유지됨
+              flightShuttleBuilder: (_, animation, direction, __, ___) {
+                return AnimatedBuilder(
+                  animation: animation,
+                  builder: (context, child) {
+                    // 출발(버블) → 도착(전체화면) 방향에 따라 radius를 보간
+                    final t = direction == HeroFlightDirection.push
+                        ? animation.value
+                        : 1 - animation.value;
+                    final radius = BorderRadius.lerp(
+                      borderRadius,
+                      BorderRadius.zero,
+                      t,
+                    )!;
+                    return ClipRRect(
+                      borderRadius: radius,
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.65,
+                          maxHeight: 250,
+                        ),
+                        child: cachedImage,
+                      ),
+                    );
+                  },
+                );
+              },
+              child: imageChild,
+            )
+          : imageChild,
     );
   }
 }
@@ -1351,10 +1413,12 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
 /// 드래그로 닫을 수 있는 전체화면 이미지 뷰어 (카카오톡 스타일)
 class _DismissibleImageViewer extends StatefulWidget {
   final String imageUrl;
+  final String? heroTag;
   final VoidCallback? onSaveToGallery;
 
   const _DismissibleImageViewer({
     required this.imageUrl,
+    this.heroTag,
     this.onSaveToGallery,
   });
 
@@ -1368,6 +1432,12 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
   double _dragVelocity = 0;
   late AnimationController _animationController;
   late Animation<double> _animation;
+
+  // InteractiveViewer 줌 상태 추적용 컨트롤러.
+  // scale > 1.0 일 때만 panEnabled = true 로 설정해 드래그-투-디스미스와 충돌 방지.
+  final TransformationController _transformationController =
+      TransformationController();
+  bool _panEnabled = false;
 
   static const double _dismissThreshold = 100;
   static const double _velocityThreshold = 500;
@@ -1392,7 +1462,21 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
   @override
   void dispose() {
     _animationController.dispose();
+    _transformationController.dispose();
     super.dispose();
+  }
+
+  void _onInteractionUpdate(ScaleUpdateDetails details) {
+    // panEnabled 분기에 필요한 건 (scale > 1.0) boolean 전환 시점뿐이므로,
+    // scale 값 자체가 아니라 boolean 이 직전 값과 달라질 때만 setState 하여
+    // 줌 중 build/CachedNetworkImage 의 불필요한 리빌드를 줄인다.
+    final panEnabled =
+        _transformationController.value.getMaxScaleOnAxis() > 1.0;
+    if (panEnabled != _panEnabled) {
+      setState(() {
+        _panEnabled = panEnabled;
+      });
+    }
   }
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
@@ -1452,20 +1536,32 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
               child: Transform.scale(
                 scale: scale,
                 child: InteractiveViewer(
-                  panEnabled: true,
+                  // scale == 1.0 일 때 pan 을 비활성화하여 드래그-투-디스미스 제스처가 동작하도록 함.
+                  // zoom 상태에서는 pan 활성화하여 정상 이동 가능.
+                  panEnabled: _panEnabled,
+                  transformationController: _transformationController,
+                  onInteractionUpdate: _onInteractionUpdate,
                   minScale: 0.5,
                   maxScale: 4,
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    fit: BoxFit.contain,
-                    placeholder: (context, url) => const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => const Center(
-                      child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      final image = CachedNetworkImage(
+                        imageUrl: widget.imageUrl,
+                        fit: BoxFit.contain,
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => const Center(
+                          child: Icon(Icons.broken_image, color: Colors.white54, size: 80),
+                        ),
+                      );
+                      if (widget.heroTag != null) {
+                        return Hero(tag: widget.heroTag!, child: image);
+                      }
+                      return image;
+                    },
                   ),
                 ),
               ),
