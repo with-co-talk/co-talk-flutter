@@ -328,9 +328,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     _messageController.clear();
     _messageFocusNode.requestFocus();
 
-    // 메시지 전송 시 부드럽게 스크롤 맨 아래로
+    // 내가 보낸 메시지는 즉시 맨 아래로 붙인다.
+    // smooth(animateTo) 도중 새 항목이 삽입되면 목표가 흔들려
+    // 끝까지 안 붙는 케이스가 있어, 전송 직후에는 jumpTo를 쓴다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottom();
+      _scrollToBottom(smooth: false);
     });
   }
 
