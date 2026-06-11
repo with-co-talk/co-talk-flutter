@@ -22,13 +22,11 @@ class ConnectionStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Guard: only compute per-status values when banner is visible,
-    // avoiding unnecessary branching when the banner is hidden.
-    final backgroundColor = _isVisible
-        ? (connectionState == WebSocketConnectionState.failed
-              ? Colors.red.shade700
-              : Colors.orange.shade700)
-        : null;
+    // Banner background colour. Only consumed inside the `_isVisible`
+    // Material branch below, so it can always be computed non-null.
+    final backgroundColor = connectionState == WebSocketConnectionState.failed
+        ? Colors.red.shade700
+        : Colors.orange.shade700;
 
     // AnimatedSize collapses height to 0 when not visible (slide effect).
     // AnimatedOpacity fades the content so there's no hard pop-in.
