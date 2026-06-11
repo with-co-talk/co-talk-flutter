@@ -1313,9 +1313,17 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
       );
     }
 
+    // 버블 썸네일은 화면상 maxWidth(= 화면폭 * 0.65) 로만 표시되므로,
+    // 디바이스 픽셀비를 곱한 적정 폭으로 memCacheWidth 를 지정해 서버 원본 해상도가
+    // 그대로 디코딩되어 메모리에 상주하는 것을 방지한다. (전체화면 뷰어는 풀해상도 유지)
+    final mq = MediaQuery.of(context);
+    final thumbCacheWidth =
+        (mq.size.width * 0.65 * mq.devicePixelRatio).round();
+
     final cachedImage = CachedNetworkImage(
       imageUrl: widget.imageUrl,
       fit: BoxFit.cover,
+      memCacheWidth: thumbCacheWidth,
       placeholder: (context, url) => Container(
         width: 200,
         height: 150,
