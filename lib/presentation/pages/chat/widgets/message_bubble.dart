@@ -1437,7 +1437,7 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
   // scale > 1.0 일 때만 panEnabled = true 로 설정해 드래그-투-디스미스와 충돌 방지.
   final TransformationController _transformationController =
       TransformationController();
-  double _currentScale = 1.0;
+  bool _panEnabled = false;
 
   static const double _dismissThreshold = 100;
   static const double _velocityThreshold = 500;
@@ -1467,10 +1467,14 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
   }
 
   void _onInteractionUpdate(ScaleUpdateDetails details) {
-    final scale = _transformationController.value.getMaxScaleOnAxis();
-    if (scale != _currentScale) {
+    // panEnabled 분기에 필요한 건 (scale > 1.0) boolean 전환 시점뿐이므로,
+    // scale 값 자체가 아니라 boolean 이 직전 값과 달라질 때만 setState 하여
+    // 줌 중 build/CachedNetworkImage 의 불필요한 리빌드를 줄인다.
+    final panEnabled =
+        _transformationController.value.getMaxScaleOnAxis() > 1.0;
+    if (panEnabled != _panEnabled) {
       setState(() {
-        _currentScale = scale;
+        _panEnabled = panEnabled;
       });
     }
   }
@@ -1534,7 +1538,7 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
                 child: InteractiveViewer(
                   // scale == 1.0 일 때 pan 을 비활성화하여 드래그-투-디스미스 제스처가 동작하도록 함.
                   // zoom 상태에서는 pan 활성화하여 정상 이동 가능.
-                  panEnabled: _currentScale > 1.0,
+                  panEnabled: _panEnabled,
                   transformationController: _transformationController,
                   onInteractionUpdate: _onInteractionUpdate,
                   minScale: 0.5,
