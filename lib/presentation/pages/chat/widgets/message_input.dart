@@ -10,6 +10,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_motion.dart';
+import '../../../../core/utils/app_haptics.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_event.dart';
@@ -62,7 +64,11 @@ class _MessageInputState extends State<MessageInput> {
   bool get _hasText => widget.controller.text.trim().isNotEmpty;
 
   void _handleSend() {
-    if (_hasText) {
+    // onSubmitted(키보드 enter) 경로는 send 버튼의 canSend 게이트를
+    // 거치지 않으므로, 여기서도 전송 중(isSending) 여부를 함께 확인해
+    // 전송 중 중복 호출(및 헛 햅틱)을 방어한다.
+    if (_hasText && !context.read<ChatRoomBloc>().state.isSending) {
+      AppHaptics.light();
       widget.onSend();
     }
   }
@@ -520,58 +526,63 @@ class _MessageInputState extends State<MessageInput> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Reply preview bar
-                if (widget.replyToMessage != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.08),
-                      border: Border(
-                        left: BorderSide(color: AppColors.primary, width: 3),
-                        bottom: BorderSide(color: context.dividerColor, width: 0.5),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.reply, size: 16, color: AppColors.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
+                // Reply preview bar — slides in/out with AnimatedSize
+                AnimatedSize(
+                  duration: AppMotion.fast,
+                  curve: AppMotion.standard,
+                  child: widget.replyToMessage != null
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.08),
+                            border: Border(
+                              left: BorderSide(color: AppColors.primary, width: 3),
+                              bottom: BorderSide(color: context.dividerColor, width: 0.5),
+                            ),
+                          ),
+                          child: Row(
                             children: [
-                              Text(
-                                widget.replyToMessage!.senderNickname ?? '알 수 없음',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primary,
+                              const Icon(Icons.reply, size: 16, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      widget.replyToMessage!.senderNickname ?? '알 수 없음',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    Text(
+                                      widget.replyToMessage!.isDeleted
+                                          ? '삭제된 메시지'
+                                          : widget.replyToMessage!.content,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: context.textSecondaryColor,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
                               ),
-                              Text(
-                                widget.replyToMessage!.isDeleted
-                                    ? '삭제된 메시지'
-                                    : widget.replyToMessage!.content,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: context.textSecondaryColor,
+                              GestureDetector(
+                                onTap: widget.onCancelReply,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4),
+                                  child: Icon(Icons.close, size: 18, color: Colors.grey),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
-                        ),
-                        GestureDetector(
-                          onTap: widget.onCancelReply,
-                          child: const Padding(
-                            padding: EdgeInsets.all(4),
-                            child: Icon(Icons.close, size: 18, color: Colors.grey),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   child: Row(
@@ -651,33 +662,50 @@ class _MessageInputState extends State<MessageInput> {
                   BlocBuilder<ChatRoomBloc, ChatRoomState>(
                     builder: (context, state) {
                       final canSend = _hasText && !state.isSending;
-                      return Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: canSend
-                              ? AppColors.primary
-                              : context.textSecondaryColor.withValues(alpha: 0.3),
-                        ),
-                        child: IconButton(
-                          icon: state.isSending
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                      // 비활성(0.85)↔활성(1.0) 스케일을 end 변경으로 보간한다.
+                      // TweenAnimationBuilder는 begin을 첫 빌드에서만 쓰고 이후엔
+                      // end 변화에만 반응하므로, canSend 토글 시 현재값→새 end로
+                      // 한 번 펄스가 재생된다 (반복 재생 아님).
+                      return TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.85, end: canSend ? 1.0 : 0.85),
+                        duration: AppMotion.fast,
+                        curve: AppMotion.emphasized,
+                        builder: (context, scale, child) {
+                          return Transform.scale(
+                            scale: scale,
+                            child: child,
+                          );
+                        },
+                        child: AnimatedContainer(
+                          duration: AppMotion.fast,
+                          curve: AppMotion.standard,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: canSend
+                                ? AppColors.primary
+                                : context.textSecondaryColor.withValues(alpha: 0.3),
+                          ),
+                          child: IconButton(
+                            icon: state.isSending
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.send,
                                     color: Colors.white,
+                                    size: 20,
                                   ),
-                                )
-                              : const Icon(
-                                  Icons.send,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                          onPressed: canSend ? _handleSend : null,
-                          padding: const EdgeInsets.all(12),
-                          constraints: const BoxConstraints(
-                            minWidth: 44,
-                            minHeight: 44,
+                            onPressed: canSend ? _handleSend : null,
+                            padding: const EdgeInsets.all(12),
+                            constraints: const BoxConstraints(
+                              minWidth: 44,
+                              minHeight: 44,
+                            ),
                           ),
                         ),
                       );

@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_state.dart';
+import 'animated_typing_dots.dart';
 import 'date_separator.dart';
 import 'message_bubble.dart';
 
@@ -81,19 +82,28 @@ class MessageList extends StatelessWidget {
                 },
               ),
             ),
-            // Typing indicator
+            // Typing indicator — animated bouncing dots
             if (state.isAnyoneTyping)
-              Container(
+              Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    state.typingIndicatorText,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: context.textSecondaryColor,
-                          fontStyle: FontStyle.italic,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const AnimatedTypingDots(),
+                    const SizedBox(width: 8),
+                    if (state.typingIndicatorText.isNotEmpty)
+                      Flexible(
+                        child: Text(
+                          state.typingIndicatorText,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: context.textSecondaryColor,
+                                fontStyle: FontStyle.italic,
+                              ),
                         ),
-                  ),
+                      ),
+                  ],
                 ),
               ),
           ],
