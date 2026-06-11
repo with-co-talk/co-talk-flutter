@@ -211,6 +211,9 @@ class _ReceivedRequestTile extends StatelessWidget {
             children: [
               OutlinedButton(
                 onPressed: () {
+                  // 거절은 가벼운 '선택' 피드백(selection), 수락은 더 분명한
+                  // light() 로 의도적으로 차별화한다. 긍정 액션(수락)에 더 또렷한
+                  // 촉감을 주어 두 버튼의 결과를 손끝으로 구분할 수 있게 한다.
                   AppHaptics.selection();
                   context.read<FriendBloc>().add(FriendRequestRejected(request.id));
                 },
