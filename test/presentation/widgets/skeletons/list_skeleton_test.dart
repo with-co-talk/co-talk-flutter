@@ -65,5 +65,30 @@ void main() {
         reason: '다크 모드에서 base/highlight 색상 차이가 충분해야 shimmer 스윕이 보임',
       );
     });
+
+    testWidgets('화면이 짧아 콘텐츠가 넘쳐도 오버플로 없이 스크롤 가능하다',
+        (WidgetTester tester) async {
+      // 매우 짧은 화면(높이 200px)에 itemCount=8(~640px)을 배치해도
+      // RenderFlex 오버플로가 발생하지 않아야 한다.
+      tester.view.physicalSize = const Size(400, 200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ListSkeleton(),
+          ),
+        ),
+      );
+
+      // 오버플로가 발생하면 pump 단계에서 exception이 기록된다.
+      expect(tester.takeException(), isNull);
+
+      // 스크롤 가능해야 하므로 ListView는 NeverScrollableScrollPhysics가 아니어야 한다.
+      final listView = tester.widget<ListView>(find.byType(ListView));
+      expect(listView.physics, isNot(isA<NeverScrollableScrollPhysics>()));
+    });
   });
 }
