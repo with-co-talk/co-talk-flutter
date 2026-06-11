@@ -877,9 +877,15 @@ class MessageBubble extends StatelessWidget {
     // Image message
     if (message.type == MessageType.image && message.fileUrl != null) {
       final imageUrl = message.fileUrl!;
+      // Hero 태그는 출처(chat 버블 이미지)를 prefix 로 명시해 추후 충돌 추적을 쉽게 한다.
       // TODO(hero-tag): 답장 미리보기 썸네일이나 갤러리 Hero를 추가할 경우
       // 동일 route 안에서 'chat_image_<id>' 태그가 충돌할 수 있음 →
       // 용도별로 네임스페이스를 분리해야 함 (예: 'chat_thumb_<id>', 'gallery_<id>' 등).
+      // 디버그 빌드에서 잘못된 id(중복 유발 가능)를 일찍 잡기 위한 가드.
+      assert(
+        message.id != 0,
+        'Hero 태그 생성에 유효한 message.id 가 필요합니다 (중복 태그 방지).',
+      );
       final heroTag = 'chat_image_${message.id}';
       final chatSettings = context.read<ChatSettingsCubit>().state.settings;
       final autoDownload = chatSettings.autoDownloadImagesOnWifi; // Use wifi setting as the general toggle
