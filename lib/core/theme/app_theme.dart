@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'app_colors.dart';
+
+const double _kAppBarTitleSize = 18.0;
 
 class AppTheme {
   AppTheme._();
@@ -8,6 +11,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: 'Pretendard',
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.background,
       colorScheme: const ColorScheme.light(
@@ -17,11 +21,20 @@ class AppTheme {
         error: AppColors.error,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        titleTextStyle: TextStyle(
+          fontFamily: 'Pretendard',
+          color: AppColors.textPrimary,
+          fontSize: _kAppBarTitleSize,
+          fontWeight: FontWeight.w600,
+        ),
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
       ),
       cardTheme: CardThemeData(
         color: AppColors.surface,
@@ -90,6 +103,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: 'Pretendard',
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.backgroundDark,
       colorScheme: const ColorScheme.dark(
@@ -102,7 +116,17 @@ class AppTheme {
         backgroundColor: AppColors.surfaceDark,
         foregroundColor: AppColors.textPrimaryDark,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        titleTextStyle: TextStyle(
+          fontFamily: 'Pretendard',
+          color: AppColors.textPrimaryDark,
+          fontSize: _kAppBarTitleSize,
+          fontWeight: FontWeight.w600,
+        ),
+        iconTheme: IconThemeData(color: AppColors.textPrimaryDark),
       ),
       cardTheme: CardThemeData(
         color: AppColors.surfaceDark,

@@ -337,6 +337,44 @@ void main() {
       verifyNever(() => mockChatRoomBloc.add(const ChatRoomForegrounded()));
     });
 
+    testWidgets('paused 시 _hasResumedOnce와 무관하게 ChatRoomViewInactive를 즉시 1회 dispatch한다',
+        (tester) async {
+      // 포커스 추적 미지원(모바일 시나리오)에서 paused 진입.
+      final tracker = TestWindowFocusTracker();
+      tracker.setCurrentFocus(null);
+      addTearDown(tracker.dispose);
+
+      await tester.pumpWidget(createWidgetUnderTest(windowFocusTracker: tracker));
+      await tester.pumpAndSettle();
+      clearInteractions(mockChatRoomBloc);
+
+      // resumed를 한 번도 거치지 않은 상태(_hasResumedOnce == false)에서도
+      // ViewInactive는 가드보다 앞서 발사되어야 한다.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+
+      verify(() => mockChatRoomBloc.add(const ChatRoomViewInactive())).called(1);
+      // _hasResumedOnce == false이므로 디바운스 Backgrounded는 예약되지 않는다.
+      await tester.pump(const Duration(milliseconds: 1600));
+      verifyNever(() => mockChatRoomBloc.add(const ChatRoomBackgrounded()));
+    });
+
+    testWidgets('hidden/detached 시에도 ChatRoomViewInactive를 즉시 dispatch한다',
+        (tester) async {
+      final tracker = TestWindowFocusTracker();
+      tracker.setCurrentFocus(null);
+      addTearDown(tracker.dispose);
+
+      await tester.pumpWidget(createWidgetUnderTest(windowFocusTracker: tracker));
+      await tester.pumpAndSettle();
+      clearInteractions(mockChatRoomBloc);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+
+      verify(() => mockChatRoomBloc.add(const ChatRoomViewInactive())).called(1);
+    });
+
     testWidgets('shows messages when loaded', (tester) async {
       final messages = [
         Message(

@@ -42,6 +42,7 @@ void main() {
         mockChatRepository,
         mockWebSocketService,
         mockAuthLocalDataSource,
+        FakeAppBadgeService(),
       );
 
   group('ChatListBloc', () {

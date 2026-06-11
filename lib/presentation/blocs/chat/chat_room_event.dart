@@ -26,6 +26,11 @@ class ChatRoomBackgrounded extends ChatRoomEvent {
   const ChatRoomBackgrounded();
 }
 
+/// 앱이 백그라운드로 전환되어 즉시 presence를 inactive로 알림 (WebSocket 연결/구독은 유지)
+class ChatRoomViewInactive extends ChatRoomEvent {
+  const ChatRoomViewInactive();
+}
+
 /// 앱/창이 다시 활성화되어 채팅방을 "보고 있음" 상태로 전환
 class ChatRoomForegrounded extends ChatRoomEvent {
   const ChatRoomForegrounded();

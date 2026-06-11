@@ -63,10 +63,35 @@ end
 # iOS 전용
 # ============================================
 
+desc "iOS 코드 서명 설정 (인증서 + 프로비저닝 프로필)"
+lane :setup_ios_signing do
+  api_key = get_api_key
+
+  # Apple Distribution 인증서 다운로드/생성
+  cert(
+    platform: "ios",
+    team_id: ENV["TEAM_ID"] || "QW7DJ7FBDT",
+    api_key: api_key,
+    generate_apple_certs: true
+  )
+
+  # App Store 프로비저닝 프로필 다운로드/생성
+  sigh(
+    platform: "ios",
+    app_identifier: "com.cotalk.coTalkFlutter",
+    team_id: ENV["TEAM_ID"] || "QW7DJ7FBDT",
+    api_key: api_key,
+    force: true
+  )
+end
+
 desc "iOS 빌드 + TestFlight 업로드"
 lane :deploy_ios do |options|
   # 빌드 번호 자동 증가
   bump_build unless options[:skip_bump]
+
+  # 코드 서명 설정
+  setup_ios_signing
 
   unless options[:skip_build]
     build_ios
@@ -84,14 +109,59 @@ lane :build_ios do
   UI.message("Flutter iOS 빌드 중...")
   project_root = File.expand_path("..", Dir.pwd)
 
+  # Flutter pub get
+  system("cd #{project_root} && flutter pub get") || UI.user_error!("flutter pub get 실패")
+
+  # Xcode 프로젝트 코드 서명 설정
+  update_code_signing_settings(
+    use_automatic_signing: false,
+    team_id: ENV["TEAM_ID"] || "QW7DJ7FBDT",
+    code_sign_identity: "Apple Distribution",
+    profile_name: lane_context[SharedValues::SIGH_NAME],
+    path: "#{project_root}/ios/Runner.xcodeproj",
+    targets: ["Runner"]
+  )
+
   # CocoaPods 설치
   cocoapods(
     podfile: "#{project_root}/ios/Podfile",
     use_bundle_exec: false
   )
 
-  # Flutter 빌드
-  system("cd #{project_root} && flutter build ipa --release --dart-define=ENVIRONMENT=prod") || UI.user_error!("Flutter iOS 빌드 실패")
+  # ExportOptions.plist 생성
+  export_options_path = "#{project_root}/ios/ExportOptions.plist"
+  profile_name = lane_context[SharedValues::SIGH_NAME]
+  File.write(export_options_path, <<~XML)
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+      <key>method</key>
+      <string>app-store</string>
+      <key>teamID</key>
+      <string>QW7DJ7FBDT</string>
+      <key>signingStyle</key>
+      <string>manual</string>
+      <key>provisioningProfiles</key>
+      <dict>
+        <key>com.cotalk.coTalkFlutter</key>
+        <string>#{profile_name}</string>
+      </dict>
+    </dict>
+    </plist>
+  XML
+
+  # Flutter Dart 컴파일 (서명 없이)
+  system("cd #{project_root} && flutter build ios --release --dart-define=ENVIRONMENT=prod --no-codesign") || UI.user_error!("Flutter iOS 빌드 실패")
+
+  # xcodebuild로 archive
+  archive_path = "#{project_root}/build/ios/Runner.xcarchive"
+  sh("xcodebuild -workspace '#{project_root}/ios/Runner.xcworkspace' -scheme Runner -configuration Release -archivePath '#{archive_path}' archive DEVELOPMENT_TEAM=QW7DJ7FBDT CODE_SIGN_IDENTITY='Apple Distribution' CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES -allowProvisioningUpdates 2>&1 | xcpretty; exit ${PIPESTATUS[0]}")
+
+  # xcodebuild로 IPA export
+  ipa_output = "#{project_root}/build/ios/ipa"
+  sh("xcodebuild -exportArchive -archivePath '#{archive_path}' -exportOptionsPlist '#{export_options_path}' -exportPath '#{ipa_output}'")
+
   UI.success("iOS 빌드 완료")
 end
 
@@ -219,10 +289,19 @@ end
 desc "macOS 빌드 (App Store 서명 포함)"
 lane :build_macos_signed do
   project_root = File.expand_path("..", Dir.pwd)
-  app_path = "#{project_root}/build/macos/Build/Products/Release/Co Talk.app"
-  entitlements_path = "#{project_root}/macos/Runner/Release.entitlements"
-  profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
-  resign_script = "#{project_root}/scripts/resign_for_appstore.sh"
+  profile_name = lane_context[SharedValues::SIGH_NAME]
+
+  # 코드 서명을 Runner 타깃에만 적용한다.
+  # (xcodebuild에 PROVISIONING_PROFILE_SPECIFIER를 전역으로 넘기면 FirebaseCore/sqlite3 등
+  #  Pods 프레임워크 타깃에까지 프로필이 새어 'does not support provisioning profiles' 오류 발생)
+  update_code_signing_settings(
+    use_automatic_signing: false,
+    team_id: ENV["TEAM_ID"] || "QW7DJ7FBDT",
+    code_sign_identity: "Apple Distribution",
+    profile_name: profile_name,
+    path: "#{project_root}/macos/Runner.xcodeproj",
+    targets: ["Runner"]
+  )
 
   # CocoaPods 설치
   cocoapods(
@@ -230,52 +309,61 @@ lane :build_macos_signed do
     use_bundle_exec: false
   )
 
-  UI.message("Flutter macOS 빌드 중...")
-  system("cd #{project_root} && flutter build macos --release --dart-define=ENVIRONMENT=prod") || UI.user_error!("Flutter macOS 빌드 실패")
+  # Flutter pub get
+  system("cd #{project_root} && flutter pub get") || UI.user_error!("flutter pub get 실패")
 
-  unless profile_path && File.exist?(profile_path)
-    UI.user_error!("프로비저닝 프로필을 찾을 수 없습니다.")
-  end
+  # ExportOptions.plist 생성 (manual 서명 + 프로필 매핑)
+  # macOS App Store는 .app(앱 서명)과 .pkg(인스톨러 서명)에 서로 다른 인증서가 필요하다.
+  #  - 앱:      Apple Distribution
+  #  - 인스톨러: 3rd Party Mac Developer Installer
+  # 인스톨러 인증서를 명시하지 않으면 xcodebuild가 이를 앱 프로필과 잘못 대조해
+  # "Provisioning profile doesn't include signing certificate ... Installer" 오류가 난다.
+  export_options_path = "#{project_root}/macos/ExportOptions.plist"
+  File.write(export_options_path, <<~XML)
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+      <key>method</key>
+      <string>app-store</string>
+      <key>teamID</key>
+      <string>QW7DJ7FBDT</string>
+      <key>signingStyle</key>
+      <string>manual</string>
+      <key>signingCertificate</key>
+      <string>Apple Distribution</string>
+      <key>installerSigningCertificate</key>
+      <string>3rd Party Mac Developer Installer</string>
+      <key>provisioningProfiles</key>
+      <dict>
+        <key>com.cotalk.coTalkFlutter</key>
+        <string>#{profile_name}</string>
+      </dict>
+    </dict>
+    </plist>
+  XML
 
-  # 재서명 스크립트 실행
-  UI.message("App Store 배포용 재서명 스크립트 실행...")
-  sh("'#{resign_script}' '#{app_path}' '#{entitlements_path}' '#{profile_path}'")
+  # xcodebuild로 archive (프로필은 위에서 Runner 타깃에만 설정했으므로 전역 지정하지 않는다)
+  archive_path = "#{project_root}/build/macos/Runner.xcarchive"
+  sh("xcodebuild -workspace '#{project_root}/macos/Runner.xcworkspace' -scheme Runner -configuration Release -archivePath '#{archive_path}' archive DEVELOPMENT_TEAM=QW7DJ7FBDT CODE_SIGN_IDENTITY='Apple Distribution' CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES -allowProvisioningUpdates 2>&1 | xcpretty; exit ${PIPESTATUS[0]}")
+
+  # xcodebuild로 pkg export
+  pkg_output = "#{project_root}/build/macos/ipa"
+  sh("xcodebuild -exportArchive -archivePath '#{archive_path}' -exportOptionsPlist '#{export_options_path}' -exportPath '#{pkg_output}' -allowProvisioningUpdates")
 
   UI.success("macOS 빌드 및 서명 완료")
 end
 
-desc "macOS TestFlight 업로드 (이미 빌드된 앱)"
+desc "macOS TestFlight 업로드 (이미 빌드된 pkg)"
 lane :upload_macos do
   project_root = File.expand_path("..", Dir.pwd)
-  app_path = "#{project_root}/build/macos/Build/Products/Release/Co Talk.app"
-  entitlements_path = "#{project_root}/macos/Runner/Release.entitlements"
-  resign_script = "#{project_root}/scripts/resign_for_appstore.sh"
+  pkg_path = Dir["#{project_root}/build/macos/ipa/*.pkg"].first
 
-  unless File.exist?(app_path)
-    UI.user_error!("macOS 앱을 찾을 수 없습니다. 먼저 flutter build macos --release를 실행하세요.")
+  if pkg_path.nil?
+    UI.user_error!("PKG 파일을 찾을 수 없습니다. 먼저 build_macos_signed를 실행하세요.")
   end
 
-  # 프로비저닝 프로필 확인
-  profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
-  unless profile_path && File.exist?(profile_path)
-    # 프로필이 없으면 프로젝트 루트에서 찾기
-    profile_path = Dir["#{project_root}/AppStore_*.provisionprofile"].first
-  end
-
-  unless profile_path && File.exist?(profile_path)
-    UI.user_error!("프로비저닝 프로필을 찾을 수 없습니다. setup_macos_signing을 먼저 실행하세요.")
-  end
-
-  # 재서명 스크립트 실행
-  UI.message("App Store 배포용 재서명...")
-  sh("'#{resign_script}' '#{app_path}' '#{entitlements_path}' '#{profile_path}'")
-
-  # pkg 생성
-  pkg_path = "#{project_root}/build/macos/CoTalk.pkg"
-  UI.message("Installer 패키지 생성 및 서명 중...")
-  sh("productbuild --component '#{app_path}' /Applications --sign '3rd Party Mac Developer Installer' '#{pkg_path}'")
-
-  UI.message("macOS TestFlight 업로드 중...")
+  UI.message("macOS TestFlight 업로드 중: #{pkg_path}")
   api_key = get_api_key
 
   upload_to_testflight(

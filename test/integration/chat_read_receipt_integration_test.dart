@@ -131,6 +131,7 @@ void main() {
           mockChatRepository,
           mockWebSocketService,
           mockAuthLocalDataSource,
+          FakeAppBadgeService(),
         );
 
     setUpAll(() {

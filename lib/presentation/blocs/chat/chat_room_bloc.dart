@@ -78,6 +78,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Register event handlers
     on<ChatRoomOpened>(_onOpened);
     on<ChatRoomClosed>(_onClosed);
+    on<ChatRoomViewInactive>(_onViewInactive);
     on<ChatRoomBackgrounded>(_onBackgrounded);
     on<ChatRoomForegrounded>(_onForegrounded);
     on<MessagesLoadMoreRequested>(_onLoadMore);
@@ -457,6 +458,34 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
+  /// presence(active/inactive)를 전송할 수 있는 상태인지 여부.
+  ///
+  /// 방/사용자 정보가 준비되고 WebSocket 구독이 활성화된 경우에만 true다.
+  /// [_onViewInactive]와 [_onBackgrounded]가 동일한 규칙을 공유하도록 추출했다.
+  bool get _canTrackPresence =>
+      state.roomId != null &&
+      state.currentUserId != null &&
+      _subscriptionManager.isRoomSubscribed;
+
+  /// 앱이 백그라운드로 전환되는 즉시 presence-inactive만 전송한다.
+  ///
+  /// WebSocket disconnect/markAsRead 타이머 취소 등 무거운 정리는 하지 않는다.
+  /// 그 작업들은 1.5초 디바운스 뒤 [ChatRoomBackgrounded]가 처리한다.
+  /// presence-inactive를 즉시 보내야 OS가 디바운스 전에 앱을 정지시켜도
+  /// 서버가 사용자를 "active"로 오인하여 푸시를 억제하는 일을 막을 수 있다.
+  void _onViewInactive(
+    ChatRoomViewInactive event,
+    Emitter<ChatRoomState> emit,
+  ) {
+    _log('_onViewInactive: roomId=${state.roomId}');
+
+    if (!_canTrackPresence) {
+      return;
+    }
+
+    _presenceManager.sendPresenceInactive(state.roomId!, state.currentUserId!);
+  }
+
   void _onBackgrounded(
     ChatRoomBackgrounded event,
     Emitter<ChatRoomState> emit,
@@ -469,7 +498,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _pendingForegrounded = false;
     }
 
-    if (state.roomId == null || state.currentUserId == null || !_subscriptionManager.isRoomSubscribed) {
+    if (!_canTrackPresence) {
       return;
     }
 

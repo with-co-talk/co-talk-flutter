@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../core/network/websocket_service.dart';
+import '../../../core/services/app_badge_service.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
 import '../../../domain/entities/chat_room.dart';
 import '../../../domain/repositories/chat_repository.dart';
@@ -16,6 +17,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
   final ChatRepository _chatRepository;
   final WebSocketService _webSocketService;
   final AuthLocalDataSource _authLocalDataSource;
+  final AppBadgeService _appBadgeService;
 
   StreamSubscription<WebSocketChatRoomUpdateEvent>? _chatRoomUpdateSubscription;
   StreamSubscription<WebSocketReadEvent>? _readReceiptSubscription;
@@ -29,6 +31,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     this._chatRepository,
     this._webSocketService,
     this._authLocalDataSource,
+    this._appBadgeService,
   ) : super(const ChatListState()) {
     on<ChatListLoadRequested>(_onLoadRequested);
     on<ChatListRefreshRequested>(_onRefreshRequested);
@@ -42,6 +45,19 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     on<ChatRoomExited>(_onChatRoomExited);
     on<ChatListResetRequested>(_onResetRequested);
     on<UserOnlineStatusChanged>(_onUserOnlineStatusChanged);
+  }
+
+  /// 상태 변경 시 총 미읽음 수가 바뀌면 앱 아이콘 배지를 갱신한다.
+  ///
+  /// 새 메시지로 미읽음이 늘면 배지가 증가하고, 메시지를 읽어 미읽음이 줄면
+  /// 배지가 감소/제거된다(iOS는 푸시 도착 시 OS가 배지를 올리고, 읽음 시에는
+  /// 이 훅이 내려준다).
+  @override
+  void onChange(Change<ChatListState> change) {
+    super.onChange(change);
+    if (change.nextState.totalUnreadCount != change.currentState.totalUnreadCount) {
+      _appBadgeService.updateBadge(change.nextState.totalUnreadCount);
+    }
   }
 
   /// 디버그 모드에서만 로그 출력
