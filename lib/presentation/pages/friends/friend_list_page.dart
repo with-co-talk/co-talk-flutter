@@ -112,7 +112,8 @@ class _FriendListPageState extends State<FriendListPage> {
         body: BlocBuilder<FriendBloc, FriendState>(
           builder: (context, state) {
             if (state.status == FriendStatus.loading && state.friends.isEmpty) {
-              return const ListSkeleton();
+              // 친구 목록 아바타는 CircleAvatar(radius: 35) → 지름 70px.
+              return const ListSkeleton(avatarSize: 70);
             }
 
             if (state.status == FriendStatus.failure) {
