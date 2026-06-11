@@ -36,6 +36,9 @@ abstract class BaseRemoteDataSource {
   Exception _mapStatusCodeToException(int? statusCode, String message, {String? code}) {
     switch (statusCode) {
       case 400:
+        if (code == 'PASSWORD_MISMATCH') {
+          return PasswordMismatchException(message: message);
+        }
         return ValidationException(message: message);
 
       case 401:

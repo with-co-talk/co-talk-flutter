@@ -15,8 +15,14 @@ class AuthInterceptor extends QueuedInterceptor {
   // 토큰 갱신 전용 Dio 인스턴스 (순환 참조 방지)
   late final Dio _refreshDio;
 
+  // Dispose flag to prevent operations after disposal
+  bool _isDisposed = false;
+
   AuthInterceptor(this._authLocalDataSource) {
     // 토큰 갱신 전용 클라이언트 생성 (인터셉터 없이)
+    // TODO: When real certificate pinning is enabled (non-placeholder certificates),
+    // add CertificatePinningInterceptor to _refreshDio to prevent MITM attacks
+    // during token refresh requests
     _refreshDio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.apiBaseUrl,
@@ -48,7 +54,12 @@ class AuthInterceptor extends QueuedInterceptor {
     // Skip auth header for auth endpoints
     final isAuthEndpoint = options.path.contains('/auth/login') ||
         options.path.contains('/auth/signup') ||
-        options.path.contains('/auth/refresh');
+        options.path.contains('/auth/refresh') ||
+        options.path.contains('/auth/find-email') ||
+        options.path.contains('/password/reset-request') ||
+        options.path.contains('/password/verify-code') ||
+        options.path.contains('/password/reset-with-code') ||
+        options.path.contains('/password/reset');
 
     if (!isAuthEndpoint) {
       final accessToken = await _authLocalDataSource.getAccessToken();
@@ -62,10 +73,21 @@ class AuthInterceptor extends QueuedInterceptor {
 
   @override
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    // Early return if disposed
+    if (_isDisposed) {
+      handler.next(err);
+      return;
+    }
+
     // Auth 엔드포인트는 토큰 갱신 로직 제외
     final isAuthEndpoint = err.requestOptions.path.contains('/auth/login') ||
         err.requestOptions.path.contains('/auth/signup') ||
-        err.requestOptions.path.contains('/auth/refresh');
+        err.requestOptions.path.contains('/auth/refresh') ||
+        err.requestOptions.path.contains('/auth/find-email') ||
+        err.requestOptions.path.contains('/password/reset-request') ||
+        err.requestOptions.path.contains('/password/verify-code') ||
+        err.requestOptions.path.contains('/password/reset-with-code') ||
+        err.requestOptions.path.contains('/password/reset');
 
     // USER_NOT_FOUND 에러 체크 (404 + USER_NOT_FOUND 코드)
     // 토큰은 유효하지만 사용자가 DB에 없는 경우 (삭제됨, DB 초기화 등)
@@ -138,5 +160,16 @@ class AuthInterceptor extends QueuedInterceptor {
       // Refresh failed - tokens will be cleared in onError handler
       return null;
     }
+  }
+
+  /// Disposes resources used by the interceptor
+  /// Should be called when the interceptor is no longer needed
+  void dispose() {
+    if (_isDisposed) {
+      return; // Already disposed
+    }
+
+    _isDisposed = true;
+    _refreshDio.close(force: true);
   }
 }

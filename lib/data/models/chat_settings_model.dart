@@ -11,6 +11,7 @@ class ChatSettingsModel {
   final bool autoDownloadImagesOnMobile;
   final bool autoDownloadVideosOnWifi;
   final bool autoDownloadVideosOnMobile;
+  final bool showTypingIndicator;
 
   const ChatSettingsModel({
     this.fontSize = 1.0,
@@ -18,6 +19,7 @@ class ChatSettingsModel {
     this.autoDownloadImagesOnMobile = false,
     this.autoDownloadVideosOnWifi = true,
     this.autoDownloadVideosOnMobile = false,
+    this.showTypingIndicator = false,
   });
 
   factory ChatSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -32,6 +34,7 @@ class ChatSettingsModel {
       autoDownloadImagesOnMobile: autoDownloadImagesOnMobile,
       autoDownloadVideosOnWifi: autoDownloadVideosOnWifi,
       autoDownloadVideosOnMobile: autoDownloadVideosOnMobile,
+      showTypingIndicator: showTypingIndicator,
     );
   }
 
@@ -42,6 +45,7 @@ class ChatSettingsModel {
       autoDownloadImagesOnMobile: entity.autoDownloadImagesOnMobile,
       autoDownloadVideosOnWifi: entity.autoDownloadVideosOnWifi,
       autoDownloadVideosOnMobile: entity.autoDownloadVideosOnMobile,
+      showTypingIndicator: entity.showTypingIndicator,
     );
   }
 }

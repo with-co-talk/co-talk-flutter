@@ -76,6 +76,14 @@ class AppLockCubit extends Cubit<AppLockState> {
     await authenticate();
   }
 
+  /// 앱 최초 실행 시 잠금 체크 (grace period 무시)
+  Future<void> checkLockOnLaunch() async {
+    final isEnabled = await _securitySettings.isBiometricEnabled();
+    if (!isEnabled) return;
+
+    emit(const AppLockState.locked());
+  }
+
   /// 생체 인증 시도
   Future<void> authenticate() async {
     emit(const AppLockState.authenticating());

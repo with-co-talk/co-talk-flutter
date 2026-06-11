@@ -77,3 +77,15 @@ class ConflictException implements Exception {
   @override
   String toString() => 'ConflictException: $message (code: $code)';
 }
+
+/// 400 + PASSWORD_MISMATCH - 비밀번호 불일치 (회원탈퇴, 비밀번호 변경 등)
+class PasswordMismatchException implements Exception {
+  final String message;
+
+  const PasswordMismatchException({
+    this.message = '비밀번호가 일치하지 않습니다',
+  });
+
+  @override
+  String toString() => 'PasswordMismatchException: $message';
+}

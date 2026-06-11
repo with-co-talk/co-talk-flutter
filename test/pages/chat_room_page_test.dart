@@ -1060,7 +1060,7 @@ void main() {
         errorMessage: 'Error',
       );
 
-      expect(state.props.length, 27);
+      expect(state.props.length, 30);
     });
 
     test('equality works', () {

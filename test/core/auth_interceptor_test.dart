@@ -292,5 +292,52 @@ void main() {
         verify(() => handler.next(error)).called(1);
       });
     });
+
+    group('dispose', () {
+      test('should dispose refreshDio without errors', () {
+        // Act
+        expect(() => interceptor.dispose(), returnsNormally);
+      });
+
+      test('should not retry requests after dispose', () async {
+        // Arrange
+        when(() => mockLocalDataSource.getRefreshToken())
+            .thenAnswer((_) async => 'refresh_token');
+        when(() => mockLocalDataSource.clearTokens())
+            .thenAnswer((_) async {});
+
+        final error = DioException(
+          requestOptions: RequestOptions(path: '/users/me'),
+          response: Response(
+            requestOptions: RequestOptions(path: '/users/me'),
+            statusCode: 401,
+          ),
+        );
+        final handler = MockErrorInterceptorHandler();
+
+        when(() => handler.next(any())).thenReturn(null);
+
+        // Act - dispose first
+        interceptor.dispose();
+
+        // Then try to handle error
+        interceptor.onError(error, handler);
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // Assert - should pass through error without refresh attempt
+        verify(() => handler.next(error)).called(1);
+        verifyNever(() => mockLocalDataSource.getRefreshToken());
+      });
+
+      test('should allow multiple dispose calls', () {
+        // Act & Assert
+        expect(() {
+          interceptor.dispose();
+          interceptor.dispose();
+          interceptor.dispose();
+        }, returnsNormally);
+      });
+    });
   });
 }

@@ -27,7 +27,9 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
 
   /// 글꼴 크기 변경 (0.8 ~ 1.4)
   Future<void> setFontSize(double size) async {
-    final clampedSize = size.clamp(0.8, 1.4);
+    // 부동소수점 정밀도 문제 방지: 소수점 1자리로 반올림
+    final rounded = (size * 10).roundToDouble() / 10;
+    final clampedSize = rounded.clamp(0.8, 1.4);
     await _updateSetting(state.settings.copyWith(fontSize: clampedSize));
   }
 
@@ -49,6 +51,11 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
   /// 동영상 자동 다운로드 설정 (모바일)
   Future<void> setAutoDownloadVideosOnMobile(bool value) async {
     await _updateSetting(state.settings.copyWith(autoDownloadVideosOnMobile: value));
+  }
+
+  /// 입력중 표시 설정
+  Future<void> setShowTypingIndicator(bool value) async {
+    await _updateSetting(state.settings.copyWith(showTypingIndicator: value));
   }
 
   /// 캐시 삭제

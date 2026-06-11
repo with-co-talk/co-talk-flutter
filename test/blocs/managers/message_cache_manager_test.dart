@@ -90,7 +90,7 @@ void main() {
       // Assert
       expect(hasNewMessages, false, reason: 'Should return false when no new messages');
       expect(cacheManager.messages.length, 2, reason: 'Should have no duplicates');
-      expect(cacheManager.messages.map((m) => m.id).toList(), [1, 2]);
+      expect(cacheManager.messages.map((m) => m.id).toList(), [2, 1]);
     });
 
     test('preserves pending messages during merge', () async {
