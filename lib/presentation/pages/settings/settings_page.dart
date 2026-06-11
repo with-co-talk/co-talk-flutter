@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/app_haptics.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -127,6 +128,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     trailing: Switch(
                       value: isDark,
                       onChanged: (value) {
+                        AppHaptics.selection();
                         context.read<ThemeCubit>().toggleDarkMode(value);
                       },
                     ),
