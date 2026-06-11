@@ -328,9 +328,12 @@ class MessageCacheManager {
     final localMessage = _messages[localIndex];
 
     _log('Replacing local message (localId=${localMessage.localId}) with real message (id=${realMessage.id})');
-    // Preserve reply/forward metadata from local message if server didn't return it
+    // Preserve reply/forward metadata from local message if server didn't return it.
+    // Also preserve localId so that _keyOf() in message_list.dart returns the same
+    // key before and after confirmation — prevents the bubble from animating a second time.
     final mergedMessage = realMessage.copyWith(
       sendStatus: MessageSendStatus.sent,
+      localId: localMessage.localId,
       replyToMessage: realMessage.replyToMessage ?? localMessage.replyToMessage,
       replyToMessageId: realMessage.replyToMessageId ?? localMessage.replyToMessageId,
       forwardedFromMessageId: realMessage.forwardedFromMessageId ?? localMessage.forwardedFromMessageId,

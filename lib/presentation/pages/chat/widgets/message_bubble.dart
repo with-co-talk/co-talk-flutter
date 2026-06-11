@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_utils.dart';
+import '../../../../core/utils/app_haptics.dart';
 import '../../../../core/utils/url_utils.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/save_image_to_gallery.dart';
@@ -585,6 +586,7 @@ class MessageBubble extends StatelessWidget {
   /// Shows unified emoji + message options bottom sheet
   void _showUnifiedMessageSheet(BuildContext context) {
     if (message.isDeleted) return;
+    AppHaptics.medium();
 
     final canEdit = isMe && !_isEditTimeExpired;
     final canDelete = isMe && !_isEditTimeExpired;
