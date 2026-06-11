@@ -64,7 +64,10 @@ class _MessageInputState extends State<MessageInput> {
   bool get _hasText => widget.controller.text.trim().isNotEmpty;
 
   void _handleSend() {
-    if (_hasText) {
+    // onSubmitted(키보드 enter) 경로는 send 버튼의 canSend 게이트를
+    // 거치지 않으므로, 여기서도 전송 중(isSending) 여부를 함께 확인해
+    // 전송 중 중복 호출(및 헛 햅틱)을 방어한다.
+    if (_hasText && !context.read<ChatRoomBloc>().state.isSending) {
       AppHaptics.light();
       widget.onSend();
     }
@@ -659,8 +662,10 @@ class _MessageInputState extends State<MessageInput> {
                   BlocBuilder<ChatRoomBloc, ChatRoomState>(
                     builder: (context, state) {
                       final canSend = _hasText && !state.isSending;
-                      // canSend 전환 시 버튼이 0.85→1.0으로 한 번 스케일업되어
-                      // 활성화되었음을 시각적으로 알린다 (반복 재생 아님).
+                      // 비활성(0.85)↔활성(1.0) 스케일을 end 변경으로 보간한다.
+                      // TweenAnimationBuilder는 begin을 첫 빌드에서만 쓰고 이후엔
+                      // end 변화에만 반응하므로, canSend 토글 시 현재값→새 end로
+                      // 한 번 펄스가 재생된다 (반복 재생 아님).
                       return TweenAnimationBuilder<double>(
                         tween: Tween(begin: 0.85, end: canSend ? 1.0 : 0.85),
                         duration: AppMotion.fast,
