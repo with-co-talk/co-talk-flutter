@@ -178,7 +178,10 @@ class AuthRemoteDataSourceImpl extends BaseRemoteDataSource
         ApiConstants.verifyCode,
         data: {'email': email, 'code': code},
       );
-      return response.data['valid'] as bool? ?? false;
+      // 서버가 빈 바디/204/문자열을 반환해도 NoSuchMethodError가 새지 않도록 가드한다.
+      final data = response.data;
+      if (data is Map) return data['valid'] as bool? ?? false;
+      return false;
     } on DioException catch (e) {
       throw handleDioError(e);
     }
