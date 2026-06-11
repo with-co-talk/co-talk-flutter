@@ -5,6 +5,10 @@ import '../../core/theme/app_motion.dart';
 ///
 /// [animate] 가 false 이면 애니메이션 없이 [child] 를 그대로 반환한다
 /// (초기 로드 메시지처럼 "이미 보인 것"에 적용).
+///
+/// 주의: [animate]·[duration]·[beginOffset] 은 **마운트 시점에만** 평가된다.
+/// 마운트 이후 값이 바뀌어도 재생 중인 애니메이션에는 반영되지 않으므로,
+/// 다른 표현이 필요하면 [Key] 를 바꿔 위젯을 새로 마운트해야 한다.
 class EntryAnimation extends StatefulWidget {
   final Widget child;
   final Duration duration;
