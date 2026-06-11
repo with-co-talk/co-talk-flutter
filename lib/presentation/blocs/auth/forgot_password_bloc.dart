@@ -68,13 +68,16 @@ class ForgotPasswordState extends Equatable {
     String? email,
     String? code,
     String? errorMessage,
+    bool clearError = false,
   }) {
     return ForgotPasswordState(
       step: step ?? this.step,
       status: status ?? this.status,
       email: email ?? this.email,
       code: code ?? this.code,
-      errorMessage: errorMessage,
+      // FindEmailState와 동일하게 기본은 보존하고,
+      // 새 시도 시작 등 에러 클리어 의도는 clearError로 명시한다.
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 
@@ -97,7 +100,7 @@ class ForgotPasswordBloc extends Bloc<ForgotPasswordEvent, ForgotPasswordState> 
     ForgotPasswordCodeRequested event,
     Emitter<ForgotPasswordState> emit,
   ) async {
-    emit(state.copyWith(status: ForgotPasswordStatus.loading));
+    emit(state.copyWith(status: ForgotPasswordStatus.loading, clearError: true));
     try {
       await _authRepository.requestPasswordResetCode(email: event.email);
       emit(state.copyWith(
@@ -117,7 +120,7 @@ class ForgotPasswordBloc extends Bloc<ForgotPasswordEvent, ForgotPasswordState> 
     ForgotPasswordCodeVerified event,
     Emitter<ForgotPasswordState> emit,
   ) async {
-    emit(state.copyWith(status: ForgotPasswordStatus.loading));
+    emit(state.copyWith(status: ForgotPasswordStatus.loading, clearError: true));
     try {
       final isValid = await _authRepository.verifyPasswordResetCode(
         email: event.email,
@@ -147,7 +150,7 @@ class ForgotPasswordBloc extends Bloc<ForgotPasswordEvent, ForgotPasswordState> 
     ForgotPasswordResetRequested event,
     Emitter<ForgotPasswordState> emit,
   ) async {
-    emit(state.copyWith(status: ForgotPasswordStatus.loading));
+    emit(state.copyWith(status: ForgotPasswordStatus.loading, clearError: true));
     try {
       await _authRepository.resetPasswordWithCode(
         email: event.email,

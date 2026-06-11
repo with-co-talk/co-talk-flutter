@@ -575,5 +575,30 @@ void main() {
         ],
       );
     });
+
+    group('ForgotPasswordState.copyWith errorMessage 처리', () {
+      const withError = ForgotPasswordState(
+        status: ForgotPasswordStatus.failure,
+        errorMessage: '에러 발생',
+      );
+
+      test('errorMessage 미전달 시 기존 에러를 보존한다(FindEmailState와 동일)', () {
+        final next = withError.copyWith(status: ForgotPasswordStatus.loading);
+        expect(next.errorMessage, '에러 발생');
+      });
+
+      test('clearError=true 면 명시적으로 에러를 비운다', () {
+        final next = withError.copyWith(
+          status: ForgotPasswordStatus.loading,
+          clearError: true,
+        );
+        expect(next.errorMessage, isNull);
+      });
+
+      test('errorMessage 전달 시 해당 값으로 덮어쓴다', () {
+        final next = withError.copyWith(errorMessage: '새 에러');
+        expect(next.errorMessage, '새 에러');
+      });
+    });
   });
 }
