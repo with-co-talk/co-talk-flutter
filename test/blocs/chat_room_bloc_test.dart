@@ -4053,11 +4053,57 @@ void main() {
 
         // emit-after-close는 bloc 버전에 따라 StateError 또는 AssertionError로
         // 표면화된다. 어떤 종류든 uncaught error가 없어야 한다.
+        //
+        // 주의(항진성 한계): bloc 8.1.4의 emit은 emitter가 canceled(close 후)
+        // 상태이면 StateError를 던지지 않고 silent no-op으로 처리한다. 따라서
+        // 이 `errors isEmpty` 단언만으로는 "가드가 동작함"을 증명하지 못하며,
+        // 가드를 제거해도 그린으로 통과한다. 가드의 실제 효과(close 후 분기
+        // 스킵)를 검증하는 회귀 가드는 아래의 별도 테스트
+        // ('가드가 close 후 후속 분기를 실제로 스킵한다')에서 다룬다.
         expect(
           errors,
           isEmpty,
           reason: 'await 이후 emit 가드가 없으면 emit-after-close 크래시 발생',
         );
+      });
+
+      test(
+          'P1(회귀가드): _onOpened의 await 도중 close()되면 emit 이후 분기가 실제로 스킵된다',
+          () async {
+        // bloc 8.1.4의 emit은 close 후 no-op이라 "state가 안 바뀜"만으로는
+        // 가드 효과를 증명하지 못한다(항진적). 대신 가드(`if (isClosed) return;`,
+        // chat_room_bloc.dart:201)가 막아주는 *emit과 무관한 관찰가능 부수효과*를
+        // 단언한다. 가드 직후 라인(205)은 `_webSocketService.reconnected`에
+        // 접근해 .listen() 구독을 건다. close 도중 서버 sync await가 풀리면:
+        //   - 가드가 있으면: 201에서 early-return → reconnected 접근 없음.
+        //   - 가드를 제거하면: 205가 실행 → reconnected 접근 발생.
+        // 즉 verifyNever(reconnected)는 가드 제거 시 RED가 되어 의미가 있다.
+        final completer = Completer<(List<Message>, int?, bool)>();
+        when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+            .thenAnswer((_) => completer.future);
+        when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+        await runCapturingErrors(() async {
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          // loading emit 후 서버 sync await(getMessages)에 진입할 때까지 진행.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          // 아직 close 전에는 reconnected 구독이 일어나선 안 된다(사전 조건).
+          verifyNever(() => mockWebSocketService.reconnected);
+
+          // await 도중 close.
+          await bloc.close();
+          expect(bloc.isClosed, isTrue);
+
+          // 서버 응답 도착 → await가 풀린다. 가드가 있으면 여기서 early-return.
+          completer.complete((<Message>[], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        // 가드가 동작하면 close 이후 라인 205(reconnected.listen)에 절대
+        // 도달하지 않는다. 가드를 제거하면 이 단언이 실패(RED)한다.
+        verifyNever(() => mockWebSocketService.reconnected);
       });
 
       test(
