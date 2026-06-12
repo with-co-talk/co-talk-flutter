@@ -99,14 +99,21 @@ class _ReportPageState extends State<ReportPage> {
               ),
             ),
             const SizedBox(height: 16),
-            ...ReportReason.values.map((reason) => RadioListTile<ReportReason>(
-              title: Text(reason.displayName),
-              value: reason,
+            RadioGroup<ReportReason>(
               groupValue: _selectedReason,
               onChanged: (value) => setState(() => _selectedReason = value),
-              activeColor: AppColors.primary,
-              contentPadding: EdgeInsets.zero,
-            )),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: ReportReason.values
+                    .map((reason) => RadioListTile<ReportReason>(
+                          title: Text(reason.displayName),
+                          value: reason,
+                          activeColor: AppColors.primary,
+                          contentPadding: EdgeInsets.zero,
+                        ))
+                    .toList(),
+              ),
+            ),
             const SizedBox(height: 24),
             const Text(
               '상세 설명 (선택)',
