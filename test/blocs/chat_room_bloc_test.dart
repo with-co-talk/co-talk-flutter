@@ -4000,5 +4000,157 @@ void main() {
         ],
       );
     });
+
+    // ============================================================
+    // Lifecycle safety: emit-after-close & activeRoom race
+    // ============================================================
+    group('생명주기 안전성 (emit-after-close 가드)', () {
+      // emit-after-close는 Bloc 핸들러 내부에서 StateError를 throw하고,
+      // Bloc.onError -> Zone.handleUncaughtError로 전파된다. 가드가 없으면
+      // 이 zone 에러가 잡힌다. runZonedGuarded로 캡처해 단언한다.
+      Future<List<Object>> runCapturingErrors(
+        Future<void> Function() body,
+      ) async {
+        final errors = <Object>[];
+        final done = Completer<void>();
+        runZonedGuarded(() async {
+          await body();
+          done.complete();
+        }, (error, stack) {
+          errors.add(error);
+          if (!done.isCompleted) done.complete();
+        });
+        await done.future;
+        // 비동기 emit-after-close가 늦게 도착할 수 있어 한 틱 더 기다린다.
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        return errors;
+      }
+
+      test(
+          'P1: ChatRoomOpened의 await 도중 close()되어도 emit-after-close StateError가 없다',
+          () async {
+        final errors = await runCapturingErrors(() async {
+          // getMessages를 느리게 만들어 서버 sync await 도중 close를 끼워넣는다.
+          final completer = Completer<(List<Message>, int?, bool)>();
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) => completer.future);
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          // loading emit까지 진행시키고 서버 sync await에 진입하게 한다.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          // await 도중 방을 빠르게 나가 bloc을 close.
+          await bloc.close();
+          expect(bloc.isClosed, isTrue);
+
+          // 이제 서버 응답이 도착해 await가 풀린다 → 가드가 없으면 emit-after-close 크래시.
+          completer.complete((<Message>[], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        // emit-after-close는 bloc 버전에 따라 StateError 또는 AssertionError로
+        // 표면화된다. 어떤 종류든 uncaught error가 없어야 한다.
+        expect(
+          errors,
+          isEmpty,
+          reason: 'await 이후 emit 가드가 없으면 emit-after-close 크래시 발생',
+        );
+      });
+
+      test(
+          'P1: _onRefreshRequested의 await 도중 close()되어도 emit-after-close StateError가 없다',
+          () async {
+        final errors = await runCapturingErrors(() async {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+
+          // refresh의 첫 await(getMessages)를 느리게 만든다.
+          final completer = Completer<(List<Message>, int?, bool)>();
+          when(() => mockChatRepository.getMessages(
+                any(),
+                size: any(named: 'size'),
+                beforeMessageId: any(named: 'beforeMessageId'),
+              )).thenAnswer((_) => completer.future);
+
+          bloc.add(const ChatRoomRefreshRequested());
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          await bloc.close();
+          completer.complete((<Message>[Message(
+            id: 999,
+            chatRoomId: 1,
+            senderId: 2,
+            content: 'late',
+            createdAt: DateTime.now(),
+          )], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        expect(errors, isEmpty,
+            reason: 'refresh await 이후 emit 가드가 없으면 emit-after-close 크래시');
+      });
+
+      test(
+          'P2: 파일 업로드 progress 콜백이 close() 이후 호출되어도 emit-after-close StateError가 없다',
+          () async {
+        // 실제 임시 파일 생성 (handleFileAttachment가 File.exists()를 검사).
+        final tmp = await File(
+          '${Directory.systemTemp.path}/cotalk_upload_${DateTime.now().microsecondsSinceEpoch}.txt',
+        ).create();
+        await tmp.writeAsString('hello');
+
+        final errors = await runCapturingErrors(() async {
+          // uploadFile을 느리게 만들어, 업로드 도중 close를 끼워넣은 뒤
+          // onProgress(0.5)/onProgress(1.0) 콜백이 closed bloc으로 향하게 한다.
+          final uploadCompleter = Completer<FileUploadResult>();
+          when(() => mockChatRepository.uploadFile(any()))
+              .thenAnswer((_) => uploadCompleter.future);
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+              )).thenAnswer((_) async => FakeEntities.textMessage);
+
+          final bloc = createBloc();
+          // roomId가 있어야 업로드가 진행된다.
+          bloc.add(const ChatRoomOpened(1));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+
+          bloc.add(FileAttachmentRequested(tmp.path));
+          // onProgress(0.0) emit까지 진행, uploadFile await에 진입.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          await bloc.close();
+
+          // 업로드 완료 → onProgress(0.5), sendFileMessage, onProgress(1.0)이
+          // closed bloc에서 호출된다. 가드가 없으면 여기서 크래시.
+          uploadCompleter.complete(const FileUploadResult(
+            fileUrl: 'http://x/f.txt',
+            fileName: 'f.txt',
+            contentType: 'text/plain',
+            fileSize: 5,
+            isImage: false,
+          ));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        expect(
+          errors,
+          isEmpty,
+          reason: 'progress 콜백 emit에 isClosed 가드가 없으면 emit-after-close 크래시',
+        );
+        await tmp.delete();
+      });
+    });
   });
 }

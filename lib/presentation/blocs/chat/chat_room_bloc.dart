@@ -165,6 +165,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     // 1. Load cached messages first (fast initial display)
     final cachedMessages = await _cacheManager.loadCachedMessages(event.roomId);
+    if (isClosed) return;
     if (cachedMessages.isNotEmpty) {
       emit(state.copyWith(
         status: ChatRoomStatus.success,
@@ -196,6 +197,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _log('Fetched ${_cacheManager.messages.length} messages from server');
 
       await _subscribeToWebSocket(event.roomId);
+
+      if (isClosed) return;
 
       // Subscribe to reconnection events for gap recovery
       _reconnectedSubscription?.cancel();
@@ -230,6 +233,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         if (state.currentUserId != null) {
           _presenceManager.sendPresenceActive(event.roomId, state.currentUserId!);
           await _messageHandler.markAsRead(event.roomId);
+          if (isClosed) return;
           emit(state.copyWith(isReadMarked: true));
         }
       } else if (state.currentUserId != null && !_presenceManager.isViewingRoom) {
@@ -239,6 +243,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       }
     } catch (e, stackTrace) {
       _log('Error in _onOpened: $e\n$stackTrace');
+
+      if (isClosed) return;
 
       // Offline mode: keep cached messages if available
       if (state.messages.isNotEmpty) {
@@ -437,6 +443,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _log('_onRefreshRequested: performing gap recovery for room ${state.roomId}');
 
     final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
+    if (isClosed) return;
     if (hasNewMessages) {
       final latestId = _cacheManager.lastMessageId;
       if (latestId != null) {
@@ -454,6 +461,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     if (state.currentUserId != null && _presenceManager.isViewingRoom) {
       await _messageHandler.markAsRead(state.roomId!);
+      if (isClosed) return;
       emit(state.copyWith(isReadMarked: true));
     }
   }
@@ -584,6 +592,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Presence active + mark as read (both mobile and desktop)
     _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
     await _messageHandler.markAsRead(state.roomId!);
+    if (isClosed) return;
 
     // Emit updated state
     final newCursor = _cacheManager.nextCursor;
@@ -618,8 +627,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     emit(state.copyWith(isForwarding: true, forwardSuccess: false));
     try {
       await _chatRepository.forwardMessage(event.messageId, event.targetRoomId);
+      if (isClosed) return;
       emit(state.copyWith(isForwarding: false, forwardSuccess: true));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(
         isForwarding: false,
         forwardSuccess: false,
@@ -694,6 +705,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     try {
       final messages = await _cacheManager.loadMoreMessages(state.roomId!);
+      if (isClosed) return;
       emit(state.copyWith(
         messages: messages,
         nextCursor: _cacheManager.nextCursor,
@@ -701,6 +713,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         isLoadingMore: false,
       ));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(
         errorMessage: e.toString(),
         isLoadingMore: false,
@@ -902,10 +915,12 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     try {
       await _messageHandler.deleteMessage(event.messageId);
+      if (isClosed) return;
       _cacheManager.markMessageAsDeleted(event.messageId);
 
       emit(state.copyWith(messages: _cacheManager.messages));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(errorMessage: e.toString()));
     }
   }
@@ -1106,6 +1121,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         messageId: event.messageId,
         content: event.content,
       );
+      if (isClosed) return;
 
       _cacheManager.updateMessage(
         event.messageId,
@@ -1114,6 +1130,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
       emit(state.copyWith(messages: _cacheManager.messages));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(errorMessage: e.toString()));
     }
   }
@@ -1127,8 +1144,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     try {
       await _messageHandler.leaveChatRoom(roomId);
+      if (isClosed) return;
       emit(state.copyWith(hasLeft: true));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(errorMessage: e.toString()));
     }
   }
@@ -1147,6 +1166,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         roomId: roomId,
         inviteeId: event.inviteeId,
       );
+      if (isClosed) return;
       emit(state.copyWith(
         isReinviting: false,
         reinviteSuccess: true,
@@ -1154,6 +1174,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       ));
       _log('User reinvited: inviteeId=${event.inviteeId}');
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(
         isReinviting: false,
         reinviteSuccess: false,
@@ -1189,16 +1210,21 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         roomId: state.roomId!,
         filePath: event.filePath,
         onProgress: (progress) {
+          // Upload progress callbacks can fire after the user leaves the room
+          // (bloc closed mid-upload). Guard against emit-after-close crashes.
+          if (isClosed) return;
           emit(state.copyWith(uploadProgress: progress));
         },
       );
 
+      if (isClosed) return;
       emit(state.copyWith(
         isUploadingFile: false,
         uploadProgress: 1.0,
       ));
     } catch (e) {
       _log('File attachment failed: $e');
+      if (isClosed) return;
       final raw = e.toString().toLowerCase();
       final isSignatureError = raw.contains('signature') ||
           raw.contains('content type') ||
