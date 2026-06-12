@@ -104,14 +104,15 @@ class _ReportPageState extends State<ReportPage> {
               onChanged: (value) => setState(() => _selectedReason = value),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: ReportReason.values
-                    .map((reason) => RadioListTile<ReportReason>(
-                          title: Text(reason.displayName),
-                          value: reason,
-                          activeColor: AppColors.primary,
-                          contentPadding: EdgeInsets.zero,
-                        ))
-                    .toList(),
+                children: [
+                  for (final reason in ReportReason.values)
+                    RadioListTile<ReportReason>(
+                      title: Text(reason.displayName),
+                      value: reason,
+                      activeColor: AppColors.primary,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 24),
