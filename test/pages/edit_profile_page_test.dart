@@ -373,7 +373,10 @@ void main() {
         );
         mockAuthBloc.stream.listen((state) {});
 
-        await tester.pumpAndSettle();
+        // CachedNetworkImage(BackgroundImageSection)의 placeholder는 테스트
+        // 환경에서 무한 pending이라 pumpAndSettle 이 타임아웃된다.
+        // 파일 내 다른 테스트와 동일하게 유한 pump 로 프레임을 진행한다.
+        await tester.pump(const Duration(milliseconds: 300));
 
         // Note: Snackbar test requires more complex setup with ScaffoldMessenger
         // Skipping actual snackbar verification, but structure is tested
@@ -400,7 +403,10 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle();
+        // CachedNetworkImage(BackgroundImageSection)의 placeholder는 테스트
+        // 환경에서 무한 pending이라 pumpAndSettle 이 타임아웃된다.
+        // 파일 내 다른 테스트와 동일하게 유한 pump 로 프레임을 진행한다.
+        await tester.pump(const Duration(milliseconds: 300));
 
         // Error handling tested via state management
       });
