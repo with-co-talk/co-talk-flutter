@@ -282,6 +282,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       title: Text(title),
       subtitle: Text(subtitle),
       value: value,
+      activeColor: AppColors.primary,
       contentPadding: EdgeInsets.zero,
       dense: true,
     );
