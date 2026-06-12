@@ -399,10 +399,21 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _roomInitialized = false;
     _pendingForegrounded = false;
 
-    // Release notification suppression
-    _desktopNotificationBridge.setActiveRoomId(null);
-    _activeRoomTracker.activeRoomId = null;
-    _log('_onClosed: activeRoomId cleared for notification suppression');
+    // Release notification suppression.
+    // Ownership guard: only clear if the active room is still THIS room.
+    // On fast A->B room switches, B's ChatRoomOpened may have already set
+    // activeRoomId=B before A's _onClosed runs; clearing unconditionally would
+    // wipe B's active state and break notification suppression for B.
+    final closingRoomId = state.roomId;
+    if (closingRoomId != null) {
+      if (_desktopNotificationBridge.activeRoomId == closingRoomId) {
+        _desktopNotificationBridge.setActiveRoomId(null);
+      }
+      if (_activeRoomTracker.activeRoomId == closingRoomId) {
+        _activeRoomTracker.activeRoomId = null;
+      }
+    }
+    _log('_onClosed: activeRoomId cleared for notification suppression (room=$closingRoomId)');
 
     emit(const ChatRoomState());
   }

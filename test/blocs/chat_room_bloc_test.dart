@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:co_talk_flutter/core/services/active_room_tracker.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:co_talk_flutter/core/network/websocket/websocket_events.dart';
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
@@ -4150,6 +4151,67 @@ void main() {
           reason: 'progress 콜백 emit에 isClosed 가드가 없으면 emit-after-close 크래시',
         );
         await tmp.delete();
+      });
+    });
+
+    group('P3: activeRoomId 소유권 가드 (방 전환 race)', () {
+      test(
+          'A 닫힘 처리가 이미 B로 설정된 activeRoomId를 지우지 않는다 (소유권 가드)',
+          () async {
+        // 실제 ActiveRoomTracker + 상태를 보유하는 bridge 스텁 사용.
+        final realTracker = ActiveRoomTracker();
+        final statefulBridge = MockDesktopNotificationBridge();
+        int? bridgeRoomId;
+        when(() => statefulBridge.activeRoomId).thenAnswer((_) => bridgeRoomId);
+        when(() => statefulBridge.setActiveRoomId(any())).thenAnswer((inv) {
+          bridgeRoomId = inv.positionalArguments.first as int?;
+        });
+
+        when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+            .thenAnswer((_) async => (<Message>[], null, false));
+        when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+        ChatRoomBloc buildBloc() => ChatRoomBloc(
+              mockChatRepository,
+              mockWebSocketService,
+              mockAuthLocalDataSource,
+              statefulBridge,
+              realTracker,
+              mockFriendRepository,
+              mockSettingsRepository,
+            );
+
+        // 방 A 진입 → activeRoomId = A(1)
+        final blocA = buildBloc();
+        blocA.add(const ChatRoomOpened(1));
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, 1);
+        expect(bridgeRoomId, 1);
+
+        // 방 B 진입 → activeRoomId = B(2) (B의 ChatRoomOpened가 먼저 실행)
+        final blocB = buildBloc();
+        blocB.add(const ChatRoomOpened(2));
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, 2);
+        expect(bridgeRoomId, 2);
+
+        // 이제 A의 dispose/_onClosed가 뒤늦게 실행됨.
+        blocA.add(const ChatRoomClosed());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+
+        // 소유권 가드: A는 자기 방(1)일 때만 지워야 하므로 B(2)는 유지되어야 한다.
+        expect(realTracker.activeRoomId, 2,
+            reason: 'A의 close가 B의 active 설정을 덮어쓰면 안 된다');
+        expect(bridgeRoomId, 2);
+
+        // B가 정상적으로 닫히면 자기 소유이므로 해제된다.
+        blocB.add(const ChatRoomClosed());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, isNull);
+        expect(bridgeRoomId, isNull);
+
+        await blocA.close();
+        await blocB.close();
       });
     });
   });
