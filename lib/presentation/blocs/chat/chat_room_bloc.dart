@@ -603,6 +603,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Presence active + mark as read (both mobile and desktop)
     _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
     await _messageHandler.markAsRead(state.roomId!);
+    // 가드 주의: 이 핸들러는 emit이 말미 1곳뿐이라 이 단일 가드로 충분하다.
+    // 위쪽 await들(_subscribeToWebSocket / refreshFromServer / markAsRead 등)과
+    // 이 지점 사이에 새 emit을 추가할 경우, 해당 emit 직전마다 별도의
+    // `if (isClosed) return;` 가드를 반드시 넣어야 emit-after-close를 막을 수 있다.
     if (isClosed) return;
 
     // Emit updated state
