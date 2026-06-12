@@ -356,6 +356,85 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        'performs gap recovery only ONCE when foreground reconnect also emits reconnected',
+        build: () {
+          // A real reconnected stream: _onConnected emits on this after a
+          // successful reconnect, which queues ChatRoomRefreshRequested.
+          final reconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => reconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          // Simulate disconnect on background, reconnect on foreground.
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(
+                timeout: any(named: 'timeout'),
+              )).thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Emit reconnected like the real _onConnected does after reconnect.
+            reconnectedController.add(null);
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          clearInteractions(mockWebSocketService);
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+        },
+        wait: const Duration(milliseconds: 700),
+        verify: (_) {
+          // Gap recovery server fetch must run exactly once for a single
+          // foreground/reconnect burst — not twice (foreground direct +
+          // reconnected ChatRoomRefreshRequested).
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+          // markAsRead still runs (foreground always marks read).
+          verify(() => mockChatRepository.markAsRead(1)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'still performs gap recovery once when foregrounded while already connected (no reconnect)',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).thenReturn(null);
+          // isConnected stays true the whole time → no reconnect, no reconnected event.
+          when(() => mockWebSocketService.isConnected).thenReturn(true);
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          clearInteractions(mockWebSocketService);
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+        },
+        wait: const Duration(milliseconds: 400),
+        verify: (_) {
+          // Even with no reconnect, gap recovery must still run at least once.
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+          verify(() => mockChatRepository.markAsRead(1)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
         'sends presenceInactive immediately but does NOT disconnect on ViewInactive',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))

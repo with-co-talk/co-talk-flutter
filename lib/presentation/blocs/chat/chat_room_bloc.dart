@@ -43,6 +43,26 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   // WebSocket reconnection subscription for gap recovery
   StreamSubscription<void>? _reconnectedSubscription;
 
+  // Gap-recovery coalescing guard.
+  //
+  // A single foreground return can trigger two gap-recovery paths that overlap:
+  // (1) _onForegrounded reconnects the WebSocket, whose _onConnected emits a
+  //     `reconnected` event that queues a ChatRoomRefreshRequested, and
+  // (2) _onForegrounded itself performs gap recovery directly.
+  // Both end up fetching the server page + markAsRead, so the same foreground
+  // return would run gap recovery twice.
+  //
+  // Coalescing strategy (intentionally NOT time-based, so that genuinely
+  // separate foreground returns each get their own gap recovery):
+  // - [_gapRecoveryInFlight] drops a call that arrives while one is running.
+  // - [_pendingForegroundGapRecovery] is a single-use latch armed by
+  //   _onForegrounded. Whichever path runs first (the foreground direct call
+  //   or the reconnected-driven ChatRoomRefreshRequested) consumes it and runs;
+  //   the other sees it consumed and skips. This pairs exactly one reconnect-
+  //   driven refresh with one foreground return.
+  bool _gapRecoveryInFlight = false;
+  bool _pendingForegroundGapRecovery = false;
+
   // Typing indicator auto-timeout timers (5s per user)
   final Map<int, Timer> _typingTimeoutTimers = {};
 
@@ -124,6 +144,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     _roomInitialized = false;
     _pendingForegrounded = false;
+    _pendingForegroundGapRecovery = false;
+    _gapRecoveryInFlight = false;
 
     // Clear stale cache from previously opened room to prevent old lastMessageId
     // from filtering new room's messages in shouldFilterMessage()
@@ -398,6 +420,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _typingTimeoutTimers.clear();
     _roomInitialized = false;
     _pendingForegrounded = false;
+    _pendingForegroundGapRecovery = false;
+    _gapRecoveryInFlight = false;
 
     // Release notification suppression.
     // Ownership guard: only clear if the active room is still THIS room.
@@ -450,30 +474,67 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomRefreshRequested event,
     Emitter<ChatRoomState> emit,
   ) async {
-    if (state.roomId == null) return;
-    _log('_onRefreshRequested: performing gap recovery for room ${state.roomId}');
+    // This path is driven by the `reconnected` stream (see _onOpened). If a
+    // foreground return armed the latch, this reconnect belongs to that same
+    // foreground burst: consume the latch so the foreground's own direct call
+    // skips, avoiding a duplicate gap recovery. If the latch is not armed, this
+    // is a standalone reconnect (e.g. network drop while viewing) → run it.
+    final consumedForegroundLatch = _pendingForegroundGapRecovery;
+    _pendingForegroundGapRecovery = false;
+    await _performGapRecovery(
+      emit,
+      source: consumedForegroundLatch ? 'RefreshRequested(foreground)' : 'RefreshRequested',
+    );
+  }
 
-    final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
-    if (isClosed) return;
-    if (hasNewMessages) {
-      final latestId = _cacheManager.lastMessageId;
-      if (latestId != null) {
-        _subscriptionManager.updateLastKnownMessageId(latestId);
-      }
-      final newCursor = _cacheManager.nextCursor;
-      emit(state.copyWith(
-        messages: _cacheManager.messages,
-        nextCursor: newCursor,
-        clearNextCursor: newCursor == null,
-        hasMore: _cacheManager.hasMore,
-        isOfflineData: false,
-      ));
+  /// Performs gap recovery: merges the latest server page into the cache and
+  /// marks the room read (when viewing).
+  ///
+  /// Concurrency guard: [_gapRecoveryInFlight] drops a call that arrives while
+  /// another is already running, so the foreground direct call and a
+  /// reconnected-driven [ChatRoomRefreshRequested] that overlap in time produce
+  /// only one execution. Separate foreground returns are NOT coalesced — each
+  /// gets its own gap recovery (the guard is in-flight-only, not time-based).
+  Future<void> _performGapRecovery(
+    Emitter<ChatRoomState> emit, {
+    required String source,
+  }) async {
+    if (state.roomId == null) return;
+
+    if (_gapRecoveryInFlight) {
+      _log('_performGapRecovery: skipped (already in flight, source=$source)');
+      return;
     }
 
-    if (state.currentUserId != null && _presenceManager.isViewingRoom) {
-      await _messageHandler.markAsRead(state.roomId!);
+    _gapRecoveryInFlight = true;
+    _log('_performGapRecovery: performing gap recovery for room ${state.roomId} (source=$source)');
+
+    try {
+      final hasNewMessages =
+          await _cacheManager.refreshFromServer(state.roomId!);
       if (isClosed) return;
-      emit(state.copyWith(isReadMarked: true));
+      if (hasNewMessages) {
+        final latestId = _cacheManager.lastMessageId;
+        if (latestId != null) {
+          _subscriptionManager.updateLastKnownMessageId(latestId);
+        }
+        final newCursor = _cacheManager.nextCursor;
+        emit(state.copyWith(
+          messages: _cacheManager.messages,
+          nextCursor: newCursor,
+          clearNextCursor: newCursor == null,
+          hasMore: _cacheManager.hasMore,
+          isOfflineData: false,
+        ));
+      }
+
+      if (state.currentUserId != null && _presenceManager.isViewingRoom) {
+        await _messageHandler.markAsRead(state.roomId!);
+        if (isClosed) return;
+        emit(state.copyWith(isReadMarked: true));
+      }
+    } finally {
+      _gapRecoveryInFlight = false;
     }
   }
 
@@ -560,8 +621,13 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     final isMobile = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
 
+    // Arm the latch so a reconnect-driven ChatRoomRefreshRequested triggered by
+    // the reconnect below is recognized as belonging to THIS foreground return
+    // and paired with it (run once, not twice). See [_onRefreshRequested].
+    _pendingForegroundGapRecovery = true;
+
     if (isMobile && !_webSocketService.isConnected) {
-      // Mobile: full reconnect + gap recovery (WebSocket was actually disconnected)
+      // Mobile: full reconnect (WebSocket was actually disconnected).
       // 1. Reset reconnect attempts for a fresh reconnection sequence
       _webSocketService.resetReconnectAttempts();
 
@@ -578,20 +644,6 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       } else {
         _log('_onForegrounded: Failed to reconnect WebSocket');
       }
-
-      // 4. Gap recovery: fetch latest messages from server and merge with cache
-      _log('_onForegrounded: performing gap recovery...');
-      final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
-      if (hasNewMessages) {
-        _log('_onForegrounded: new messages found during gap recovery');
-        final latestId = _cacheManager.lastMessageId;
-        if (latestId != null) {
-          _subscriptionManager.updateLastKnownMessageId(latestId);
-        }
-      }
-
-      // 5. Resolve pending messages that were actually sent to server
-      //    (gap recovery already fetched them, no need to retry)
     } else if (isMobile) {
       // Mobile but still connected (brief lifecycle event, debounced background didn't fire)
       _log('_onForegrounded: WebSocket still connected, skipping reconnect (mobile)');
@@ -600,25 +652,32 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _log('_onForegrounded: resuming presence (desktop)');
     }
 
-    // Presence active + mark as read (both mobile and desktop)
-    _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
-    await _messageHandler.markAsRead(state.roomId!);
-    // 가드 주의: 이 핸들러는 emit이 말미 1곳뿐이라 이 단일 가드로 충분하다.
-    // 위쪽 await들(_subscribeToWebSocket / refreshFromServer / markAsRead 등)과
-    // 이 지점 사이에 새 emit을 추가할 경우, 해당 emit 직전마다 별도의
-    // `if (isClosed) return;` 가드를 반드시 넣어야 emit-after-close를 막을 수 있다.
     if (isClosed) return;
 
-    // Emit updated state
-    final newCursor = _cacheManager.nextCursor;
-    emit(state.copyWith(
-      messages: _cacheManager.messages,
-      nextCursor: newCursor,
-      clearNextCursor: newCursor == null,
-      hasMore: _cacheManager.hasMore,
-      isReadMarked: true,
-      isOfflineData: false,
-    ));
+    // Presence active first so that gap recovery's markAsRead (gated on
+    // isViewingRoom) fires for this foreground return.
+    _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
+
+    // Gap recovery: fetch latest server page, merge with cache, and markAsRead.
+    //
+    // A successful reconnect above emits a `reconnected` event that queues a
+    // ChatRoomRefreshRequested → gap recovery for this same foreground. If that
+    // reconnect-driven refresh already ran (it consumed the latch), skip this
+    // direct call to avoid running gap recovery twice. Otherwise (no reconnect
+    // happened — already-connected / desktop — or the reconnect refresh hasn't
+    // run yet), consume the latch and perform gap recovery here, guaranteeing
+    // it runs at least once per foreground return.
+    if (_pendingForegroundGapRecovery) {
+      _pendingForegroundGapRecovery = false;
+      await _performGapRecovery(emit, source: 'Foregrounded');
+    } else {
+      _log('_onForegrounded: gap recovery already handled by reconnected refresh, skipping direct call');
+      // markAsRead is already performed inside the reconnect-driven gap recovery
+      // (presence was set active above before it ran), so nothing else to do.
+    }
+    // 가드 주의: _performGapRecovery 내부에서 isClosed를 확인하고 emit하므로
+    // 이 핸들러에는 추가 emit이 없다. 이 지점 이후 새 emit을 추가할 경우
+    // 반드시 `if (isClosed) return;` 가드를 먼저 넣어야 emit-after-close를 막는다.
   }
 
   void _onReplyToMessageSelected(
