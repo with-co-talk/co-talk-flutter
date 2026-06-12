@@ -64,9 +64,21 @@ class MessageCacheManager {
 
   /// Refreshes cache from server for gap recovery (foreground return).
   ///
-  /// Fetches the latest messages from server (no cursor = newest),
-  /// merges with existing cache (server data wins, pending preserved),
-  /// deduplicates by message ID, and returns whether new messages were found.
+  /// Fetches the latest page of messages from server (no cursor = newest),
+  /// then MERGES it into the existing cache instead of replacing it. This is
+  /// critical: the server only returns one page (size=[messagePageSize]), so a
+  /// naive replacement would drop any older pages the user already loaded by
+  /// scrolling up ([loadMoreMessages]). The merge preserves those older
+  /// messages (real messages whose id is below the server page's minimum id),
+  /// the server's latest page, and unresolved pending messages.
+  ///
+  /// Deduplicates by message ID, keeps the sort invariant (pending-front +
+  /// id desc), and returns whether genuinely new server messages were found.
+  ///
+  /// Note: if the server's latest page does not overlap the existing cache's
+  /// newest real message (a true mid-history gap), the older messages are still
+  /// preserved here; fetching the in-between slice is intentionally left out to
+  /// avoid extra requests on every foreground — pagination already covers it.
   Future<bool> refreshFromServer(int roomId) async {
     try {
       final (serverMessages, nextCursor, hasMore) =
@@ -85,9 +97,13 @@ class MessageCacheManager {
       final localMsgs =
           _messages.where((m) => m.id < 0).toList();
 
+      // Real (server-confirmed) messages already in the cache, including any
+      // older pages loaded via pagination.
+      final existingReal = _messages.where((m) => m.id > 0).toList();
+
       // Merge: use server messages as the base, deduplicate
       final serverIds = serverMessages.map((m) => m.id).toSet();
-      final existingIds = _messages.where((m) => m.id > 0).map((m) => m.id).toSet();
+      final existingIds = existingReal.map((m) => m.id).toSet();
 
       // Check if there are genuinely new messages
       final hasNewMessages = serverIds.any((id) => !existingIds.contains(id));
@@ -113,8 +129,16 @@ class MessageCacheManager {
           .where((m) => m.localId == null || !resolvedLocalIds.contains(m.localId!))
           .toList();
 
-      // Build merged list: unresolved locals first, then server messages
-      _messages = [...unresolvedLocals, ...serverMessages];
+      // Preserve older real messages that the server's latest page does not
+      // contain (i.e. older pages loaded by scrolling up). These have ids
+      // smaller than the page's minimum id; server data wins for overlap.
+      final olderPreserved = existingReal
+          .where((m) => !serverIds.contains(m.id))
+          .toList();
+
+      // Build merged list: unresolved locals first, then server's latest page,
+      // then preserved older real messages.
+      _messages = [...unresolvedLocals, ...serverMessages, ...olderPreserved];
 
       // Deduplicate by id (keep first occurrence)
       final seenIds = <int>{};
@@ -128,8 +152,17 @@ class MessageCacheManager {
       // Ensure consistent ordering: pending first, then real messages by ID descending
       _sortMessages();
 
-      _nextCursor = nextCursor;
-      _hasMore = hasMore;
+      // Pagination state: only adopt the server page's cursor/hasMore when no
+      // older messages were preserved. If we kept older pages, overwriting the
+      // cursor with the server page's (newer) cursor would break the page
+      // boundary and let pagination re-fetch already-loaded messages — so keep
+      // the existing cursor/hasMore that still point past the oldest message.
+      if (olderPreserved.isEmpty) {
+        _nextCursor = nextCursor;
+        _hasMore = hasMore;
+      } else {
+        _log('refreshFromServer: preserved ${olderPreserved.length} older messages, keeping existing pagination cursor');
+      }
       _isOfflineData = false;
 
       _log('refreshFromServer: merged to ${_messages.length} messages, hasNew=$hasNewMessages');

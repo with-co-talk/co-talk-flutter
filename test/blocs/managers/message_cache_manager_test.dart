@@ -143,6 +143,81 @@ void main() {
       );
     });
 
+    test(
+        'preserves older paginated messages not in the latest server page',
+        () async {
+      // Arrange: User scrolled up and loaded older pages, so the cache holds
+      // ids [1..5]. The server's "latest page" (size-limited) only returns the
+      // newest slice [3, 4, 5]. The older messages [1, 2] must NOT be dropped.
+      final cachedMessages = [
+        createMessage(id: 5, content: 'message 5'),
+        createMessage(id: 4, content: 'message 4'),
+        createMessage(id: 3, content: 'message 3'),
+        createMessage(id: 2, content: 'message 2'),
+        createMessage(id: 1, content: 'message 1'),
+      ];
+      // hasMore=false because we've paginated to the very first message.
+      cacheManager.syncMessages(cachedMessages, nextCursor: 1, hasMore: false);
+
+      final serverPage = [
+        createMessage(id: 5, content: 'message 5'),
+        createMessage(id: 4, content: 'message 4'),
+        createMessage(id: 3, content: 'message 3'),
+      ];
+      when(() => mockChatRepository.getMessages(
+            roomId,
+            size: AppConstants.messagePageSize,
+          )).thenAnswer((_) async => (serverPage, 3, true));
+
+      // Act
+      final hasNewMessages = await cacheManager.refreshFromServer(roomId);
+
+      // Assert: older messages preserved, no data loss.
+      expect(hasNewMessages, false,
+          reason: 'No genuinely new server message arrived');
+      expect(cacheManager.messages.map((m) => m.id).toList(), [5, 4, 3, 2, 1],
+          reason: 'Older paginated messages [2, 1] must be preserved');
+      // Pagination invariant: cursor must still point past the oldest message,
+      // and hasMore must reflect the older cache, not the (smaller) server page.
+      expect(cacheManager.hasMore, false,
+          reason: 'We already paginated to the first message; still no more');
+      expect(cacheManager.nextCursor, 1,
+          reason: 'Cursor must remain at the oldest preserved message');
+    });
+
+    test(
+        'preserves older messages AND merges a new latest server message',
+        () async {
+      // Arrange: cache holds older pages [1..4]; server returns latest page
+      // [3, 4, 5] where id:5 is brand new.
+      final cachedMessages = [
+        createMessage(id: 4, content: 'message 4'),
+        createMessage(id: 3, content: 'message 3'),
+        createMessage(id: 2, content: 'message 2'),
+        createMessage(id: 1, content: 'message 1'),
+      ];
+      cacheManager.syncMessages(cachedMessages, nextCursor: 1, hasMore: false);
+
+      final serverPage = [
+        createMessage(id: 5, content: 'message 5'),
+        createMessage(id: 4, content: 'message 4'),
+        createMessage(id: 3, content: 'message 3'),
+      ];
+      when(() => mockChatRepository.getMessages(
+            roomId,
+            size: AppConstants.messagePageSize,
+          )).thenAnswer((_) async => (serverPage, 3, true));
+
+      // Act
+      final hasNewMessages = await cacheManager.refreshFromServer(roomId);
+
+      // Assert
+      expect(hasNewMessages, true, reason: 'id:5 is a new server message');
+      expect(cacheManager.messages.map((m) => m.id).toList(),
+          [5, 4, 3, 2, 1],
+          reason: 'New message prepended, older messages preserved, desc order');
+    });
+
     test('keeps existing cache on network error', () async {
       // Arrange: Set up initial cache with [id:1, id:2]
       final initialMessages = [
