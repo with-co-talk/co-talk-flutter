@@ -78,12 +78,17 @@ void main() {
       expect(find.text('친구'), findsOneWidget);
     });
 
-    testWidgets('shows loading indicator when loading', (tester) async {
+    testWidgets('shows loading skeleton when loading', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest(
         friendState: const FriendState(status: FriendStatus.loading),
       ));
 
       expect(find.byType(ListSkeleton), findsOneWidget);
+      // 친구 화면 스켈레톤은 친구 아바타 지름(70)에 맞춰야 한다(화면별 회귀 방지).
+      expect(
+        tester.widget<ListSkeleton>(find.byType(ListSkeleton)).avatarSize,
+        70,
+      );
     });
 
     testWidgets('shows empty message when no friends', (tester) async {

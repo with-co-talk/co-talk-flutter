@@ -64,7 +64,7 @@ void main() {
       expect(find.text('채팅'), findsOneWidget);
     });
 
-    testWidgets('shows loading indicator when loading', (tester) async {
+    testWidgets('shows loading skeleton when loading', (tester) async {
       when(() => mockChatListBloc.state).thenReturn(
         const ChatListState(status: ChatListStatus.loading),
       );
