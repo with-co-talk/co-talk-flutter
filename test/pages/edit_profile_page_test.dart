@@ -358,8 +358,17 @@ void main() {
     group('Success State', () {
       testWidgets('shows success snackbar when profile update succeeds',
           (tester) async {
-        when(() => mockAuthBloc.state).thenReturn(
-          AuthState.authenticated(testUser),
+        // 초기 상태는 authenticated(폼 렌더링), 이후 stream 으로
+        // loading -> authenticated 전이를 emit 해 AuthBloc BlocListener
+        // (edit_profile_page.dart:385~)의 success 경로를 발화시킨다.
+        final updatedUser = testUser.copyWith(nickname: 'NewNickname');
+        whenListen(
+          mockAuthBloc,
+          Stream<AuthState>.fromIterable([
+            const AuthState(status: AuthStatus.loading),
+            AuthState.authenticated(updatedUser),
+          ]),
+          initialState: AuthState.authenticated(testUser),
         );
         when(() => mockProfileBloc.state).thenReturn(
           const ProfileState.initial(),
@@ -367,27 +376,32 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
-        // Simulate state change to success
-        when(() => mockAuthBloc.state).thenReturn(
-          AuthState.authenticated(testUser.copyWith(nickname: 'NewNickname')),
-        );
-        mockAuthBloc.stream.listen((state) {});
-
         // CachedNetworkImage(BackgroundImageSection)의 placeholder는 테스트
         // 환경에서 무한 pending이라 pumpAndSettle 이 타임아웃된다.
         // 파일 내 다른 테스트와 동일하게 유한 pump 로 프레임을 진행한다.
         await tester.pump(const Duration(milliseconds: 300));
 
-        // Note: Snackbar test requires more complex setup with ScaffoldMessenger
-        // Skipping actual snackbar verification, but structure is tested
+        // showSuccessSnackbar 가 띄운 SnackBar 와 실제 문구('프로필이 수정되었습니다')를 검증.
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text('프로필이 수정되었습니다'), findsOneWidget);
       });
     });
 
     group('Error State', () {
       testWidgets('shows error snackbar when profile update fails',
           (tester) async {
-        when(() => mockAuthBloc.state).thenReturn(
-          AuthState.authenticated(testUser),
+        // 초기 authenticated 이후 stream 으로 loading -> failure 전이를 emit 해
+        // AuthBloc BlocListener(edit_profile_page.dart:401~)의 showErrorSnackbar 를 발화.
+        whenListen(
+          mockAuthBloc,
+          Stream<AuthState>.fromIterable([
+            const AuthState(status: AuthStatus.loading),
+            const AuthState(
+              status: AuthStatus.failure,
+              errorMessage: 'Update failed',
+            ),
+          ]),
+          initialState: AuthState.authenticated(testUser),
         );
         when(() => mockProfileBloc.state).thenReturn(
           const ProfileState.initial(),
@@ -395,20 +409,14 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
-        // Simulate state change to failure
-        when(() => mockAuthBloc.state).thenReturn(
-          const AuthState(
-            status: AuthStatus.failure,
-            errorMessage: 'Update failed',
-          ),
-        );
-
         // CachedNetworkImage(BackgroundImageSection)의 placeholder는 테스트
         // 환경에서 무한 pending이라 pumpAndSettle 이 타임아웃된다.
         // 파일 내 다른 테스트와 동일하게 유한 pump 로 프레임을 진행한다.
         await tester.pump(const Duration(milliseconds: 300));
 
-        // Error handling tested via state management
+        // showErrorSnackbar 가 state.errorMessage 를 그대로 노출하는지 검증.
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text('Update failed'), findsOneWidget);
       });
     });
 
