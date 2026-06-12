@@ -9,6 +9,7 @@ import 'package:co_talk_flutter/presentation/blocs/friend/friend_state.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_state.dart';
 import 'package:co_talk_flutter/presentation/pages/friends/friend_list_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/skeletons/list_skeleton.dart';
 import 'package:co_talk_flutter/domain/entities/friend.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 
@@ -82,7 +83,7 @@ void main() {
         friendState: const FriendState(status: FriendStatus.loading),
       ));
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(ListSkeleton), findsOneWidget);
     });
 
     testWidgets('shows empty message when no friends', (tester) async {

@@ -10,6 +10,7 @@ import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_state.dart';
 import 'package:co_talk_flutter/presentation/pages/chat/chat_list_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/skeletons/list_skeleton.dart';
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -70,7 +71,7 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(ListSkeleton), findsOneWidget);
     });
 
     testWidgets('shows empty message when no chat rooms', (tester) async {
