@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:co_talk_flutter/core/services/active_room_tracker.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:co_talk_flutter/core/network/websocket/websocket_events.dart';
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
@@ -3999,6 +4000,265 @@ void main() {
               .having((s) => s.errorMessage, 'errorMessage', isNotNull),
         ],
       );
+    });
+
+    // ============================================================
+    // Lifecycle safety: emit-after-close & activeRoom race
+    // ============================================================
+    group('생명주기 안전성 (emit-after-close 가드)', () {
+      // emit-after-close는 Bloc 핸들러 내부에서 StateError를 throw하고,
+      // Bloc.onError -> Zone.handleUncaughtError로 전파된다. 가드가 없으면
+      // 이 zone 에러가 잡힌다. runZonedGuarded로 캡처해 단언한다.
+      Future<List<Object>> runCapturingErrors(
+        Future<void> Function() body,
+      ) async {
+        final errors = <Object>[];
+        final done = Completer<void>();
+        runZonedGuarded(() async {
+          await body();
+          done.complete();
+        }, (error, stack) {
+          errors.add(error);
+          if (!done.isCompleted) done.complete();
+        });
+        await done.future;
+        // 비동기 emit-after-close가 늦게 도착할 수 있어 한 틱 더 기다린다.
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        return errors;
+      }
+
+      test(
+          'P1: ChatRoomOpened의 await 도중 close()되어도 emit-after-close StateError가 없다',
+          () async {
+        final errors = await runCapturingErrors(() async {
+          // getMessages를 느리게 만들어 서버 sync await 도중 close를 끼워넣는다.
+          final completer = Completer<(List<Message>, int?, bool)>();
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) => completer.future);
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          // loading emit까지 진행시키고 서버 sync await에 진입하게 한다.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          // await 도중 방을 빠르게 나가 bloc을 close.
+          await bloc.close();
+          expect(bloc.isClosed, isTrue);
+
+          // 이제 서버 응답이 도착해 await가 풀린다 → 가드가 없으면 emit-after-close 크래시.
+          completer.complete((<Message>[], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        // emit-after-close는 bloc 버전에 따라 StateError 또는 AssertionError로
+        // 표면화된다. 어떤 종류든 uncaught error가 없어야 한다.
+        //
+        // 주의(항진성 한계): bloc 8.1.4의 emit은 emitter가 canceled(close 후)
+        // 상태이면 StateError를 던지지 않고 silent no-op으로 처리한다. 따라서
+        // 이 `errors isEmpty` 단언만으로는 "가드가 동작함"을 증명하지 못하며,
+        // 가드를 제거해도 그린으로 통과한다. 가드의 실제 효과(close 후 분기
+        // 스킵)를 검증하는 회귀 가드는 아래의 별도 테스트
+        // ('가드가 close 후 후속 분기를 실제로 스킵한다')에서 다룬다.
+        expect(
+          errors,
+          isEmpty,
+          reason: 'await 이후 emit 가드가 없으면 emit-after-close 크래시 발생',
+        );
+      });
+
+      test(
+          'P1(회귀가드): _onOpened의 await 도중 close()되면 emit 이후 분기가 실제로 스킵된다',
+          () async {
+        // bloc 8.1.4의 emit은 close 후 no-op이라 "state가 안 바뀜"만으로는
+        // 가드 효과를 증명하지 못한다(항진적). 대신 가드(`if (isClosed) return;`,
+        // chat_room_bloc.dart:201)가 막아주는 *emit과 무관한 관찰가능 부수효과*를
+        // 단언한다. 가드 직후 라인(205)은 `_webSocketService.reconnected`에
+        // 접근해 .listen() 구독을 건다. close 도중 서버 sync await가 풀리면:
+        //   - 가드가 있으면: 201에서 early-return → reconnected 접근 없음.
+        //   - 가드를 제거하면: 205가 실행 → reconnected 접근 발생.
+        // 즉 verifyNever(reconnected)는 가드 제거 시 RED가 되어 의미가 있다.
+        final completer = Completer<(List<Message>, int?, bool)>();
+        when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+            .thenAnswer((_) => completer.future);
+        when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+        await runCapturingErrors(() async {
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          // loading emit 후 서버 sync await(getMessages)에 진입할 때까지 진행.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          // 아직 close 전에는 reconnected 구독이 일어나선 안 된다(사전 조건).
+          verifyNever(() => mockWebSocketService.reconnected);
+
+          // await 도중 close.
+          await bloc.close();
+          expect(bloc.isClosed, isTrue);
+
+          // 서버 응답 도착 → await가 풀린다. 가드가 있으면 여기서 early-return.
+          completer.complete((<Message>[], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        // 가드가 동작하면 close 이후 라인 205(reconnected.listen)에 절대
+        // 도달하지 않는다. 가드를 제거하면 이 단언이 실패(RED)한다.
+        verifyNever(() => mockWebSocketService.reconnected);
+      });
+
+      test(
+          'P1: _onRefreshRequested의 await 도중 close()되어도 emit-after-close StateError가 없다',
+          () async {
+        final errors = await runCapturingErrors(() async {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+
+          // refresh의 첫 await(getMessages)를 느리게 만든다.
+          final completer = Completer<(List<Message>, int?, bool)>();
+          when(() => mockChatRepository.getMessages(
+                any(),
+                size: any(named: 'size'),
+                beforeMessageId: any(named: 'beforeMessageId'),
+              )).thenAnswer((_) => completer.future);
+
+          bloc.add(const ChatRoomRefreshRequested());
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          await bloc.close();
+          completer.complete((<Message>[Message(
+            id: 999,
+            chatRoomId: 1,
+            senderId: 2,
+            content: 'late',
+            createdAt: DateTime.now(),
+          )], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        expect(errors, isEmpty,
+            reason: 'refresh await 이후 emit 가드가 없으면 emit-after-close 크래시');
+      });
+
+      test(
+          'P2: 파일 업로드 progress 콜백이 close() 이후 호출되어도 emit-after-close StateError가 없다',
+          () async {
+        // 실제 임시 파일 생성 (handleFileAttachment가 File.exists()를 검사).
+        final tmp = await File(
+          '${Directory.systemTemp.path}/cotalk_upload_${DateTime.now().microsecondsSinceEpoch}.txt',
+        ).create();
+        await tmp.writeAsString('hello');
+
+        final errors = await runCapturingErrors(() async {
+          // uploadFile을 느리게 만들어, 업로드 도중 close를 끼워넣은 뒤
+          // onProgress(0.5)/onProgress(1.0) 콜백이 closed bloc으로 향하게 한다.
+          final uploadCompleter = Completer<FileUploadResult>();
+          when(() => mockChatRepository.uploadFile(any()))
+              .thenAnswer((_) => uploadCompleter.future);
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+              )).thenAnswer((_) async => FakeEntities.textMessage);
+
+          final bloc = createBloc();
+          // roomId가 있어야 업로드가 진행된다.
+          bloc.add(const ChatRoomOpened(1));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+
+          bloc.add(FileAttachmentRequested(tmp.path));
+          // onProgress(0.0) emit까지 진행, uploadFile await에 진입.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          await bloc.close();
+
+          // 업로드 완료 → onProgress(0.5), sendFileMessage, onProgress(1.0)이
+          // closed bloc에서 호출된다. 가드가 없으면 여기서 크래시.
+          uploadCompleter.complete(const FileUploadResult(
+            fileUrl: 'http://x/f.txt',
+            fileName: 'f.txt',
+            contentType: 'text/plain',
+            fileSize: 5,
+            isImage: false,
+          ));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        expect(
+          errors,
+          isEmpty,
+          reason: 'progress 콜백 emit에 isClosed 가드가 없으면 emit-after-close 크래시',
+        );
+        await tmp.delete();
+      });
+    });
+
+    group('P3: activeRoomId 소유권 가드 (방 전환 race)', () {
+      test(
+          'A 닫힘 처리가 이미 B로 설정된 activeRoomId를 지우지 않는다 (소유권 가드)',
+          () async {
+        // 실제 ActiveRoomTracker + 상태를 보유하는 bridge 스텁 사용.
+        final realTracker = ActiveRoomTracker();
+        final statefulBridge = MockDesktopNotificationBridge();
+        int? bridgeRoomId;
+        when(() => statefulBridge.activeRoomId).thenAnswer((_) => bridgeRoomId);
+        when(() => statefulBridge.setActiveRoomId(any())).thenAnswer((inv) {
+          bridgeRoomId = inv.positionalArguments.first as int?;
+        });
+
+        when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+            .thenAnswer((_) async => (<Message>[], null, false));
+        when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+        ChatRoomBloc buildBloc() => ChatRoomBloc(
+              mockChatRepository,
+              mockWebSocketService,
+              mockAuthLocalDataSource,
+              statefulBridge,
+              realTracker,
+              mockFriendRepository,
+              mockSettingsRepository,
+            );
+
+        // 방 A 진입 → activeRoomId = A(1)
+        final blocA = buildBloc();
+        blocA.add(const ChatRoomOpened(1));
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, 1);
+        expect(bridgeRoomId, 1);
+
+        // 방 B 진입 → activeRoomId = B(2) (B의 ChatRoomOpened가 먼저 실행)
+        final blocB = buildBloc();
+        blocB.add(const ChatRoomOpened(2));
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, 2);
+        expect(bridgeRoomId, 2);
+
+        // 이제 A의 dispose/_onClosed가 뒤늦게 실행됨.
+        blocA.add(const ChatRoomClosed());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+
+        // 소유권 가드: A는 자기 방(1)일 때만 지워야 하므로 B(2)는 유지되어야 한다.
+        expect(realTracker.activeRoomId, 2,
+            reason: 'A의 close가 B의 active 설정을 덮어쓰면 안 된다');
+        expect(bridgeRoomId, 2);
+
+        // B가 정상적으로 닫히면 자기 소유이므로 해제된다.
+        blocB.add(const ChatRoomClosed());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, isNull);
+        expect(bridgeRoomId, isNull);
+
+        await blocA.close();
+        await blocB.close();
+      });
     });
   });
 }

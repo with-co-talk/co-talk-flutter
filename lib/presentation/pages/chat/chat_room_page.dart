@@ -291,9 +291,14 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     _scrollController.dispose();
 
     // ActiveRoomTracker를 동기적으로 즉시 해제 (FCM 알림 suppress 방지)
+    // 소유권 가드: 방 A->B 빠른 전환 시 B의 initState가 이미 activeRoomId=B로
+    // 설정했을 수 있으므로, 현재 활성 방이 "내 방"일 때만 해제한다.
+    // 무조건 null로 덮어쓰면 B의 active 설정이 지워져 B 알림 억제가 깨진다.
     try {
       final activeRoomTracker = GetIt.instance<ActiveRoomTracker>();
-      activeRoomTracker.activeRoomId = null;
+      if (activeRoomTracker.activeRoomId == widget.roomId) {
+        activeRoomTracker.activeRoomId = null;
+      }
     } catch (_) {}
 
     if (!_chatRoomBloc.isClosed) {
