@@ -238,23 +238,35 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 ),
           ),
           const SizedBox(height: 12),
-          _buildRadioOption(
-            title: '이름 + 메시지',
-            subtitle: '보낸 사람 이름과 메시지 내용을 표시',
-            value: NotificationPreviewMode.nameAndMessage,
+          RadioGroup<NotificationPreviewMode>(
             groupValue: state.settings.notificationPreviewMode,
-          ),
-          _buildRadioOption(
-            title: '이름만',
-            subtitle: '보낸 사람 이름만 표시',
-            value: NotificationPreviewMode.nameOnly,
-            groupValue: state.settings.notificationPreviewMode,
-          ),
-          _buildRadioOption(
-            title: '표시 안함',
-            subtitle: '이름과 메시지 내용 모두 숨김',
-            value: NotificationPreviewMode.nothing,
-            groupValue: state.settings.notificationPreviewMode,
+            onChanged: (newValue) {
+              if (newValue != null) {
+                context
+                    .read<NotificationSettingsCubit>()
+                    .setNotificationPreviewMode(newValue);
+              }
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildRadioOption(
+                  title: '이름 + 메시지',
+                  subtitle: '보낸 사람 이름과 메시지 내용을 표시',
+                  value: NotificationPreviewMode.nameAndMessage,
+                ),
+                _buildRadioOption(
+                  title: '이름만',
+                  subtitle: '보낸 사람 이름만 표시',
+                  value: NotificationPreviewMode.nameOnly,
+                ),
+                _buildRadioOption(
+                  title: '표시 안함',
+                  subtitle: '이름과 메시지 내용 모두 숨김',
+                  value: NotificationPreviewMode.nothing,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -265,18 +277,12 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     required String title,
     required String subtitle,
     required NotificationPreviewMode value,
-    required NotificationPreviewMode groupValue,
   }) {
     return RadioListTile<NotificationPreviewMode>(
       title: Text(title),
       subtitle: Text(subtitle),
       value: value,
-      groupValue: groupValue,
-      onChanged: (newValue) {
-        if (newValue != null) {
-          context.read<NotificationSettingsCubit>().setNotificationPreviewMode(newValue);
-        }
-      },
+      activeColor: AppColors.primary,
       contentPadding: EdgeInsets.zero,
       dense: true,
     );
