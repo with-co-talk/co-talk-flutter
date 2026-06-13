@@ -5,6 +5,11 @@ import '../entities/message.dart';
 
 /// 파일 업로드 결과
 class FileUploadResult {
+  /// 업로드된 객체의 불투명 식별자(저장 객체 키).
+  ///
+  /// 서버가 내려주면 파일 메시지 전송 시 URL 대신 이 값을 보낸다(서버가 메타 재구성).
+  /// 구버전 서버에서는 null일 수 있다.
+  final String? objectId;
   final String fileUrl;
   final String fileName;
   final String contentType;
@@ -12,6 +17,7 @@ class FileUploadResult {
   final bool isImage;
 
   const FileUploadResult({
+    this.objectId,
     required this.fileUrl,
     required this.fileName,
     required this.contentType,
@@ -47,6 +53,9 @@ abstract class ChatRepository {
 
   /// 파일/이미지 메시지를 전송합니다.
   /// senderId는 서버에서 JWT 토큰으로부터 추출합니다.
+  ///
+  /// [objectId]가 주어지면 서버가 그 불투명 식별자로 URL/메타를 재구성한다(권장).
+  /// [fileUrl]은 하위호환(구버전 서버)을 위해 함께 전송된다.
   Future<Message> sendFileMessage({
     required int roomId,
     required String fileUrl,
@@ -54,6 +63,8 @@ abstract class ChatRepository {
     required int fileSize,
     required String contentType,
     String? thumbnailUrl,
+    String? objectId,
+    String? thumbnailObjectId,
   });
 
   // Local-first methods

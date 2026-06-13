@@ -200,6 +200,7 @@ class ChatRepositoryImpl implements ChatRepository {
   Future<FileUploadResult> uploadFile(File file) async {
     final response = await _remoteDataSource.uploadFile(file);
     return FileUploadResult(
+      objectId: response.objectId,
       fileUrl: response.fileUrl,
       fileName: response.fileName,
       contentType: response.contentType,
@@ -216,10 +217,14 @@ class ChatRepositoryImpl implements ChatRepository {
     required int fileSize,
     required String contentType,
     String? thumbnailUrl,
+    String? objectId,
+    String? thumbnailObjectId,
   }) async {
     final messageModel = await _remoteDataSource.sendFileMessage(
       SendFileMessageRequest(
         chatRoomId: roomId,
+        objectId: objectId,
+        thumbnailObjectId: thumbnailObjectId,
         fileUrl: fileUrl,
         fileName: fileName,
         fileSize: fileSize,

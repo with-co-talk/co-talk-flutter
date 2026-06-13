@@ -667,6 +667,12 @@ class ChatRemoteDataSourceImpl extends BaseRemoteDataSource
 
 /// 파일 업로드 응답 모델
 class FileUploadResponse {
+  /// 업로드된 객체의 불투명 식별자(저장 객체 키).
+  ///
+  /// 서버(co-talk feat/file-message-opaque-id 이후)가 내려주는 값으로, 파일 메시지 전송 시
+  /// URL 대신 이 값을 보내면 서버가 소유·존재를 검증하고 URL/메타를 재구성한다.
+  /// 구버전 서버에서는 null일 수 있으므로 옵셔널로 둔다.
+  final String? objectId;
   final String fileUrl;
   final String fileName;
   final String contentType;
@@ -674,6 +680,7 @@ class FileUploadResponse {
   final bool isImage;
 
   const FileUploadResponse({
+    this.objectId,
     required this.fileUrl,
     required this.fileName,
     required this.contentType,
@@ -683,6 +690,7 @@ class FileUploadResponse {
 
   factory FileUploadResponse.fromJson(Map<String, dynamic> json) {
     return FileUploadResponse(
+      objectId: json['objectId'] as String?,
       fileUrl: json['fileUrl'] as String,
       fileName: json['fileName'] as String,
       contentType: json['contentType'] as String,
@@ -693,8 +701,19 @@ class FileUploadResponse {
 }
 
 /// 파일 메시지 전송 요청 모델
+///
+/// 신규 방식(권장)은 업로드가 발급한 불투명 식별자 [objectId]를 보낸다. 서버가 소유·존재를
+/// 검증하고 URL/contentType/size를 재구성하므로 클라이언트가 임의 URL을 주입할 여지가 없다.
+/// 하위호환을 위해 [fileUrl]도 함께 보낸다(구버전 서버는 fileUrl을, 신버전 서버는 objectId를 사용).
 class SendFileMessageRequest {
   final int chatRoomId;
+
+  /// 업로드가 발급한 불투명 식별자(저장 객체 키). 신규 방식에서 사용.
+  final String? objectId;
+
+  /// 썸네일 불투명 식별자. 신규 방식에서 사용.
+  final String? thumbnailObjectId;
+
   final String fileUrl;
   final String fileName;
   final int fileSize;
@@ -703,6 +722,8 @@ class SendFileMessageRequest {
 
   const SendFileMessageRequest({
     required this.chatRoomId,
+    this.objectId,
+    this.thumbnailObjectId,
     required this.fileUrl,
     required this.fileName,
     required this.fileSize,
@@ -713,6 +734,10 @@ class SendFileMessageRequest {
   Map<String, dynamic> toJson() {
     return {
       'chatRoomId': chatRoomId,
+      // 신규 방식: object-id (서버가 존재 시 우선 사용)
+      if (objectId != null) 'objectId': objectId,
+      if (thumbnailObjectId != null) 'thumbnailObjectId': thumbnailObjectId,
+      // 하위호환: 구버전 서버를 위해 fileUrl도 항상 포함
       'fileUrl': fileUrl,
       'fileName': fileName,
       'fileSize': fileSize,
