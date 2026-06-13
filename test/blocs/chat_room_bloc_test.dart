@@ -3085,6 +3085,100 @@ void main() {
           verifyNever(() => mockChatRepository.uploadFile(any()));
         },
       );
+
+      // 회귀 가드: 업로드 결과의 objectId가 전송 요청으로 매핑되고,
+      // 이미지 분기에서 thumbnailObjectId가 원본 objectId로 채워지는지 검증.
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'maps upload objectId to sendFileMessage and fills thumbnailObjectId for image',
+        build: () {
+          when(() => mockChatRepository.uploadFile(any())).thenAnswer(
+            (_) async => const FileUploadResult(
+              objectId: 'obj-123',
+              fileUrl: 'https://example.com/file.jpg',
+              fileName: 'file.jpg',
+              contentType: 'image/jpeg',
+              fileSize: 1024,
+              isImage: true,
+            ),
+          );
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+                objectId: any(named: 'objectId'),
+                thumbnailObjectId: any(named: 'thumbnailObjectId'),
+              )).thenAnswer((_) async => FakeEntities.imageMessage);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(FileAttachmentRequested(tempFilePath)),
+        wait: const Duration(milliseconds: 500),
+        verify: (_) {
+          verify(() => mockChatRepository.sendFileMessage(
+                roomId: 1,
+                fileUrl: 'https://example.com/file.jpg',
+                fileName: 'file.jpg',
+                fileSize: 1024,
+                contentType: 'image/jpeg',
+                thumbnailUrl: 'https://example.com/file.jpg',
+                objectId: 'obj-123',
+                // 이미지이므로 썸네일 식별자가 원본 objectId로 채워진다.
+                thumbnailObjectId: 'obj-123',
+              )).called(1);
+        },
+      );
+
+      // 회귀 가드: 비이미지 파일은 thumbnailObjectId/thumbnailUrl이 null로 전송된다.
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sends null thumbnailObjectId for non-image file',
+        build: () {
+          when(() => mockChatRepository.uploadFile(any())).thenAnswer(
+            (_) async => const FileUploadResult(
+              objectId: 'obj-456',
+              fileUrl: 'https://example.com/doc.pdf',
+              fileName: 'doc.pdf',
+              contentType: 'application/pdf',
+              fileSize: 2048,
+              isImage: false,
+            ),
+          );
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+                objectId: any(named: 'objectId'),
+                thumbnailObjectId: any(named: 'thumbnailObjectId'),
+              )).thenAnswer((_) async => FakeEntities.imageMessage);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(FileAttachmentRequested(tempFilePath)),
+        wait: const Duration(milliseconds: 500),
+        verify: (_) {
+          verify(() => mockChatRepository.sendFileMessage(
+                roomId: 1,
+                fileUrl: 'https://example.com/doc.pdf',
+                fileName: 'doc.pdf',
+                fileSize: 2048,
+                contentType: 'application/pdf',
+                thumbnailUrl: null,
+                objectId: 'obj-456',
+                thumbnailObjectId: null,
+              )).called(1);
+        },
+      );
     });
 
     group('MessageRetryRequested', () {
