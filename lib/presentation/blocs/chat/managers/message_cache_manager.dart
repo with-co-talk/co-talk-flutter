@@ -75,10 +75,23 @@ class MessageCacheManager {
   /// Deduplicates by message ID, keeps the sort invariant (pending-front +
   /// id desc), and returns whether genuinely new server messages were found.
   ///
-  /// Note: if the server's latest page does not overlap the existing cache's
-  /// newest real message (a true mid-history gap), the older messages are still
-  /// preserved here; fetching the in-between slice is intentionally left out to
-  /// avoid extra requests on every foreground — pagination already covers it.
+  /// Mid-history gap handling: there are two cases when older messages are
+  /// preserved (the server's latest page does not cover everything in cache):
+  ///   1. OVERLAP — the server page and the preserved older messages are
+  ///      contiguous (server page min id <= cache max real id + 1, i.e. no hole
+  ///      between them). Keeping the existing (older) cursor is correct: the
+  ///      union [oldest..newest] is gap-free and pagination still points past
+  ///      the oldest message.
+  ///   2. TRUE GAP — the server page min id is strictly greater than the cache
+  ///      max real id + 1, so messages in between were created while
+  ///      backgrounded and are missing from BOTH cache and the fetched page.
+  ///      Here the existing (older) cursor points below the cache's oldest
+  ///      message, so scroll-up would only fetch even-older history and NEVER
+  ///      the in-between slice — the gap would be unrecoverable. In this case we
+  ///      adopt the SERVER page's cursor so the next scroll-up
+  ///      (beforeMessageId = server page min) fetches the gap slice; subsequent
+  ///      scroll-ups then walk back through the preserved older messages and
+  ///      beyond. hasMore is forced true because more (the gap + older) exists.
   Future<bool> refreshFromServer(int roomId) async {
     try {
       final (serverMessages, nextCursor, hasMore) =
@@ -132,6 +145,18 @@ class MessageCacheManager {
       // Preserve older real messages that the server's latest page does not
       // contain (i.e. older pages loaded by scrolling up). These have ids
       // smaller than the page's minimum id; server data wins for overlap.
+      //
+      // KNOWN LIMITATION (stale older slice): these preserved messages are NOT
+      // re-fetched here — the server only returns its latest page, so an older
+      // message that was edited / deleted / read by others WHILE BACKGROUNDED is
+      // kept as its pre-background (stale) copy. Overlapping messages are safe
+      // (server-wins via serverIds below); only the non-overlapping older slice
+      // can go stale. Self-healing for that slice is delegated to live WebSocket
+      // events (MessageUpdatedByOther / MessageDeletedByOther / MessagesReadUpdated
+      // → MessageCacheManager.updateMessage/markMessageAsDeleted/updateMessages),
+      // which patch the in-memory cache when the change arrives, and to a manual
+      // scroll-up re-fetch of that slice. A full older-slice resync on every
+      // foreground is intentionally avoided to keep gap recovery to one request.
       final olderPreserved = existingReal
           .where((m) => !serverIds.contains(m.id))
           .toList();
@@ -152,16 +177,35 @@ class MessageCacheManager {
       // Ensure consistent ordering: pending first, then real messages by ID descending
       _sortMessages();
 
-      // Pagination state: only adopt the server page's cursor/hasMore when no
-      // older messages were preserved. If we kept older pages, overwriting the
-      // cursor with the server page's (newer) cursor would break the page
-      // boundary and let pagination re-fetch already-loaded messages — so keep
-      // the existing cursor/hasMore that still point past the oldest message.
+      // Pagination state. Three cases:
       if (olderPreserved.isEmpty) {
+        // No older pages preserved → adopt the server page's cursor/hasMore.
         _nextCursor = nextCursor;
         _hasMore = hasMore;
       } else {
-        _log('refreshFromServer: preserved ${olderPreserved.length} older messages, keeping existing pagination cursor');
+        // Older pages were preserved. Decide between OVERLAP and TRUE GAP by
+        // comparing the server page's minimum id with the cache's maximum
+        // preserved (older) real id. (serverMessages is non-empty here.)
+        final serverMinId =
+            serverMessages.map((m) => m.id).reduce((a, b) => a < b ? a : b);
+        final preservedMaxId =
+            olderPreserved.map((m) => m.id).reduce((a, b) => a > b ? a : b);
+
+        if (serverMinId > preservedMaxId + 1) {
+          // TRUE GAP: messages between preservedMaxId and serverMinId are
+          // missing from both cache and the fetched page. Point the cursor at
+          // the server page's minimum so scroll-up fetches the gap slice, and
+          // force hasMore (the gap + older history still exist).
+          _nextCursor = serverMinId;
+          _hasMore = true;
+          _log('refreshFromServer: TRUE GAP detected (serverMin=$serverMinId, preservedMax=$preservedMaxId), '
+              'cursor set to server page min for gap recovery');
+        } else {
+          // OVERLAP / contiguous: keep the existing cursor that still points
+          // past the oldest preserved message; adopting the server's newer
+          // cursor would re-fetch already-loaded messages.
+          _log('refreshFromServer: preserved ${olderPreserved.length} older messages (overlap), keeping existing pagination cursor');
+        }
       }
       _isOfflineData = false;
 
