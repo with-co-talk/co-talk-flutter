@@ -85,6 +85,42 @@ class RotatingRefreshAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// 재시도 단계에서 던져지는 비-Dio 예외(직렬화·타입 오류 등을 흉내).
+class _RetryBoom implements Exception {
+  @override
+  String toString() => '_RetryBoom: non-Dio retry failure';
+}
+
+/// `/auth/refresh`는 정상적으로 새 토큰을 발급하지만, 보호된 리소스 재시도
+/// 요청에 대해서는 비-Dio 예외(`_RetryBoom`)를 던지는 어댑터.
+class _RetryThrowsNonDioAdapter implements HttpClientAdapter {
+  _RetryThrowsNonDioAdapter({required this.validRefreshToken});
+
+  final String validRefreshToken;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    if (options.path.contains('/auth/refresh')) {
+      return ResponseBody.fromString(
+        jsonEncode({'accessToken': 'access_1', 'refreshToken': 'refresh_1'}),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
+    // 재시도 요청 → 비-Dio 예외 발생
+    throw _RetryBoom();
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   late MockAuthLocalDataSource mockLocalDataSource;
   late AuthInterceptor interceptor;
@@ -463,6 +499,45 @@ void main() {
         verifyNever(() => mockLocalDataSource.clearTokens());
         verifyNever(() => handlerA.next(any()));
         verifyNever(() => handlerB.next(any()));
+      });
+
+      test(
+          'non-Dio retry failure propagates real cause (not original 401)',
+          () async {
+        // refresh는 성공시키되, 보호된 리소스 재시도 시 비-Dio 예외(타입 오류 등)를
+        // 던지는 어댑터로 교체한다.
+        interceptor.refreshDio.httpClientAdapter =
+            _RetryThrowsNonDioAdapter(validRefreshToken: 'refresh_0');
+
+        final error = DioException(
+          requestOptions: RequestOptions(
+            path: '/users/me',
+            headers: {'Authorization': 'Bearer access_0'},
+          ),
+          response: Response(
+            requestOptions: RequestOptions(path: '/users/me'),
+            statusCode: 401,
+          ),
+        );
+        final handler = MockErrorInterceptorHandler();
+        DioException? propagated;
+        when(() => handler.next(any())).thenAnswer((inv) {
+          propagated = inv.positionalArguments[0] as DioException;
+        });
+        when(() => handler.resolve(any())).thenReturn(null);
+
+        interceptor.onError(error, handler);
+
+        await Future.delayed(const Duration(milliseconds: 300));
+
+        // 재시도 단계의 진짜 원인이 보존되어 전파되어야 한다 (원본 401이 아님).
+        expect(propagated, isNotNull);
+        expect(propagated, isNot(same(error)),
+            reason: 'must not mask retry failure with original 401');
+        expect(propagated!.error, isA<_RetryBoom>(),
+            reason: 'real non-Dio cause must be preserved');
+        // refresh는 성공했으므로 강제 로그아웃하지 않는다.
+        verifyNever(() => mockLocalDataSource.clearTokens());
       });
 
       test('genuine refresh failure (revoked/expired) still forces logout',

@@ -137,13 +137,22 @@ class AuthInterceptor extends QueuedInterceptor {
           // Use refresh Dio instance to retry (avoids circular dependency)
           final response = await _refreshDio.fetch(options);
           return handler.resolve(response);
-        } catch (e) {
-          // 재시도 자체가 실패하면 원본 에러를 전파한다.
+        } catch (e, stackTrace) {
+          // 재시도 자체가 실패하면 재시도 단계의 진짜 원인을 전파한다.
           // (refresh는 성공했으므로 강제 로그아웃하지 않는다)
           if (e is DioException) {
             return handler.next(e);
           }
-          return handler.next(err);
+          // 비-Dio 예외(직렬화·타입 오류 등)는 원본 401(err)로 가리지 않고
+          // 실제 원인(e)을 DioException으로 감싸 보존해 전파한다.
+          return handler.next(
+            DioException(
+              requestOptions: options,
+              error: e,
+              stackTrace: stackTrace,
+              type: DioExceptionType.unknown,
+            ),
+          );
         }
       }
 
