@@ -43,6 +43,10 @@ class WebSocketMessageSender {
   /// Sends a file message.
   ///
   /// Returns false if not connected.
+  ///
+  /// NOTE: 실제 파일 메시지 전송은 REST(`SendFileMessageRequest`) 경로를 사용한다.
+  /// [objectId]/[thumbnailObjectId]는 현재 이 WS 경로에서 미사용이며(호출부 전부 null),
+  /// 향후 WS 파일 전송 시 REST 경로와의 일관성을 위해 옵셔널로 미리 배선해 둔 것이다.
   bool sendFileMessage({
     required StompClient? stompClient,
     required int roomId,

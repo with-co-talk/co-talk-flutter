@@ -166,6 +166,10 @@ class MessageHandler {
       // feat/file-message-opaque-id 이후)가 이 값으로 URL/메타를 재구성한다. fileUrl은
       // 하위호환(구버전 서버)을 위해 함께 전송된다. objectId가 없으면(구버전 서버 응답)
       // 기존 fileUrl 경로로 동작한다.
+      // 업로드 응답(FileUploadResult)에는 썸네일 전용 식별자가 없다(objectId 단일). 따라서
+      // 이미지일 때 썸네일 식별자도 원본 objectId를 그대로 보낸다 — 기존 thumbnailUrl이
+      // 이미지일 때 fileUrl을 재사용하던 동작과 동일한 의미다. 서버(co-talk #170)가 별도
+      // 썸네일 객체 키를 발급하게 되면 그 값으로 교체한다.
       await _chatRepository.sendFileMessage(
         roomId: roomId,
         objectId: uploadResult.objectId,
