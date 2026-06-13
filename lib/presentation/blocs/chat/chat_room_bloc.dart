@@ -43,6 +43,62 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   // WebSocket reconnection subscription for gap recovery
   StreamSubscription<void>? _reconnectedSubscription;
 
+  // Gap-recovery dedup (timing-independent, identity-based).
+  //
+  // A single foreground return can trigger two gap-recovery paths:
+  // (1) _onForegrounded performs gap recovery DIRECTLY (always — this guarantees
+  //     at-least-once, even when no reconnect happens: already-connected mobile
+  //     or desktop, where the `reconnected` stream never fires), and
+  // (2) if _onForegrounded actually reconnected the WebSocket, _onConnected
+  //     emits a `reconnected` event — AFTER a ~100ms subscriptionDelay timer
+  //     (see websocket_service.dart) — that queues a ChatRoomRefreshRequested,
+  //     which would run gap recovery a SECOND time for the same foreground.
+  //
+  // The earlier "race latch" was timing-dependent: it assumed the direct call
+  // and the reconnect refresh raced for a single-use flag. Because `reconnected`
+  // fires ~100ms later, the direct call almost always finished first; the later
+  // reconnect refresh then saw the flag consumed and ran as a "standalone"
+  // SECOND recovery (2 executions). A purely time-window coalesce is also
+  // fragile: the window must be longer than the ~100ms reconnect delay yet
+  // shorter than the gap between separate foreground returns, and those ranges
+  // can overlap.
+  //
+  // Identity-based dedup (no timing assumption):
+  // - [_gapRecoveryInFlight] drops a call that arrives while one is running.
+  // - [_expectPairedReconnect] is armed by _onForegrounded ONLY when it actually
+  //   triggers a reconnect. The foreground's own direct recovery runs first; the
+  //   later reconnect-driven refresh (fromReconnect=true) then CONSUMES this flag
+  //   and skips. Because the flag is set synchronously before the reconnect is
+  //   awaited, it is always armed before the (event-queued, ~100ms-later)
+  //   reconnect refresh runs — independent of how long the direct recovery took.
+  //   A reconnect with the flag NOT armed is a genuine standalone reconnect
+  //   (network drop while viewing) and runs. Separate foreground returns each
+  //   arm/consume their own flag, so each gets exactly one recovery.
+  //
+  //   The flag is consumed ONLY by reconnect-sourced refreshes
+  //   (ChatRoomRefreshRequested.fromReconnect == true). A notification-tap /
+  //   manual refresh (fromReconnect == false) is NEVER deduped, so a legitimate
+  //   user-initiated refresh is never dropped just because a foreground armed
+  //   the flag.
+  //
+  //   Liveness: the paired reconnect refresh may never arrive — websocket_service
+  //   `_onConnected`'s subscriptionDelay timer early-returns (and does NOT emit
+  //   `reconnected`) if the socket re-drops during the delay. To prevent the flag
+  //   from lingering forever and silently skipping a later genuine reconnect's
+  //   gap recovery, [_expectPairedReconnectTimer] auto-disarms the flag after
+  //   [_pairedReconnectWindow] (subscriptionDelay + buffer). In the normal case
+  //   the reconnect refresh consumes the flag well before this fires.
+  bool _gapRecoveryInFlight = false;
+  bool _expectPairedReconnect = false;
+  Timer? _expectPairedReconnectTimer;
+
+  // Upper bound for how long [_expectPairedReconnect] may stay armed after a
+  // foreground-triggered reconnect. Must exceed websocket subscriptionDelay
+  // (~100ms) plus event-queue latency so the legitimate paired reconnect refresh
+  // consumes the flag first; the timeout is only a safety net for the re-drop
+  // case where `reconnected` never fires.
+  static const _pairedReconnectWindow = Duration(seconds: 2);
+
   // Typing indicator auto-timeout timers (5s per user)
   final Map<int, Timer> _typingTimeoutTimers = {};
 
@@ -116,6 +172,31 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
+  /// Arms [_expectPairedReconnect] with a liveness timeout.
+  ///
+  /// If the paired reconnect refresh never arrives (websocket re-dropped during
+  /// subscriptionDelay → `reconnected` never fires), the flag is auto-disarmed
+  /// after [_pairedReconnectWindow] so a later genuine reconnect's gap recovery
+  /// is not silently skipped.
+  void _armExpectPairedReconnect() {
+    _expectPairedReconnect = true;
+    _expectPairedReconnectTimer?.cancel();
+    _expectPairedReconnectTimer = Timer(_pairedReconnectWindow, () {
+      if (_expectPairedReconnect) {
+        _log('_expectPairedReconnect timed out (paired reconnect never arrived), disarming');
+        _expectPairedReconnect = false;
+      }
+      _expectPairedReconnectTimer = null;
+    });
+  }
+
+  /// Disarms [_expectPairedReconnect] and cancels its liveness timeout.
+  void _disarmExpectPairedReconnect() {
+    _expectPairedReconnect = false;
+    _expectPairedReconnectTimer?.cancel();
+    _expectPairedReconnectTimer = null;
+  }
+
   Future<void> _onOpened(
     ChatRoomOpened event,
     Emitter<ChatRoomState> emit,
@@ -124,6 +205,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     _roomInitialized = false;
     _pendingForegrounded = false;
+    _gapRecoveryInFlight = false;
+    _disarmExpectPairedReconnect();
 
     // Clear stale cache from previously opened room to prevent old lastMessageId
     // from filtering new room's messages in shouldFilterMessage()
@@ -205,7 +288,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _reconnectedSubscription = _webSocketService.reconnected.listen((_) {
         if (state.roomId != null && state.status == ChatRoomStatus.success) {
           _log('WebSocket reconnected, triggering gap recovery');
-          add(const ChatRoomRefreshRequested());
+          add(const ChatRoomRefreshRequested(fromReconnect: true));
         }
       });
 
@@ -398,6 +481,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _typingTimeoutTimers.clear();
     _roomInitialized = false;
     _pendingForegrounded = false;
+    _gapRecoveryInFlight = false;
+    _disarmExpectPairedReconnect();
 
     // Release notification suppression.
     // Ownership guard: only clear if the active room is still THIS room.
@@ -450,30 +535,78 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomRefreshRequested event,
     Emitter<ChatRoomState> emit,
   ) async {
-    if (state.roomId == null) return;
-    _log('_onRefreshRequested: performing gap recovery for room ${state.roomId}');
+    // Two sources dispatch ChatRoomRefreshRequested:
+    // - reconnect (fromReconnect=true): the `reconnected` stream (see _onOpened),
+    //   which fires ~100ms AFTER reconnect (subscriptionDelay).
+    // - notification tap / manual refresh (fromReconnect=false): chat_room_page's
+    //   onSameRoomRefresh.
+    //
+    // Dedup applies ONLY to reconnect-sourced refreshes. If _onForegrounded armed
+    // [_expectPairedReconnect] (it triggered this reconnect), the foreground's
+    // own direct recovery already ran for this burst → consume the flag and skip
+    // to avoid a duplicate. Otherwise this is a standalone reconnect (network drop
+    // while viewing) → run it. This is identity-based, not timing-based: the flag
+    // is armed synchronously before the reconnect is awaited, so it is reliably
+    // set before this handler runs.
+    //
+    // A notification/manual refresh is NEVER deduped here, even if the flag is
+    // armed — those are distinct user-initiated requests and must not be dropped.
+    if (event.fromReconnect && _expectPairedReconnect) {
+      _disarmExpectPairedReconnect();
+      _log('_onRefreshRequested: paired reconnect for a foreground return, skipping (already recovered)');
+      return;
+    }
+    await _performGapRecovery(emit, source: 'RefreshRequested');
+  }
 
-    final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
-    if (isClosed) return;
-    if (hasNewMessages) {
-      final latestId = _cacheManager.lastMessageId;
-      if (latestId != null) {
-        _subscriptionManager.updateLastKnownMessageId(latestId);
-      }
-      final newCursor = _cacheManager.nextCursor;
-      emit(state.copyWith(
-        messages: _cacheManager.messages,
-        nextCursor: newCursor,
-        clearNextCursor: newCursor == null,
-        hasMore: _cacheManager.hasMore,
-        isOfflineData: false,
-      ));
+  /// Performs gap recovery: merges the latest server page into the cache and
+  /// marks the room read (when viewing).
+  ///
+  /// Dedup: the foreground-direct call and a paired reconnect refresh are kept
+  /// to a single execution by [_expectPairedReconnect] (consumed in
+  /// [_onRefreshRequested]). [_gapRecoveryInFlight] is an additional safety net
+  /// that drops a call arriving while another is still running. Separate
+  /// foreground returns are NOT coalesced — each gets its own gap recovery.
+  Future<void> _performGapRecovery(
+    Emitter<ChatRoomState> emit, {
+    required String source,
+  }) async {
+    if (state.roomId == null) return;
+
+    if (_gapRecoveryInFlight) {
+      _log('_performGapRecovery: skipped (already in flight, source=$source)');
+      return;
     }
 
-    if (state.currentUserId != null && _presenceManager.isViewingRoom) {
-      await _messageHandler.markAsRead(state.roomId!);
+    _gapRecoveryInFlight = true;
+    _log('_performGapRecovery: performing gap recovery for room ${state.roomId} (source=$source)');
+
+    try {
+      final hasNewMessages =
+          await _cacheManager.refreshFromServer(state.roomId!);
       if (isClosed) return;
-      emit(state.copyWith(isReadMarked: true));
+      if (hasNewMessages) {
+        final latestId = _cacheManager.lastMessageId;
+        if (latestId != null) {
+          _subscriptionManager.updateLastKnownMessageId(latestId);
+        }
+        final newCursor = _cacheManager.nextCursor;
+        emit(state.copyWith(
+          messages: _cacheManager.messages,
+          nextCursor: newCursor,
+          clearNextCursor: newCursor == null,
+          hasMore: _cacheManager.hasMore,
+          isOfflineData: false,
+        ));
+      }
+
+      if (state.currentUserId != null && _presenceManager.isViewingRoom) {
+        await _messageHandler.markAsRead(state.roomId!);
+        if (isClosed) return;
+        emit(state.copyWith(isReadMarked: true));
+      }
+    } finally {
+      _gapRecoveryInFlight = false;
     }
   }
 
@@ -561,7 +694,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         defaultTargetPlatform == TargetPlatform.iOS;
 
     if (isMobile && !_webSocketService.isConnected) {
-      // Mobile: full reconnect + gap recovery (WebSocket was actually disconnected)
+      // Mobile: full reconnect (WebSocket was actually disconnected).
       // 1. Reset reconnect attempts for a fresh reconnection sequence
       _webSocketService.resetReconnectAttempts();
 
@@ -573,25 +706,21 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
       if (connected) {
         _log('_onForegrounded: WebSocket reconnected, resubscribing to room');
+        // A successful reconnect means _onConnected will emit a `reconnected`
+        // event (~100ms later) that queues a ChatRoomRefreshRequested. Arm the
+        // flag so that paired reconnect refresh is recognized as belonging to
+        // THIS foreground return and skips (we run gap recovery directly below).
+        // Armed synchronously here, before the reconnect refresh can run.
+        // Armed WITH a liveness timeout: if the reconnect re-drops during the
+        // ~100ms subscriptionDelay, websocket_service never emits `reconnected`,
+        // so the paired refresh never arrives to consume the flag. The timeout
+        // auto-disarms it so a later genuine reconnect is not skipped forever.
+        _armExpectPairedReconnect();
         // 3. Resubscribe to ensure we receive messages
         await _subscribeToWebSocket(state.roomId!);
       } else {
         _log('_onForegrounded: Failed to reconnect WebSocket');
       }
-
-      // 4. Gap recovery: fetch latest messages from server and merge with cache
-      _log('_onForegrounded: performing gap recovery...');
-      final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
-      if (hasNewMessages) {
-        _log('_onForegrounded: new messages found during gap recovery');
-        final latestId = _cacheManager.lastMessageId;
-        if (latestId != null) {
-          _subscriptionManager.updateLastKnownMessageId(latestId);
-        }
-      }
-
-      // 5. Resolve pending messages that were actually sent to server
-      //    (gap recovery already fetched them, no need to retry)
     } else if (isMobile) {
       // Mobile but still connected (brief lifecycle event, debounced background didn't fire)
       _log('_onForegrounded: WebSocket still connected, skipping reconnect (mobile)');
@@ -600,25 +729,27 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _log('_onForegrounded: resuming presence (desktop)');
     }
 
-    // Presence active + mark as read (both mobile and desktop)
-    _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
-    await _messageHandler.markAsRead(state.roomId!);
-    // 가드 주의: 이 핸들러는 emit이 말미 1곳뿐이라 이 단일 가드로 충분하다.
-    // 위쪽 await들(_subscribeToWebSocket / refreshFromServer / markAsRead 등)과
-    // 이 지점 사이에 새 emit을 추가할 경우, 해당 emit 직전마다 별도의
-    // `if (isClosed) return;` 가드를 반드시 넣어야 emit-after-close를 막을 수 있다.
     if (isClosed) return;
 
-    // Emit updated state
-    final newCursor = _cacheManager.nextCursor;
-    emit(state.copyWith(
-      messages: _cacheManager.messages,
-      nextCursor: newCursor,
-      clearNextCursor: newCursor == null,
-      hasMore: _cacheManager.hasMore,
-      isReadMarked: true,
-      isOfflineData: false,
-    ));
+    // Presence active first so that gap recovery's markAsRead (gated on
+    // isViewingRoom) fires for this foreground return.
+    _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
+
+    // Gap recovery: fetch latest server page, merge with cache, and markAsRead.
+    //
+    // Always call directly — this guarantees AT LEAST ONCE per foreground
+    // return even when no reconnect happens (already-connected mobile / desktop),
+    // in which case the `reconnected` stream never fires and nothing else would
+    // run gap recovery.
+    //
+    // If a reconnect DID happen above, [_expectPairedReconnect] was armed; the
+    // ~100ms-later reconnect-driven ChatRoomRefreshRequested will see it and
+    // skip (see _onRefreshRequested), so the net result is EXACTLY ONCE — no
+    // timing assumption about which path finishes first.
+    await _performGapRecovery(emit, source: 'Foregrounded');
+    // 가드 주의: _performGapRecovery 내부에서 isClosed를 확인하고 emit하므로
+    // 이 핸들러에는 추가 emit이 없다. 이 지점 이후 새 emit을 추가할 경우
+    // 반드시 `if (isClosed) return;` 가드를 먼저 넣어야 emit-after-close를 막는다.
   }
 
   void _onReplyToMessageSelected(
@@ -679,6 +810,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _stopPendingTimeoutChecker();
     _markAsReadDebounceTimer?.cancel();
     _markAsReadRetryTimer?.cancel();
+    _expectPairedReconnectTimer?.cancel();
     _reconnectedSubscription?.cancel();
     for (final timer in _typingTimeoutTimers.values) {
       timer.cancel();

@@ -356,6 +356,100 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        'performs gap recovery only ONCE when foreground reconnect also emits reconnected',
+        build: () {
+          // A real reconnected stream: _onConnected emits on this after a
+          // successful reconnect, which queues ChatRoomRefreshRequested.
+          final reconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => reconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          // Simulate disconnect on background, reconnect on foreground.
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(
+                timeout: any(named: 'timeout'),
+              )).thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Emit reconnected like the real _onConnected does: ensureConnected
+            // resolves FIRST (connection-state transition), then reconnected
+            // fires later from the ~100ms subscriptionDelay timer. Reproducing
+            // that delay is essential — if we emitted synchronously here the
+            // reconnect refresh would always overlap the foreground direct call
+            // (in-flight guard alone would dedup) and the test could not catch
+            // the timing-dependent double-execution. With the delay, the
+            // foreground direct call (fast mock) completes BEFORE reconnected
+            // arrives, so ONLY the coalescing window prevents a 2nd recovery.
+            Timer(const Duration(milliseconds: 100), () {
+              if (!reconnectedController.isClosed) {
+                reconnectedController.add(null);
+              }
+            });
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          clearInteractions(mockWebSocketService);
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+          // Wait past the delayed reconnected emission so its
+          // ChatRoomRefreshRequested is processed within the test window.
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 700),
+        verify: (_) {
+          // Gap recovery server fetch must run exactly once for a single
+          // foreground/reconnect burst — not twice (foreground direct +
+          // reconnected ChatRoomRefreshRequested).
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+          // markAsRead still runs (foreground always marks read).
+          verify(() => mockChatRepository.markAsRead(1)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'still performs gap recovery once when foregrounded while already connected (no reconnect)',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).thenReturn(null);
+          // isConnected stays true the whole time → no reconnect, no reconnected event.
+          when(() => mockWebSocketService.isConnected).thenReturn(true);
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          clearInteractions(mockWebSocketService);
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+        },
+        wait: const Duration(milliseconds: 400),
+        verify: (_) {
+          // Even with no reconnect, gap recovery must still run at least once.
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+          verify(() => mockChatRepository.markAsRead(1)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
         'sends presenceInactive immediately but does NOT disconnect on ViewInactive',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -3732,6 +3826,155 @@ void main() {
         expect: () => [],
         verify: (_) {
           verify(() => mockChatRepository.getMessages(1, size: any(named: 'size'))).called(1);
+        },
+      );
+
+      // P3 fix (line 499): dedup must be limited to the reconnect source.
+      // A notification-tap / manual ChatRoomRefreshRequested (fromReconnect=false)
+      // must NEVER be deduped, even if a foreground return armed the
+      // paired-reconnect flag. Otherwise a legitimate user refresh is dropped.
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'manual (fromReconnect=false) refresh is NOT deduped even while paired-reconnect flag is armed',
+        build: () {
+          // A reconnected stream whose emission we control, so we can arm the
+          // paired-reconnect flag without consuming it before the manual refresh.
+          final reconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => reconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')))
+              .thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(timeout: any(named: 'timeout')))
+              .thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Do NOT emit `reconnected` — the paired flag stays armed, simulating
+            // the window before the reconnect refresh would arrive.
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 150));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          // Foreground reconnect → arms _expectPairedReconnect (no reconnect
+          // emission), foreground also runs one direct gap recovery.
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 100));
+          clearInteractions(mockChatRepository);
+          // Manual/notification refresh while the flag is armed.
+          bloc.add(const ChatRoomRefreshRequested());
+          await Future.delayed(const Duration(milliseconds: 150));
+        },
+        wait: const Duration(milliseconds: 500),
+        verify: (_) {
+          // The manual refresh must still hit the server (not deduped).
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+        },
+      );
+
+      // P3 fix (line 659): a reconnect-sourced refresh IS deduped against the
+      // foreground that triggered it (exactly-once guarantee preserved).
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'reconnect (fromReconnect=true) refresh IS deduped when paired with a foreground return',
+        build: () {
+          final reconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => reconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')))
+              .thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(timeout: any(named: 'timeout')))
+              .thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Emit reconnected ~100ms later like the real _onConnected.
+            Timer(const Duration(milliseconds: 100), () {
+              if (!reconnectedController.isClosed) reconnectedController.add(null);
+            });
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 150));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 600),
+        verify: (_) {
+          // Foreground-direct ran once; the paired reconnect refresh skipped.
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+        },
+      );
+
+      // P3 fix (line 659): liveness — if the reconnect re-drops during
+      // subscriptionDelay, `reconnected` never fires, so the paired refresh never
+      // arrives to consume _expectPairedReconnect. The timeout must auto-disarm
+      // it so a LATER genuine standalone reconnect's gap recovery is not skipped.
+      late StreamController<void> staleFlagReconnectedController;
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'stale paired-reconnect flag auto-disarms so a later standalone reconnect still recovers',
+        build: () {
+          staleFlagReconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => staleFlagReconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')))
+              .thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(timeout: any(named: 'timeout')))
+              .thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Re-drop case: NEVER emit reconnected for the foreground reconnect.
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 150));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          // Foreground reconnect arms the flag, but reconnected never fires.
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 100));
+          // Wait past the _pairedReconnectWindow (2s) so the flag auto-disarms.
+          await Future.delayed(const Duration(seconds: 2, milliseconds: 200));
+          clearInteractions(mockChatRepository);
+          // A LATER genuine standalone reconnect (network drop while viewing).
+          staleFlagReconnectedController.add(null);
+          await Future.delayed(const Duration(milliseconds: 200));
+        },
+        wait: const Duration(seconds: 3),
+        verify: (_) {
+          // If the stale flag had lingered, this reconnect would be skipped.
+          // It must run gap recovery.
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
         },
       );
     });
