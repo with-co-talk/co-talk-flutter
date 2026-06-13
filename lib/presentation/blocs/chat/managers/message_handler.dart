@@ -162,8 +162,14 @@ class MessageHandler {
 
       onProgress(0.5);
 
+      // 신규 방식 우선: 업로드가 발급한 불투명 식별자(objectId)를 보낸다. 서버(co-talk
+      // feat/file-message-opaque-id 이후)가 이 값으로 URL/메타를 재구성한다. fileUrl은
+      // 하위호환(구버전 서버)을 위해 함께 전송된다. objectId가 없으면(구버전 서버 응답)
+      // 기존 fileUrl 경로로 동작한다.
       await _chatRepository.sendFileMessage(
         roomId: roomId,
+        objectId: uploadResult.objectId,
+        thumbnailObjectId: uploadResult.isImage ? uploadResult.objectId : null,
         fileUrl: uploadResult.fileUrl,
         fileName: uploadResult.fileName,
         fileSize: uploadResult.fileSize,

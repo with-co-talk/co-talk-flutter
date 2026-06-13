@@ -51,6 +51,8 @@ class WebSocketMessageSender {
     required int fileSize,
     required String contentType,
     String? thumbnailUrl,
+    String? objectId,
+    String? thumbnailObjectId,
   }) {
     if (stompClient == null || !stompClient.connected) {
       if (kDebugMode) {
@@ -63,6 +65,9 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendFileMessageDestination,
       body: jsonEncode({
         'roomId': roomId,
+        // 신규 방식: object-id (서버가 존재 시 우선 사용). 하위호환을 위해 fileUrl도 함께 전송.
+        if (objectId != null) 'objectId': objectId,
+        if (thumbnailObjectId != null) 'thumbnailObjectId': thumbnailObjectId,
         'fileUrl': fileUrl,
         'fileName': fileName,
         'fileSize': fileSize,
