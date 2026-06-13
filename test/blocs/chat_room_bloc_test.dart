@@ -378,8 +378,20 @@ void main() {
                 timeout: any(named: 'timeout'),
               )).thenAnswer((_) async {
             when(() => mockWebSocketService.isConnected).thenReturn(true);
-            // Emit reconnected like the real _onConnected does after reconnect.
-            reconnectedController.add(null);
+            // Emit reconnected like the real _onConnected does: ensureConnected
+            // resolves FIRST (connection-state transition), then reconnected
+            // fires later from the ~100ms subscriptionDelay timer. Reproducing
+            // that delay is essential — if we emitted synchronously here the
+            // reconnect refresh would always overlap the foreground direct call
+            // (in-flight guard alone would dedup) and the test could not catch
+            // the timing-dependent double-execution. With the delay, the
+            // foreground direct call (fast mock) completes BEFORE reconnected
+            // arrives, so ONLY the coalescing window prevents a 2nd recovery.
+            Timer(const Duration(milliseconds: 100), () {
+              if (!reconnectedController.isClosed) {
+                reconnectedController.add(null);
+              }
+            });
             return true;
           });
           return createBloc();
@@ -392,6 +404,9 @@ void main() {
           clearInteractions(mockWebSocketService);
           clearInteractions(mockChatRepository);
           bloc.add(const ChatRoomForegrounded());
+          // Wait past the delayed reconnected emission so its
+          // ChatRoomRefreshRequested is processed within the test window.
+          await Future.delayed(const Duration(milliseconds: 300));
         },
         wait: const Duration(milliseconds: 700),
         verify: (_) {
