@@ -67,15 +67,37 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   // - [_gapRecoveryInFlight] drops a call that arrives while one is running.
   // - [_expectPairedReconnect] is armed by _onForegrounded ONLY when it actually
   //   triggers a reconnect. The foreground's own direct recovery runs first; the
-  //   later reconnect-driven refresh then CONSUMES this flag and skips. Because
-  //   the flag is set synchronously before the reconnect is awaited, it is
-  //   always armed before the (event-queued, ~100ms-later) reconnect refresh
-  //   runs — independent of how long the direct recovery took. A reconnect with
-  //   the flag NOT armed is a genuine standalone reconnect (network drop while
-  //   viewing) and runs. Separate foreground returns each arm/consume their own
-  //   flag, so each gets exactly one recovery.
+  //   later reconnect-driven refresh (fromReconnect=true) then CONSUMES this flag
+  //   and skips. Because the flag is set synchronously before the reconnect is
+  //   awaited, it is always armed before the (event-queued, ~100ms-later)
+  //   reconnect refresh runs — independent of how long the direct recovery took.
+  //   A reconnect with the flag NOT armed is a genuine standalone reconnect
+  //   (network drop while viewing) and runs. Separate foreground returns each
+  //   arm/consume their own flag, so each gets exactly one recovery.
+  //
+  //   The flag is consumed ONLY by reconnect-sourced refreshes
+  //   (ChatRoomRefreshRequested.fromReconnect == true). A notification-tap /
+  //   manual refresh (fromReconnect == false) is NEVER deduped, so a legitimate
+  //   user-initiated refresh is never dropped just because a foreground armed
+  //   the flag.
+  //
+  //   Liveness: the paired reconnect refresh may never arrive — websocket_service
+  //   `_onConnected`'s subscriptionDelay timer early-returns (and does NOT emit
+  //   `reconnected`) if the socket re-drops during the delay. To prevent the flag
+  //   from lingering forever and silently skipping a later genuine reconnect's
+  //   gap recovery, [_expectPairedReconnectTimer] auto-disarms the flag after
+  //   [_pairedReconnectWindow] (subscriptionDelay + buffer). In the normal case
+  //   the reconnect refresh consumes the flag well before this fires.
   bool _gapRecoveryInFlight = false;
   bool _expectPairedReconnect = false;
+  Timer? _expectPairedReconnectTimer;
+
+  // Upper bound for how long [_expectPairedReconnect] may stay armed after a
+  // foreground-triggered reconnect. Must exceed websocket subscriptionDelay
+  // (~100ms) plus event-queue latency so the legitimate paired reconnect refresh
+  // consumes the flag first; the timeout is only a safety net for the re-drop
+  // case where `reconnected` never fires.
+  static const _pairedReconnectWindow = Duration(seconds: 2);
 
   // Typing indicator auto-timeout timers (5s per user)
   final Map<int, Timer> _typingTimeoutTimers = {};
@@ -150,6 +172,31 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
+  /// Arms [_expectPairedReconnect] with a liveness timeout.
+  ///
+  /// If the paired reconnect refresh never arrives (websocket re-dropped during
+  /// subscriptionDelay → `reconnected` never fires), the flag is auto-disarmed
+  /// after [_pairedReconnectWindow] so a later genuine reconnect's gap recovery
+  /// is not silently skipped.
+  void _armExpectPairedReconnect() {
+    _expectPairedReconnect = true;
+    _expectPairedReconnectTimer?.cancel();
+    _expectPairedReconnectTimer = Timer(_pairedReconnectWindow, () {
+      if (_expectPairedReconnect) {
+        _log('_expectPairedReconnect timed out (paired reconnect never arrived), disarming');
+        _expectPairedReconnect = false;
+      }
+      _expectPairedReconnectTimer = null;
+    });
+  }
+
+  /// Disarms [_expectPairedReconnect] and cancels its liveness timeout.
+  void _disarmExpectPairedReconnect() {
+    _expectPairedReconnect = false;
+    _expectPairedReconnectTimer?.cancel();
+    _expectPairedReconnectTimer = null;
+  }
+
   Future<void> _onOpened(
     ChatRoomOpened event,
     Emitter<ChatRoomState> emit,
@@ -159,7 +206,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _roomInitialized = false;
     _pendingForegrounded = false;
     _gapRecoveryInFlight = false;
-    _expectPairedReconnect = false;
+    _disarmExpectPairedReconnect();
 
     // Clear stale cache from previously opened room to prevent old lastMessageId
     // from filtering new room's messages in shouldFilterMessage()
@@ -241,7 +288,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _reconnectedSubscription = _webSocketService.reconnected.listen((_) {
         if (state.roomId != null && state.status == ChatRoomStatus.success) {
           _log('WebSocket reconnected, triggering gap recovery');
-          add(const ChatRoomRefreshRequested());
+          add(const ChatRoomRefreshRequested(fromReconnect: true));
         }
       });
 
@@ -435,7 +482,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _roomInitialized = false;
     _pendingForegrounded = false;
     _gapRecoveryInFlight = false;
-    _expectPairedReconnect = false;
+    _disarmExpectPairedReconnect();
 
     // Release notification suppression.
     // Ownership guard: only clear if the active room is still THIS room.
@@ -488,16 +535,24 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomRefreshRequested event,
     Emitter<ChatRoomState> emit,
   ) async {
-    // Driven by the `reconnected` stream (see _onOpened), which fires ~100ms
-    // AFTER reconnect (subscriptionDelay). If _onForegrounded armed
+    // Two sources dispatch ChatRoomRefreshRequested:
+    // - reconnect (fromReconnect=true): the `reconnected` stream (see _onOpened),
+    //   which fires ~100ms AFTER reconnect (subscriptionDelay).
+    // - notification tap / manual refresh (fromReconnect=false): chat_room_page's
+    //   onSameRoomRefresh.
+    //
+    // Dedup applies ONLY to reconnect-sourced refreshes. If _onForegrounded armed
     // [_expectPairedReconnect] (it triggered this reconnect), the foreground's
-    // own direct recovery already ran for this burst → consume the flag and
-    // skip to avoid a duplicate. Otherwise this is a standalone reconnect
-    // (network drop while viewing) → run it. This is identity-based, not
-    // timing-based: the flag is armed synchronously before the reconnect is
-    // awaited, so it is reliably set before this handler runs.
-    if (_expectPairedReconnect) {
-      _expectPairedReconnect = false;
+    // own direct recovery already ran for this burst → consume the flag and skip
+    // to avoid a duplicate. Otherwise this is a standalone reconnect (network drop
+    // while viewing) → run it. This is identity-based, not timing-based: the flag
+    // is armed synchronously before the reconnect is awaited, so it is reliably
+    // set before this handler runs.
+    //
+    // A notification/manual refresh is NEVER deduped here, even if the flag is
+    // armed — those are distinct user-initiated requests and must not be dropped.
+    if (event.fromReconnect && _expectPairedReconnect) {
+      _disarmExpectPairedReconnect();
       _log('_onRefreshRequested: paired reconnect for a foreground return, skipping (already recovered)');
       return;
     }
@@ -656,7 +711,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         // flag so that paired reconnect refresh is recognized as belonging to
         // THIS foreground return and skips (we run gap recovery directly below).
         // Armed synchronously here, before the reconnect refresh can run.
-        _expectPairedReconnect = true;
+        // Armed WITH a liveness timeout: if the reconnect re-drops during the
+        // ~100ms subscriptionDelay, websocket_service never emits `reconnected`,
+        // so the paired refresh never arrives to consume the flag. The timeout
+        // auto-disarms it so a later genuine reconnect is not skipped forever.
+        _armExpectPairedReconnect();
         // 3. Resubscribe to ensure we receive messages
         await _subscribeToWebSocket(state.roomId!);
       } else {
@@ -751,6 +810,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _stopPendingTimeoutChecker();
     _markAsReadDebounceTimer?.cancel();
     _markAsReadRetryTimer?.cancel();
+    _expectPairedReconnectTimer?.cancel();
     _reconnectedSubscription?.cancel();
     for (final timer in _typingTimeoutTimers.values) {
       timer.cancel();
