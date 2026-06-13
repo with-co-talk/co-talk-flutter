@@ -279,6 +279,8 @@ class WebSocketService {
     required int fileSize,
     required String contentType,
     String? thumbnailUrl,
+    String? objectId,
+    String? thumbnailObjectId,
   }) {
     return _messageSender.sendFileMessage(
       stompClient: _connectionManager.stompClient,
@@ -288,6 +290,8 @@ class WebSocketService {
       fileSize: fileSize,
       contentType: contentType,
       thumbnailUrl: thumbnailUrl,
+      objectId: objectId,
+      thumbnailObjectId: thumbnailObjectId,
     );
   }
 
