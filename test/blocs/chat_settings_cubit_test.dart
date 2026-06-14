@@ -170,7 +170,7 @@ void main() {
       );
 
       blocTest<ChatSettingsCubit, ChatSettingsState>(
-        '캐시 삭제 실패 시에도 사용자 설정을 보존한다',
+        '캐시 삭제 실패 시 사용자 설정은 보존하되 최종 loaded 상태에서는 errorMessage를 정리한다',
         seed: () => const ChatSettingsState.loaded(
           ChatSettings(fontSize: 1.3),
         ),
@@ -190,10 +190,10 @@ void main() {
             settings: ChatSettings(fontSize: 1.3),
             errorMessage: '캐시 삭제에 실패했습니다',
           ),
+          // 다시 loaded로 전이할 때 errorMessage는 남지 않아야 한다.
           const ChatSettingsState(
             status: ChatSettingsStatus.loaded,
             settings: ChatSettings(fontSize: 1.3),
-            errorMessage: '캐시 삭제에 실패했습니다',
           ),
         ],
       );

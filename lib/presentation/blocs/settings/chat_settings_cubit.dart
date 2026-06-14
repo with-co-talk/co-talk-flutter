@@ -72,7 +72,10 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
         status: ChatSettingsStatus.error,
         errorMessage: '캐시 삭제에 실패했습니다',
       ));
-      emit(state.copyWith(status: ChatSettingsStatus.loaded));
+      // 에러 표시 후 다시 loaded로 전이할 때 errorMessage를 정리한다.
+      // copyWith는 errorMessage ?? this.errorMessage 패턴이라 null을 넘겨도
+      // 기존 값이 유지되므로, settings를 보존한 loaded 상태를 직접 생성한다.
+      emit(ChatSettingsState.loaded(state.settings));
     }
   }
 
