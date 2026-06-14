@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -278,7 +279,7 @@ class _MyProfileCard extends StatelessWidget {
               radius: 35,
               backgroundColor: AppColors.primaryLight,
               backgroundImage: user.avatarUrl != null
-                  ? NetworkImage(user.avatarUrl!)
+                  ? CachedNetworkImageProvider(user.avatarUrl!, maxWidth: 200)
                   : null,
               child: user.avatarUrl == null
                   ? Text(
@@ -376,7 +377,10 @@ class _FriendTile extends StatelessWidget {
                     radius: 28,
                     backgroundColor: AppColors.primaryLight,
                     backgroundImage: friend.user.avatarUrl != null
-                        ? NetworkImage(friend.user.avatarUrl!)
+                        ? CachedNetworkImageProvider(
+                            friend.user.avatarUrl!,
+                            maxWidth: 200,
+                          )
                         : null,
                     child: friend.user.avatarUrl == null
                         ? Text(
@@ -791,7 +795,10 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                                 radius: 28,
                                 backgroundColor: AppColors.primaryLight,
                                 backgroundImage: user.avatarUrl != null
-                                    ? NetworkImage(user.avatarUrl!)
+                                    ? CachedNetworkImageProvider(
+                                        user.avatarUrl!,
+                                        maxWidth: 200,
+                                      )
                                     : null,
                                 child: user.avatarUrl == null
                                     ? Text(

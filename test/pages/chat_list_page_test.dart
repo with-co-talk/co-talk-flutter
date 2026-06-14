@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -142,6 +143,37 @@ void main() {
       expect(find.text('OtherUser'), findsOneWidget);
       expect(find.text('안녕하세요'), findsOneWidget);
       expect(find.text('5'), findsOneWidget);
+    });
+
+    testWidgets(
+        'avatar uses CachedNetworkImageProvider (cached + downsampled), '
+        'not raw NetworkImage (P3)', (tester) async {
+      final chatRooms = [
+        ChatRoom(
+          id: 1,
+          name: null,
+          type: ChatRoomType.direct,
+          createdAt: DateTime(2024, 1, 1),
+          unreadCount: 0,
+          otherUserId: 2,
+          otherUserNickname: 'OtherUser',
+          otherUserAvatarUrl: 'https://example.com/avatar.png',
+        ),
+      ];
+
+      when(() => mockChatListBloc.state).thenReturn(
+        ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: chatRooms,
+        ),
+      );
+
+      await tester.pumpWidget(createWidgetUnderTest());
+      await tester.pump();
+
+      final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
+      expect(avatar.backgroundImage, isA<CachedNetworkImageProvider>());
+      expect(avatar.backgroundImage, isNot(isA<NetworkImage>()));
     });
 
     testWidgets('shows 99+ for high unread count', (tester) async {

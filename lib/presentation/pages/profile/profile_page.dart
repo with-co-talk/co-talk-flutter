@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -52,7 +53,10 @@ class ProfilePage extends StatelessWidget {
                           radius: 60,
                           backgroundColor: AppColors.primaryLight,
                           backgroundImage: user.avatarUrl != null
-                              ? NetworkImage(user.avatarUrl!)
+                              ? CachedNetworkImageProvider(
+                                  user.avatarUrl!,
+                                  maxWidth: 400,
+                                )
                               : null,
                           child: user.avatarUrl == null
                               ? Text(
