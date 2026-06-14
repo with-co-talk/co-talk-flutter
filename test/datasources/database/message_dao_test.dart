@@ -230,8 +230,42 @@ void main() {
         expect(results2, isEmpty);
       });
 
-      // FTS5 검색 테스트는 인메모리 DB에서 제한적일 수 있음
-      // 실제 검색 기능은 통합 테스트에서 검증
+      test('내용이 일치하는 메시지를 검색함', () async {
+        await messageDao.upsertMessages([
+          createTestMessage(id: 1, chatRoomId: 1, senderId: 1, content: '안녕하세요 반갑습니다'),
+          createTestMessage(id: 2, chatRoomId: 1, senderId: 1, content: '다른 내용'),
+        ]);
+
+        final results = await messageDao.searchMessages('안녕');
+        expect(results.length, 1);
+        expect(results.first.id, 1);
+      });
+
+      test('소프트 삭제된 메시지는 검색 결과에서 제외됨', () async {
+        await messageDao.upsertMessages([
+          createTestMessage(id: 1, chatRoomId: 1, senderId: 1, content: '비밀 메시지'),
+          createTestMessage(id: 2, chatRoomId: 1, senderId: 1, content: '비밀 정보'),
+        ]);
+
+        // id=1 메시지를 소프트 삭제
+        await messageDao.markMessageAsDeleted(1);
+
+        final results = await messageDao.searchMessages('비밀');
+        // 삭제된 메시지(id=1)는 제외되고 정상 메시지(id=2)만 반환되어야 한다
+        expect(results.length, 1);
+        expect(results.first.id, 2);
+        expect(results.every((m) => !m.isDeleted), isTrue);
+      });
+
+      test('처음부터 삭제 상태로 저장된 메시지도 검색에서 제외됨', () async {
+        await messageDao.upsertMessages([
+          createTestMessage(
+              id: 1, chatRoomId: 1, senderId: 1, content: '검색어포함', isDeleted: true),
+        ]);
+
+        final results = await messageDao.searchMessages('검색어포함');
+        expect(results, isEmpty);
+      });
     });
 
     group('getLatestMessageId', () {
