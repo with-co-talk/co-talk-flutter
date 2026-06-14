@@ -78,10 +78,13 @@ class MessageDao extends DatabaseAccessor<AppDatabase> with _$MessageDaoMixin {
     final escaped = query.replaceAll('"', '""');
 
     // Build the SQL query with FTS5
+    // Exclude soft-deleted messages: their original content must not surface
+    // in search results (privacy — the user has deleted them).
     String sql = '''
       SELECT m.* FROM messages m
       INNER JOIN messages_fts ON m.id = messages_fts.rowid
       WHERE messages_fts MATCH ?
+        AND m.is_deleted = 0
     ''';
 
     final variables = <Variable>[Variable.withString('"$escaped"*')];

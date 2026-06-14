@@ -145,6 +145,60 @@ void main() {
       );
     });
 
+    group('clearCache', () {
+      blocTest<ChatSettingsCubit, ChatSettingsState>(
+        '캐시 삭제 시 사용자 설정(글꼴 크기 등)을 보존한다',
+        seed: () => const ChatSettingsState.loaded(
+          ChatSettings(fontSize: 1.4, showTypingIndicator: true),
+        ),
+        build: () {
+          when(() => mockSettingsRepository.clearCache())
+              .thenAnswer((_) async {});
+          return cubit;
+        },
+        act: (cubit) => cubit.clearCache(),
+        expect: () => [
+          const ChatSettingsState(
+            status: ChatSettingsStatus.clearing,
+            settings: ChatSettings(fontSize: 1.4, showTypingIndicator: true),
+          ),
+          const ChatSettingsState(
+            status: ChatSettingsStatus.loaded,
+            settings: ChatSettings(fontSize: 1.4, showTypingIndicator: true),
+          ),
+        ],
+      );
+
+      blocTest<ChatSettingsCubit, ChatSettingsState>(
+        '캐시 삭제 실패 시 사용자 설정은 보존하되 최종 loaded 상태에서는 errorMessage를 정리한다',
+        seed: () => const ChatSettingsState.loaded(
+          ChatSettings(fontSize: 1.3),
+        ),
+        build: () {
+          when(() => mockSettingsRepository.clearCache())
+              .thenThrow(Exception('clear failed'));
+          return cubit;
+        },
+        act: (cubit) => cubit.clearCache(),
+        expect: () => [
+          const ChatSettingsState(
+            status: ChatSettingsStatus.clearing,
+            settings: ChatSettings(fontSize: 1.3),
+          ),
+          const ChatSettingsState(
+            status: ChatSettingsStatus.error,
+            settings: ChatSettings(fontSize: 1.3),
+            errorMessage: '캐시 삭제에 실패했습니다',
+          ),
+          // 다시 loaded로 전이할 때 errorMessage는 남지 않아야 한다.
+          const ChatSettingsState(
+            status: ChatSettingsStatus.loaded,
+            settings: ChatSettings(fontSize: 1.3),
+          ),
+        ],
+      );
+    });
+
     group('setShowTypingIndicator', () {
       blocTest<ChatSettingsCubit, ChatSettingsState>(
         'enables typing indicator',

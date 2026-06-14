@@ -51,8 +51,15 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
     AccountDeletionRequested event,
     Emitter<AccountDeletionState> emit,
   ) async {
-    if (!state.canDelete || state.password == null) {
+    if (!state.canDelete) {
       emit(AccountDeletionState.error('올바른 확인 텍스트를 입력해주세요'));
+      return;
+    }
+
+    // 빈 비밀번호로는 탈퇴를 진행하지 않는다(null뿐 아니라 빈 문자열도 차단).
+    final password = state.password;
+    if (password == null || password.isEmpty) {
+      emit(AccountDeletionState.error('비밀번호를 입력해주세요'));
       return;
     }
 
@@ -67,7 +74,7 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
       }
 
       // 회원 탈퇴 요청
-      await _settingsRepository.deleteAccount(userId, state.password!);
+      await _settingsRepository.deleteAccount(userId, password);
 
       emit(const AccountDeletionState.deleted());
     } catch (e, stackTrace) {
