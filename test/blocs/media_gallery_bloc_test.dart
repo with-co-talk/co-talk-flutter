@@ -581,6 +581,41 @@ void main() {
           );
         },
       );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'collapses intra-page duplicates within a single response',
+        seed: () => MediaGalleryState(
+          status: MediaGalleryStatus.success,
+          items: [testItem1],
+          nextCursor: 100,
+          hasMore: true,
+          currentPage: 0,
+          currentType: MediaType.photo,
+          roomId: 1,
+        ),
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(
+                any(),
+                any(),
+                page: any(named: 'page'),
+              )).thenAnswer((_) async => MediaGalleryResponse(
+                    // The same response page repeats testItem2 twice.
+                    items: [testItem2, testItem2, testItem3],
+                    nextCursor: 200,
+                    hasMore: true,
+                  ));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadMoreRequested()),
+        verify: (bloc) {
+          // testItem2 must appear once even though the page repeated it.
+          expect(bloc.state.items.length, 3);
+          expect(
+            bloc.state.items.where((i) => i.messageId == testItem2.messageId).length,
+            1,
+          );
+        },
+      );
     });
 
     group('Edge cases', () {

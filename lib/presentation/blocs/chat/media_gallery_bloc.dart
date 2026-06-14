@@ -142,11 +142,17 @@ class MediaGalleryBloc extends Bloc<MediaGalleryEvent, MediaGalleryState> {
         page: nextPage,
       );
 
-      // Deduplicate by messageId so an overlapping page (or a duplicate
-      // fetch that slipped through) never renders the same item twice.
-      final existingIds = state.items.map((e) => e.messageId).toSet();
+      // Deduplicate by messageId so the same item never renders twice. This
+      // intentionally guards against BOTH sources of duplication:
+      //   1) inter-page overlap (an item already present in state.items), and
+      //   2) intra-page repeats (the same messageId appearing twice within
+      //      this single response).
+      // `seenIds` starts as a snapshot of existing ids and is mutated as we
+      // iterate, so the first occurrence of each new messageId is kept and any
+      // later repeat (from either source) is dropped.
+      final seenIds = state.items.map((e) => e.messageId).toSet();
       final newItems = response.items
-          .where((item) => existingIds.add(item.messageId))
+          .where((item) => seenIds.add(item.messageId))
           .toList();
 
       emit(state.copyWith(

@@ -183,15 +183,20 @@ class _MediaTabContent extends StatelessWidget {
       builder: (context) {
         // 그리드 셀은 화면 너비를 3등분한 작은 영역만 차지한다. thumbnailUrl 이
         // null 이면 원본(fileUrl)을 그대로 디코딩하게 되어 풀해상도 비트맵이
-        // 메모리에 상주(OOM 위험)하므로, 셀 폭 * devicePixelRatio 로
-        // memCacheWidth 를 지정해 다운샘플링한다. (전체화면 뷰어는 풀해상도 유지)
+        // 메모리에 상주(OOM 위험)하므로, 셀 크기 * devicePixelRatio 로
+        // memCacheWidth/Height 를 함께 지정해 다운샘플링한다.
+        // 셀은 정사각형(childAspectRatio 기본값 1.0)이고 BoxFit.cover 로 채우므로
+        // 높이 한계를 지정하지 않으면 세로가 긴 원본의 비트맵 높이가 원본
+        // 종횡비를 따라 커진다. → 폭/높이 모두 셀 한 변 기준으로 제한한다.
+        // (전체화면 뷰어는 풀해상도 유지)
         const crossAxisCount = 3;
         const spacing = 2.0;
         final mq = MediaQuery.of(context);
         final gridWidth = mq.size.width - 4; // padding(2) * 2
         final cellWidth =
             (gridWidth - spacing * (crossAxisCount - 1)) / crossAxisCount;
-        final cellCacheWidth = (cellWidth * mq.devicePixelRatio).round();
+        // 셀은 정사각형이므로 한 변(cellWidth)을 폭·높이 캐시 한계로 공용한다.
+        final cellCacheExtent = (cellWidth * mq.devicePixelRatio).round();
 
         return GridView.builder(
           padding: const EdgeInsets.all(2),
@@ -208,7 +213,8 @@ class _MediaTabContent extends StatelessWidget {
               child: CachedNetworkImage(
                 imageUrl: item.thumbnailUrl ?? item.fileUrl ?? '',
                 fit: BoxFit.cover,
-                memCacheWidth: cellCacheWidth,
+                memCacheWidth: cellCacheExtent,
+                memCacheHeight: cellCacheExtent,
                 placeholder: (_, __) => Container(
                   color: Colors.grey[200],
                   child: const Center(

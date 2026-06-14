@@ -80,6 +80,16 @@ void main() {
         expect(img.memCacheWidth! > 0, isTrue);
         // Sanity: cache width should be a small cell, well under a 4K origin.
         expect(img.memCacheWidth! < 4000, isTrue);
+
+        // A BoxFit.cover square cell must also bound the decoded height,
+        // otherwise a tall portrait origin keeps a large bitmap whose height
+        // follows the original aspect ratio (P3 memory regression).
+        expect(img.memCacheHeight, isNotNull,
+            reason: 'grid cell image must specify memCacheHeight');
+        expect(img.memCacheHeight! > 0, isTrue);
+        expect(img.memCacheHeight! < 4000, isTrue);
+        // Square cell => height bound should equal the width bound.
+        expect(img.memCacheHeight, img.memCacheWidth);
       }
     },
   );
