@@ -59,13 +59,19 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
   }
 
   /// 캐시 삭제
+  ///
+  /// 캐시 삭제는 미디어/임시 데이터만 정리하며 사용자의 채팅 설정(글꼴 크기 등)에는
+  /// 영향을 주지 않는다. 따라서 모든 상태 전이에서 현재 `settings`를 보존한다.
   Future<void> clearCache() async {
-    emit(const ChatSettingsState.clearing());
+    emit(state.copyWith(status: ChatSettingsStatus.clearing));
     try {
       await _repository.clearCache();
       emit(state.copyWith(status: ChatSettingsStatus.loaded));
     } catch (e) {
-      emit(ChatSettingsState.error('캐시 삭제에 실패했습니다'));
+      emit(state.copyWith(
+        status: ChatSettingsStatus.error,
+        errorMessage: '캐시 삭제에 실패했습니다',
+      ));
       emit(state.copyWith(status: ChatSettingsStatus.loaded));
     }
   }
