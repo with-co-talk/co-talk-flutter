@@ -146,12 +146,31 @@ void main() {
         build: createBloc,
         act: (bloc) => bloc.add(const AccountDeletionRequested()),
         expect: () => [
-          const AccountDeletionState.error('올바른 확인 텍스트를 입력해주세요'),
+          const AccountDeletionState.error('비밀번호를 입력해주세요'),
         ],
       );
 
       blocTest<AccountDeletionBloc, AccountDeletionState>(
-        'emits deleting then error due to BLoC bug (password cleared in deleting state)',
+        'emits error and does not call deleteAccount when password is empty',
+        seed: () => const AccountDeletionState(
+          status: AccountDeletionStatus.waitingConfirmation,
+          password: '',
+          confirmationText: '삭제합니다',
+          canDelete: true,
+        ),
+        build: createBloc,
+        act: (bloc) => bloc.add(const AccountDeletionRequested()),
+        expect: () => [
+          const AccountDeletionState.error('비밀번호를 입력해주세요'),
+        ],
+        verify: (_) {
+          verifyNever(() => mockSettingsRepository.deleteAccount(any(), any()));
+          verifyNever(() => mockAuthRepository.getCurrentUserId());
+        },
+      );
+
+      blocTest<AccountDeletionBloc, AccountDeletionState>(
+        'full flow: 비밀번호를 로컬에 캡처해 deleting 이후에도 탈퇴가 완료된다',
         build: () {
           when(() => mockAuthRepository.getCurrentUserId())
               .thenAnswer((_) async => 100);
@@ -173,14 +192,13 @@ void main() {
             confirmationText: '삭제합니다',
           ),
           const AccountDeletionState.deleting(),
-          // BLoC has a bug: deleting() constructor clears password,
-          // then tries to access state.password! causing null error
-          isA<AccountDeletionState>()
-              .having((s) => s.status, 'status', AccountDeletionStatus.error)
-              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+          // 비밀번호를 deleting emit 전에 로컬 변수로 캡처하므로 null 오류 없이 완료된다.
+          const AccountDeletionState.deleted(),
         ],
         verify: (_) {
           verify(() => mockAuthRepository.getCurrentUserId()).called(1);
+          verify(() => mockSettingsRepository.deleteAccount(100, 'myPassword'))
+              .called(1);
         },
       );
 
