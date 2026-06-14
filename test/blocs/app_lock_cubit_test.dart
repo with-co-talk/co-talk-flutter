@@ -150,6 +150,8 @@ void main() {
         build: () {
           when(() => mockSecuritySettings.isBiometricEnabled())
               .thenAnswer((_) async => true);
+          when(() => mockAuthLocalDataSource.getAccessToken())
+              .thenAnswer((_) async => 'access-token');
           when(() => mockBiometricService.authenticate())
               .thenAnswer((_) async => true);
           return buildCubit();
@@ -183,10 +185,38 @@ void main() {
         build: () {
           when(() => mockSecuritySettings.isBiometricEnabled())
               .thenAnswer((_) async => true);
+          when(() => mockAuthLocalDataSource.getAccessToken())
+              .thenAnswer((_) async => 'access-token');
           return buildCubit();
         },
         act: (cubit) => cubit.checkLockOnLaunch(),
         expect: () => [const AppLockState.locked()],
+      );
+
+      blocTest<AppLockCubit, AppLockState>(
+        '미로그인 상태(access token 없음)에서는 실행 시 잠그지 않는다',
+        build: () {
+          when(() => mockSecuritySettings.isBiometricEnabled())
+              .thenAnswer((_) async => true);
+          when(() => mockAuthLocalDataSource.getAccessToken())
+              .thenAnswer((_) async => null);
+          return buildCubit();
+        },
+        act: (cubit) => cubit.checkLockOnLaunch(),
+        expect: () => [],
+      );
+
+      blocTest<AppLockCubit, AppLockState>(
+        '빈 access token이면 실행 시 잠그지 않는다',
+        build: () {
+          when(() => mockSecuritySettings.isBiometricEnabled())
+              .thenAnswer((_) async => true);
+          when(() => mockAuthLocalDataSource.getAccessToken())
+              .thenAnswer((_) async => '');
+          return buildCubit();
+        },
+        act: (cubit) => cubit.checkLockOnLaunch(),
+        expect: () => [],
       );
     });
 
