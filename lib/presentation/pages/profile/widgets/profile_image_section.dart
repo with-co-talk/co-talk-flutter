@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
@@ -55,7 +56,10 @@ class ProfileImageSection extends StatelessWidget {
                     backgroundImage: selectedImage != null
                         ? FileImage(selectedImage!)
                         : avatarUrl != null
-                            ? NetworkImage(avatarUrl!) as ImageProvider
+                            ? CachedNetworkImageProvider(
+                                avatarUrl!,
+                                maxWidth: 400,
+                              ) as ImageProvider
                             : null,
                     child: (selectedImage == null && avatarUrl == null)
                         ? Text(

@@ -1167,7 +1167,10 @@ class MessageBubble extends StatelessWidget {
                       radius: 18,
                       backgroundColor: AppColors.primaryLight,
                       backgroundImage: message.senderAvatarUrl != null
-                          ? NetworkImage(message.senderAvatarUrl!)
+                          ? CachedNetworkImageProvider(
+                              message.senderAvatarUrl!,
+                              maxWidth: 200,
+                            )
                           : null,
                       child: message.senderAvatarUrl == null
                           ? Text(

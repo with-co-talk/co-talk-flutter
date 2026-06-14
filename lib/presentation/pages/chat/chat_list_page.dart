@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -269,14 +270,24 @@ class _ChatRoomTile extends StatelessWidget {
 
   const _ChatRoomTile({required this.chatRoom, required this.displayName});
 
+  /// 아바타는 작은 원형으로만 표시되므로 디스크 캐시 + 다운샘플(maxWidth)을
+  /// 적용해 raw NetworkImage 의 풀해상도 디코딩/재다운로드를 막는다.
+  static const int _avatarCacheWidth = 200;
+
   ImageProvider? _getAvatarImage(ChatRoom chatRoom) {
     // 1:1 채팅 - 상대방 아바타
     if (chatRoom.type == ChatRoomType.direct && chatRoom.otherUserAvatarUrl != null) {
-      return NetworkImage(chatRoom.otherUserAvatarUrl!);
+      return CachedNetworkImageProvider(
+        chatRoom.otherUserAvatarUrl!,
+        maxWidth: _avatarCacheWidth,
+      );
     }
     // 그룹 채팅 - 그룹 이미지
     if (chatRoom.type == ChatRoomType.group && chatRoom.imageUrl != null) {
-      return NetworkImage(chatRoom.imageUrl!);
+      return CachedNetworkImageProvider(
+        chatRoom.imageUrl!,
+        maxWidth: _avatarCacheWidth,
+      );
     }
     return null;
   }

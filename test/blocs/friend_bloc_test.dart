@@ -192,6 +192,96 @@ void main() {
       );
     });
 
+    group('Friend request in-flight guard (4th-review P3)', () {
+      blocTest<FriendBloc, FriendState>(
+        'ignores a duplicate accept for the same requestId while in flight',
+        build: () {
+          when(() => mockFriendRepository.acceptFriendRequest(any()))
+              .thenAnswer((_) async {
+            await Future.delayed(const Duration(milliseconds: 50));
+          });
+          when(() => mockFriendRepository.getFriends())
+              .thenAnswer((_) async => FakeEntities.friends);
+          when(() => mockFriendRepository.getReceivedFriendRequests())
+              .thenAnswer((_) async => FakeEntities.receivedFriendRequests);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
+        },
+        act: (bloc) {
+          // Double tap before the first accept resolves.
+          bloc.add(const FriendRequestAccepted(1));
+          bloc.add(const FriendRequestAccepted(1));
+        },
+        wait: const Duration(milliseconds: 150),
+        verify: (bloc) {
+          // The repository must be hit only once — no 409/400 false error.
+          verify(() => mockFriendRepository.acceptFriendRequest(1)).called(1);
+          expect(bloc.state.processingRequestIds, isEmpty);
+        },
+      );
+
+      blocTest<FriendBloc, FriendState>(
+        'marks requestId as processing while accept is in flight',
+        build: () {
+          when(() => mockFriendRepository.acceptFriendRequest(any()))
+              .thenAnswer((_) async {
+            await Future.delayed(const Duration(milliseconds: 50));
+          });
+          when(() => mockFriendRepository.getFriends())
+              .thenAnswer((_) async => FakeEntities.friends);
+          when(() => mockFriendRepository.getReceivedFriendRequests())
+              .thenAnswer((_) async => FakeEntities.receivedFriendRequests);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
+        },
+        act: (bloc) => bloc.add(const FriendRequestAccepted(7)),
+        wait: const Duration(milliseconds: 150),
+        expect: () => [
+          // First emit marks 7 as processing (button should disable).
+          isA<FriendState>()
+              .having((s) => s.processingRequestIds, 'processing', contains(7)),
+          // Final emit clears the processing flag.
+          isA<FriendState>()
+              .having((s) => s.processingRequestIds, 'processing', isEmpty)
+              .having((s) => s.status, 'status', FriendStatus.success),
+        ],
+      );
+
+      blocTest<FriendBloc, FriendState>(
+        'ignores a duplicate reject for the same requestId while in flight',
+        build: () {
+          when(() => mockFriendRepository.rejectFriendRequest(any()))
+              .thenAnswer((_) async {
+            await Future.delayed(const Duration(milliseconds: 50));
+          });
+          when(() => mockFriendRepository.getReceivedFriendRequests())
+              .thenAnswer((_) async => FakeEntities.receivedFriendRequests);
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
+        },
+        act: (bloc) {
+          bloc.add(const FriendRequestRejected(1));
+          bloc.add(const FriendRequestRejected(1));
+        },
+        wait: const Duration(milliseconds: 150),
+        verify: (bloc) {
+          verify(() => mockFriendRepository.rejectFriendRequest(1)).called(1);
+          expect(bloc.state.processingRequestIds, isEmpty);
+        },
+      );
+
+      blocTest<FriendBloc, FriendState>(
+        'clears processing flag and reports error when accept fails',
+        build: () {
+          when(() => mockFriendRepository.acceptFriendRequest(any()))
+              .thenThrow(Exception('boom'));
+          return FriendBloc(mockFriendRepository, mockWebSocketService);
+        },
+        act: (bloc) => bloc.add(const FriendRequestAccepted(3)),
+        verify: (bloc) {
+          expect(bloc.state.processingRequestIds, isEmpty);
+          expect(bloc.state.errorMessage, isNotNull);
+        },
+      );
+    });
+
     group('FriendRemoved', () {
       blocTest<FriendBloc, FriendState>(
         'removes friend and updates list',

@@ -294,7 +294,8 @@ void main() {
         searchQuery: 'test',
       );
 
-      expect(state.props.length, 14);
+      // 15 = 기존 14개 필드 + processingRequestIds (4차 점검 P3 더블탭 가드)
+      expect(state.props.length, 15);
     });
 
     test('can update hasSearched', () {

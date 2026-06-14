@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -165,7 +166,10 @@ class _HiddenFriendTile extends StatelessWidget {
             radius: 28,
             backgroundColor: AppColors.primaryLight,
             backgroundImage: friend.user.avatarUrl != null
-                ? NetworkImage(friend.user.avatarUrl!)
+                ? CachedNetworkImageProvider(
+                    friend.user.avatarUrl!,
+                    maxWidth: 200,
+                  )
                 : null,
             child: friend.user.avatarUrl == null
                 ? Text(

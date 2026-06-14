@@ -81,6 +81,12 @@ class MediaGalleryState extends Equatable {
 class MediaGalleryBloc extends Bloc<MediaGalleryEvent, MediaGalleryState> {
   final ChatRemoteDataSource _chatRemoteDataSource;
 
+  /// Guards against concurrent load-more fetches. The `status == loading`
+  /// guard is insufficient because load-more does not flip status to loading,
+  /// so rapid scrolling could fire two LoadMore events that fetch the same
+  /// page and append duplicates. This in-flight flag drops the second event.
+  bool _isLoadingMore = false;
+
   MediaGalleryBloc(this._chatRemoteDataSource) : super(const MediaGalleryState()) {
     on<MediaGalleryLoadRequested>(_onLoadRequested);
     on<MediaGalleryLoadMoreRequested>(_onLoadMoreRequested);
@@ -122,9 +128,11 @@ class MediaGalleryBloc extends Bloc<MediaGalleryEvent, MediaGalleryState> {
     MediaGalleryLoadMoreRequested event,
     Emitter<MediaGalleryState> emit,
   ) async {
+    if (_isLoadingMore) return;
     if (!state.hasMore || state.status == MediaGalleryStatus.loading) return;
     if (state.roomId == null || state.currentType == null) return;
 
+    _isLoadingMore = true;
     final nextPage = state.currentPage + 1;
 
     try {
@@ -134,14 +142,29 @@ class MediaGalleryBloc extends Bloc<MediaGalleryEvent, MediaGalleryState> {
         page: nextPage,
       );
 
+      // Deduplicate by messageId so the same item never renders twice. This
+      // intentionally guards against BOTH sources of duplication:
+      //   1) inter-page overlap (an item already present in state.items), and
+      //   2) intra-page repeats (the same messageId appearing twice within
+      //      this single response).
+      // `seenIds` starts as a snapshot of existing ids and is mutated as we
+      // iterate, so the first occurrence of each new messageId is kept and any
+      // later repeat (from either source) is dropped.
+      final seenIds = state.items.map((e) => e.messageId).toSet();
+      final newItems = response.items
+          .where((item) => seenIds.add(item.messageId))
+          .toList();
+
       emit(state.copyWith(
-        items: [...state.items, ...response.items],
+        items: [...state.items, ...newItems],
         nextCursor: response.nextCursor,
         hasMore: response.hasMore,
         currentPage: nextPage,
       ));
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
+    } finally {
+      _isLoadingMore = false;
     }
   }
 }

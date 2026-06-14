@@ -177,7 +177,13 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     FriendRequestAccepted event,
     Emitter<FriendState> emit,
   ) async {
-    emit(state.copyWith(clearErrorMessage: true));
+    // 같은 요청이 이미 처리 중이면 더블탭 중복 호출을 무시한다.
+    if (state.processingRequestIds.contains(event.requestId)) return;
+
+    emit(state.copyWith(
+      clearErrorMessage: true,
+      processingRequestIds: {...state.processingRequestIds, event.requestId},
+    ));
     try {
       await _friendRepository.acceptFriendRequest(event.requestId);
       final friends = await _friendRepository.getFriends();
@@ -189,9 +195,15 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
         friends: visibleFriends,
         receivedRequests: receivedRequests,
         clearErrorMessage: true,
+        processingRequestIds:
+            _without(state.processingRequestIds, event.requestId),
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(
+        errorMessage: _extractErrorMessage(e),
+        processingRequestIds:
+            _without(state.processingRequestIds, event.requestId),
+      ));
     }
   }
 
@@ -199,17 +211,35 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
     FriendRequestRejected event,
     Emitter<FriendState> emit,
   ) async {
-    emit(state.copyWith(clearErrorMessage: true));
+    // 같은 요청이 이미 처리 중이면 더블탭 중복 호출을 무시한다.
+    if (state.processingRequestIds.contains(event.requestId)) return;
+
+    emit(state.copyWith(
+      clearErrorMessage: true,
+      processingRequestIds: {...state.processingRequestIds, event.requestId},
+    ));
     try {
       await _friendRepository.rejectFriendRequest(event.requestId);
       final receivedRequests = await _friendRepository.getReceivedFriendRequests();
       emit(state.copyWith(
         receivedRequests: receivedRequests,
         clearErrorMessage: true,
+        processingRequestIds:
+            _without(state.processingRequestIds, event.requestId),
       ));
     } catch (e) {
-      emit(state.copyWith(errorMessage: _extractErrorMessage(e)));
+      emit(state.copyWith(
+        errorMessage: _extractErrorMessage(e),
+        processingRequestIds:
+            _without(state.processingRequestIds, event.requestId),
+      ));
     }
+  }
+
+  Set<int> _without(Set<int> ids, int id) {
+    final next = {...ids};
+    next.remove(id);
+    return next;
   }
 
   Future<void> _onRemoved(

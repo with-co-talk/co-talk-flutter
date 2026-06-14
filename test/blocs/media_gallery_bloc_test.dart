@@ -501,6 +501,123 @@ void main() {
       );
     });
 
+    group('Concurrent load-more guard (4th-review P2)', () {
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'fetches next page only once when two LoadMore arrive concurrently',
+        seed: () => MediaGalleryState(
+          status: MediaGalleryStatus.success,
+          items: [testItem1],
+          nextCursor: 100,
+          hasMore: true,
+          currentPage: 0,
+          currentType: MediaType.photo,
+          roomId: 1,
+        ),
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(
+                any(),
+                any(),
+                page: any(named: 'page'),
+              )).thenAnswer((_) async {
+            await Future.delayed(const Duration(milliseconds: 50));
+            return MediaGalleryResponse(
+              items: [testItem2],
+              nextCursor: 200,
+              hasMore: true,
+            );
+          });
+          return createBloc();
+        },
+        act: (bloc) {
+          // Two rapid scroll-end events before the first fetch completes.
+          bloc.add(const MediaGalleryLoadMoreRequested());
+          bloc.add(const MediaGalleryLoadMoreRequested());
+        },
+        wait: const Duration(milliseconds: 200),
+        verify: (bloc) {
+          // Only one network call for page 1 — the second event is dropped.
+          verify(() => mockChatRemoteDataSource.getMediaGallery(
+                1,
+                MediaType.photo,
+                page: 1,
+              )).called(1);
+          // No duplicate item appended.
+          expect(bloc.state.items.length, 2);
+          expect(bloc.state.currentPage, 1);
+        },
+      );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'never appends an item whose messageId already exists',
+        seed: () => MediaGalleryState(
+          status: MediaGalleryStatus.success,
+          items: [testItem1],
+          nextCursor: 100,
+          hasMore: true,
+          currentPage: 0,
+          currentType: MediaType.photo,
+          roomId: 1,
+        ),
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(
+                any(),
+                any(),
+                page: any(named: 'page'),
+              )).thenAnswer((_) async => MediaGalleryResponse(
+                    // Server returns an overlapping item (testItem1) plus a new one.
+                    items: [testItem1, testItem2],
+                    nextCursor: 200,
+                    hasMore: true,
+                  ));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadMoreRequested()),
+        verify: (bloc) {
+          // testItem1 must not be duplicated.
+          expect(bloc.state.items.length, 2);
+          expect(
+            bloc.state.items.where((i) => i.messageId == testItem1.messageId).length,
+            1,
+          );
+        },
+      );
+
+      blocTest<MediaGalleryBloc, MediaGalleryState>(
+        'collapses intra-page duplicates within a single response',
+        seed: () => MediaGalleryState(
+          status: MediaGalleryStatus.success,
+          items: [testItem1],
+          nextCursor: 100,
+          hasMore: true,
+          currentPage: 0,
+          currentType: MediaType.photo,
+          roomId: 1,
+        ),
+        build: () {
+          when(() => mockChatRemoteDataSource.getMediaGallery(
+                any(),
+                any(),
+                page: any(named: 'page'),
+              )).thenAnswer((_) async => MediaGalleryResponse(
+                    // The same response page repeats testItem2 twice.
+                    items: [testItem2, testItem2, testItem3],
+                    nextCursor: 200,
+                    hasMore: true,
+                  ));
+          return createBloc();
+        },
+        act: (bloc) => bloc.add(const MediaGalleryLoadMoreRequested()),
+        verify: (bloc) {
+          // testItem2 must appear once even though the page repeated it.
+          expect(bloc.state.items.length, 3);
+          expect(
+            bloc.state.items.where((i) => i.messageId == testItem2.messageId).length,
+            1,
+          );
+        },
+      );
+    });
+
     group('Edge cases', () {
       blocTest<MediaGalleryBloc, MediaGalleryState>(
         'handles large list of items',
