@@ -141,7 +141,11 @@ class _ReceivedRequestsView extends StatelessWidget {
                 ),
                 itemBuilder: (context, index) {
                   final request = state.receivedRequests[index];
-                  return _ReceivedRequestTile(request: request);
+                  return _ReceivedRequestTile(
+                    request: request,
+                    isProcessing:
+                        state.processingRequestIds.contains(request.id),
+                  );
                 },
               ),
             );
@@ -154,8 +158,12 @@ class _ReceivedRequestsView extends StatelessWidget {
 
 class _ReceivedRequestTile extends StatelessWidget {
   final FriendRequest request;
+  final bool isProcessing;
 
-  const _ReceivedRequestTile({required this.request});
+  const _ReceivedRequestTile({
+    required this.request,
+    this.isProcessing = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -210,13 +218,18 @@ class _ReceivedRequestTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               OutlinedButton(
-                onPressed: () {
-                  // 거절은 가벼운 '선택' 피드백(selection), 수락은 더 분명한
-                  // light() 로 의도적으로 차별화한다. 긍정 액션(수락)에 더 또렷한
-                  // 촉감을 주어 두 버튼의 결과를 손끝으로 구분할 수 있게 한다.
-                  AppHaptics.selection();
-                  context.read<FriendBloc>().add(FriendRequestRejected(request.id));
-                },
+                // 처리 중에는 비활성화하여 더블탭 중복 호출(거짓 에러)을 막는다.
+                onPressed: isProcessing
+                    ? null
+                    : () {
+                        // 거절은 가벼운 '선택' 피드백(selection), 수락은 더 분명한
+                        // light() 로 의도적으로 차별화한다. 긍정 액션(수락)에 더
+                        // 또렷한 촉감을 주어 두 버튼의 결과를 손끝으로 구분한다.
+                        AppHaptics.selection();
+                        context
+                            .read<FriendBloc>()
+                            .add(FriendRequestRejected(request.id));
+                      },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textSecondary,
                   side: BorderSide(color: AppColors.divider),
@@ -229,10 +242,15 @@ class _ReceivedRequestTile extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () {
-                  AppHaptics.light();
-                  context.read<FriendBloc>().add(FriendRequestAccepted(request.id));
-                },
+                // 처리 중에는 비활성화하여 더블탭 중복 호출(거짓 에러)을 막는다.
+                onPressed: isProcessing
+                    ? null
+                    : () {
+                        AppHaptics.light();
+                        context
+                            .read<FriendBloc>()
+                            .add(FriendRequestAccepted(request.id));
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -241,7 +259,17 @@ class _ReceivedRequestTile extends StatelessWidget {
                     vertical: 8,
                   ),
                 ),
-                child: const Text('수락'),
+                child: isProcessing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text('수락'),
               ),
             ],
           ),
