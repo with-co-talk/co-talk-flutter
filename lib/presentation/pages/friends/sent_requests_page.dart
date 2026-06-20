@@ -9,6 +9,8 @@ import '../../../domain/entities/friend.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
+import '../../widgets/empty_state_view.dart';
+import '../../widgets/gradient_button.dart';
 import '../../widgets/skeletons/list_skeleton.dart';
 
 class SentRequestsPage extends StatelessWidget {
@@ -35,13 +37,18 @@ class _SentRequestsView extends StatelessWidget {
         if (state.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               content: Text(ErrorMessageMapper.toUserFriendlyMessage(state.errorMessage!)),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
             ),
           );
         }
       },
       child: Scaffold(
+        backgroundColor: context.backgroundColor,
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -56,8 +63,9 @@ class _SentRequestsView extends StatelessWidget {
           title: const Text(
             '보낸 친구 요청',
             style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
+              letterSpacing: -0.4,
             ),
           ),
           elevation: 0,
@@ -70,59 +78,29 @@ class _SentRequestsView extends StatelessWidget {
             }
 
             if (state.errorMessage != null && state.sentRequests.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: context.textSecondaryColor,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '보낸 친구 요청을 불러오는데 실패했습니다',
-                      style: TextStyle(color: context.textSecondaryColor),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        context.read<FriendBloc>().add(const SentFriendRequestsLoadRequested());
-                      },
-                      child: const Text('다시 시도'),
-                    ),
-                  ],
+              return EmptyStateView(
+                icon: Icons.cloud_off_rounded,
+                title: '요청을 불러오지 못했어요',
+                subtitle: '네트워크 상태를 확인하고 다시 시도해 주세요.',
+                action: SizedBox(
+                  width: 160,
+                  child: GradientButton(
+                    height: 48,
+                    label: '다시 시도',
+                    icon: Icons.refresh_rounded,
+                    onPressed: () {
+                      context.read<FriendBloc>().add(const SentFriendRequestsLoadRequested());
+                    },
+                  ),
                 ),
               );
             }
 
             if (state.sentRequests.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.send_outlined,
-                      size: 64,
-                      color: context.textSecondaryColor.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '보낸 친구 요청이 없습니다',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: context.textSecondaryColor,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '친구를 검색하여 요청을 보내보세요',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: context.textSecondaryColor.withValues(alpha: 0.7),
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+              return const EmptyStateView(
+                icon: Icons.send_outlined,
+                title: '보낸 친구 요청이 없어요',
+                subtitle: '친구를 검색해서 먼저 요청을 보내보세요.',
               );
             }
 
@@ -130,14 +108,9 @@ class _SentRequestsView extends StatelessWidget {
               onRefresh: () async {
                 context.read<FriendBloc>().add(const SentFriendRequestsLoadRequested());
               },
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 itemCount: state.sentRequests.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: context.dividerColor,
-                ),
                 itemBuilder: (context, index) {
                   final request = state.sentRequests[index];
                   return _SentRequestTile(request: request);
@@ -158,12 +131,25 @@ class _SentRequestTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: context.dividerColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 28,
+            radius: 26,
             backgroundColor: AppColors.primaryLight,
             backgroundImage: request.receiver.avatarUrl != null
                 ? NetworkImage(request.receiver.avatarUrl!)
@@ -175,13 +161,13 @@ class _SentRequestTile extends StatelessWidget {
                         : '?',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
                     ),
                   )
                 : null,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,32 +177,36 @@ class _SentRequestTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
                     color: context.textPrimaryColor,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   request.receiver.email,
                   style: TextStyle(
                     color: context.textSecondaryColor,
                     fontSize: 13,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
-              color: context.textSecondaryColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: AppColors.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Text(
+            child: const Text(
               '대기 중',
               style: TextStyle(
-                color: context.textSecondaryColor,
+                color: AppColors.primary,
                 fontSize: 12,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

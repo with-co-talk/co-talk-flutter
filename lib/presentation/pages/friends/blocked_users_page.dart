@@ -9,6 +9,8 @@ import '../../../domain/entities/user.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
+import '../../widgets/empty_state_view.dart';
+import '../../widgets/gradient_button.dart';
 
 class BlockedUsersPage extends StatelessWidget {
   const BlockedUsersPage({super.key});
@@ -34,13 +36,18 @@ class _BlockedUsersView extends StatelessWidget {
         if (state.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               content: Text(ErrorMessageMapper.toUserFriendlyMessage(state.errorMessage!)),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
             ),
           );
         }
       },
       child: Scaffold(
+        backgroundColor: context.backgroundColor,
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -55,8 +62,9 @@ class _BlockedUsersView extends StatelessWidget {
           title: const Text(
             '차단 사용자',
             style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
+              letterSpacing: -0.4,
             ),
           ),
           elevation: 0,
@@ -69,59 +77,29 @@ class _BlockedUsersView extends StatelessWidget {
             }
 
             if (state.errorMessage != null && state.blockedUsers.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: context.textSecondaryColor,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '차단 목록을 불러오는데 실패했습니다',
-                      style: TextStyle(color: context.textSecondaryColor),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        context.read<FriendBloc>().add(const BlockedUsersLoadRequested());
-                      },
-                      child: const Text('다시 시도'),
-                    ),
-                  ],
+              return EmptyStateView(
+                icon: Icons.cloud_off_rounded,
+                title: '차단 목록을 불러오지 못했어요',
+                subtitle: '네트워크 상태를 확인하고 다시 시도해 주세요.',
+                action: SizedBox(
+                  width: 160,
+                  child: GradientButton(
+                    height: 48,
+                    label: '다시 시도',
+                    icon: Icons.refresh_rounded,
+                    onPressed: () {
+                      context.read<FriendBloc>().add(const BlockedUsersLoadRequested());
+                    },
+                  ),
                 ),
               );
             }
 
             if (state.blockedUsers.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.block_outlined,
-                      size: 64,
-                      color: context.textSecondaryColor.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '차단한 사용자가 없습니다',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: context.textSecondaryColor,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '차단한 사용자가 여기에 표시됩니다',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: context.textSecondaryColor.withValues(alpha: 0.7),
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+              return const EmptyStateView(
+                icon: Icons.block_outlined,
+                title: '차단한 사용자가 없어요',
+                subtitle: '차단한 사용자가 생기면 여기에서 관리할 수 있어요.',
               );
             }
 
@@ -129,14 +107,9 @@ class _BlockedUsersView extends StatelessWidget {
               onRefresh: () async {
                 context.read<FriendBloc>().add(const BlockedUsersLoadRequested());
               },
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 itemCount: state.blockedUsers.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: context.dividerColor,
-                ),
                 itemBuilder: (context, index) {
                   final user = state.blockedUsers[index];
                   return _BlockedUserTile(user: user);
@@ -179,12 +152,25 @@ class _BlockedUserTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: context.dividerColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 28,
+            radius: 26,
             backgroundColor: AppColors.primaryLight,
             backgroundImage: user.avatarUrl != null
                 ? NetworkImage(user.avatarUrl!)
@@ -196,13 +182,13 @@ class _BlockedUserTile extends StatelessWidget {
                         : '?',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
                     ),
                   )
                 : null,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,20 +198,24 @@ class _BlockedUserTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
                     color: context.textPrimaryColor,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   user.email,
                   style: TextStyle(
                     color: context.textSecondaryColor,
                     fontSize: 13,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           OutlinedButton(
             onPressed: () async {
               final confirmed = await _showUnblockConfirmDialog(context);
@@ -239,7 +229,7 @@ class _BlockedUserTile extends StatelessWidget {
                     backgroundColor: AppColors.primary,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 );
@@ -247,13 +237,19 @@ class _BlockedUserTile extends StatelessWidget {
             },
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.error,
-              side: const BorderSide(color: AppColors.error),
+              side: BorderSide(color: AppColors.error.withValues(alpha: 0.5), width: 1.5),
               padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
+                horizontal: 14,
+                vertical: 9,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: const Text('차단 해제'),
+            child: const Text(
+              '차단 해제',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
