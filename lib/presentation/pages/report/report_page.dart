@@ -220,6 +220,16 @@ class _ReasonCard extends StatelessWidget {
           ),
           child: Row(
             children: [
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked,
+                size: 22,
+                color: selected
+                    ? AppColors.primary
+                    : context.textSecondaryColor.withValues(alpha: 0.45),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   label,
@@ -230,16 +240,6 @@ class _ReasonCard extends StatelessWidget {
                         ? AppColors.primary
                         : context.textPrimaryColor,
                   ),
-                ),
-              ),
-              AnimatedScale(
-                scale: selected ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-                child: const Icon(
-                  Icons.check_circle_rounded,
-                  size: 22,
-                  color: AppColors.primary,
                 ),
               ),
             ],

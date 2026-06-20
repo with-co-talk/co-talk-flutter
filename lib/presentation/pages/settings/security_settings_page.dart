@@ -33,6 +33,18 @@ class SecuritySettingsPage extends StatelessWidget {
                   tone: context.textSecondaryColor,
                 ),
               if (!state.isSupported) const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 10),
+                child: Text(
+                  '앱 잠금',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                    color: context.textSecondaryColor,
+                  ),
+                ),
+              ),
               // 생체 인증 토글 카드
               Container(
                 decoration: BoxDecoration(

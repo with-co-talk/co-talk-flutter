@@ -210,31 +210,53 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             ),
           ),
           const SizedBox(height: 10),
-          _buildRequirement('최소 8자 이상'),
-          _buildRequirement('영문 대/소문자 포함'),
-          _buildRequirement('숫자 포함'),
-          _buildRequirement('특수문자 포함'),
+          // 입력값에 따라 실시간으로 충족 여부 표시 (회색 → 보라 체크)
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _newPasswordController,
+            builder: (context, value, _) {
+              final pw = value.text;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildRequirement('최소 8자 이상', pw.length >= 8),
+                  _buildRequirement(
+                    '영문 대/소문자 포함',
+                    RegExp(r'[A-Z]').hasMatch(pw) &&
+                        RegExp(r'[a-z]').hasMatch(pw),
+                  ),
+                  _buildRequirement('숫자 포함', RegExp(r'\d').hasMatch(pw)),
+                  _buildRequirement(
+                    '특수문자 포함',
+                    RegExp(r'[^A-Za-z0-9]').hasMatch(pw),
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildRequirement(String text) {
+  Widget _buildRequirement(String text, bool met) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          const Icon(
-            Icons.check_circle_rounded,
+          Icon(
+            met ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
             size: 16,
-            color: AppColors.primary,
+            color: met
+                ? AppColors.primary
+                : context.textSecondaryColor.withValues(alpha: 0.4),
           ),
           const SizedBox(width: 8),
           Text(
             text,
             style: TextStyle(
               fontSize: 12.5,
-              color: context.textSecondaryColor,
+              fontWeight: met ? FontWeight.w600 : FontWeight.w400,
+              color: met ? context.textPrimaryColor : context.textSecondaryColor,
             ),
           ),
         ],
