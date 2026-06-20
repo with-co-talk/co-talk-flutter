@@ -5,6 +5,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../di/injection.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import '../../widgets/empty_state_view.dart';
+import '../../widgets/gradient_button.dart';
 
 /// 1:1 채팅 시작 페이지
 /// 채팅방을 생성/조회한 후 해당 채팅방으로 이동한다.
@@ -59,12 +61,21 @@ class _DirectChatPageState extends State<DirectChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: context.backgroundColor,
       appBar: AppBar(
+        backgroundColor: context.surfaceColor,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         title: Text(
           widget.isSelfChat ? _selfChatTitle(context) : '1:1 채팅',
+          style: TextStyle(
+            color: context.textPrimaryColor,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: Icon(Icons.close_rounded, color: context.textPrimaryColor),
           onPressed: () => context.pop(),
         ),
       ),
@@ -73,26 +84,44 @@ class _DirectChatPageState extends State<DirectChatPage> {
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
+                  // 브랜드 톤의 소프트 글로우 스피너
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary.withValues(alpha: 0.10),
+                    ),
+                    alignment: Alignment.center,
+                    child: const SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   Text(
-                    widget.isSelfChat ? '채팅방을 준비 중...' : '채팅방을 준비 중...',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    '채팅방을 준비 중...',
+                    style: TextStyle(
+                      color: context.textSecondaryColor,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               )
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    _errorMessage ?? '알 수 없는 오류가 발생했습니다',
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
+            : EmptyStateView(
+                icon: Icons.error_outline_rounded,
+                title: '채팅방을 열 수 없어요',
+                subtitle: _errorMessage ?? '알 수 없는 오류가 발생했습니다',
+                action: SizedBox(
+                  width: 200,
+                  child: GradientButton(
+                    label: '다시 시도',
+                    icon: Icons.refresh_rounded,
                     onPressed: () {
                       setState(() {
                         _isLoading = true;
@@ -100,9 +129,8 @@ class _DirectChatPageState extends State<DirectChatPage> {
                       });
                       _createOrGetChatRoom();
                     },
-                    child: const Text('다시 시도'),
                   ),
-                ],
+                ),
               ),
       ),
     );
