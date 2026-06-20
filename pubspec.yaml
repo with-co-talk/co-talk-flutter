@@ -96,6 +96,7 @@ dev_dependencies:
 
   # App Icon Generator
   flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.3
   msix: 3.16.12
 
 flutter_launcher_icons:
@@ -109,8 +110,19 @@ flutter_launcher_icons:
     generate: true
     image_path: "assets/icons/app_icon.png"
   image_path: "assets/icons/app_icon.png"
-  adaptive_icon_background: "#8B5CF6"
+  adaptive_icon_background: "#E3744D"
   adaptive_icon_foreground: "assets/icons/app_icon.png"
+
+# 스플래시(런치) 화면 — Warm Sand
+flutter_native_splash:
+  color: "#F5EDE1"
+  image: assets/icons/app_icon.png
+  android_12:
+    color: "#F5EDE1"
+    image: assets/icons/app_icon.png
+  android: true
+  ios: true
+  web: false
 
 msix_config:
   display_name: Co-Talk
