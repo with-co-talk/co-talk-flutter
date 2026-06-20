@@ -16,28 +16,23 @@ class ProfileDialogs {
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SizedBox(height: 12),
+              const _SheetHandle(),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 '프로필 사진',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                  color: context.textPrimaryColor,
                 ),
               ),
               const SizedBox(height: 20),
@@ -90,19 +85,26 @@ class ProfileDialogs {
                 },
               ),
               if (hasAvatar) ...[
-                const Divider(height: 1),
+                Divider(
+                  height: 1,
+                  color: context.dividerColor.withValues(alpha: 0.6),
+                ),
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: AppColors.error.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.delete_outline, color: Colors.red),
+                    child: const Icon(Icons.delete_outline,
+                        color: AppColors.error),
                   ),
                   title: const Text(
                     '기본 이미지로 변경',
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   subtitle: const Text('현재 프로필 사진 삭제'),
                   onTap: () {
@@ -129,22 +131,15 @@ class ProfileDialogs {
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SizedBox(height: 12),
+              const _SheetHandle(),
               const SizedBox(height: 20),
               ListTile(
                 leading: Container(
@@ -181,26 +176,24 @@ class ProfileDialogs {
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SizedBox(height: 12),
+              const _SheetHandle(),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 '배경화면',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                  color: context.textPrimaryColor,
+                ),
               ),
               const SizedBox(height: 16),
               ListTile(
@@ -222,10 +215,10 @@ class ProfileDialogs {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.history, color: Colors.grey),
+                  child: const Icon(Icons.history, color: AppColors.primary),
                 ),
                 title: const Text('배경 이력에서 선택'),
                 onTap: () {
@@ -251,22 +244,15 @@ class ProfileDialogs {
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SizedBox(height: 12),
+              const _SheetHandle(),
               const SizedBox(height: 20),
               ListTile(
                 leading: Container(
@@ -297,6 +283,9 @@ class ProfileDialogs {
     return showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
         title: const Text('프로필 사진 삭제'),
         content: const Text('프로필 사진을 삭제하고 기본 이미지로 변경하시겠습니까?'),
         actions: [
@@ -306,10 +295,27 @@ class ProfileDialogs {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('삭제'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 바텀시트 상단 드래그 핸들.
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 4,
+      decoration: BoxDecoration(
+        color: context.dividerColor,
+        borderRadius: BorderRadius.circular(2),
       ),
     );
   }

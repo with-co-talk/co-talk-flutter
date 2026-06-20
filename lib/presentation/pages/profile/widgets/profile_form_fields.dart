@@ -29,7 +29,7 @@ class ProfileFormFields extends StatelessWidget {
             decoration: InputDecoration(
               hintText: '닉네임을 입력하세요',
               hintStyle: TextStyle(
-                color: Colors.grey[400],
+                color: context.textSecondaryColor.withValues(alpha: 0.7),
                 fontSize: 16,
               ),
               border: InputBorder.none,
@@ -44,10 +44,11 @@ class ProfileFormFields extends StatelessWidget {
               ),
               errorMaxLines: 2,
             ),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
               height: 1.5,
+              color: context.textPrimaryColor,
             ),
             validator: ProfileSubmitHandler.validateNickname,
           ),
@@ -65,7 +66,7 @@ class ProfileFormFields extends StatelessWidget {
             decoration: InputDecoration(
               hintText: '상태메시지를 입력하세요 (선택)',
               hintStyle: TextStyle(
-                color: Colors.grey[400],
+                color: context.textSecondaryColor.withValues(alpha: 0.7),
                 fontSize: 16,
               ),
               border: InputBorder.none,
@@ -76,9 +77,10 @@ class ProfileFormFields extends StatelessWidget {
               isDense: false,
               counterText: '',
             ),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               height: 1.5,
+              color: context.textPrimaryColor,
             ),
             maxLength: 60,
             maxLines: 2,
@@ -88,18 +90,18 @@ class ProfileFormFields extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: statusMessageController.text.length > 50
-                  ? Colors.orange.withValues(alpha: 0.1)
-                  : Colors.grey[100],
+                  ? AppColors.warning.withValues(alpha: 0.12)
+                  : AppColors.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               '${statusMessageController.text.length}/60',
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 color: statusMessageController.text.length > 50
-                    ? Colors.orange[700]
-                    : Colors.grey[500],
+                    ? AppColors.warning
+                    : AppColors.primary,
               ),
             ),
           ),
@@ -112,8 +114,9 @@ class ProfileFormFields extends StatelessWidget {
           '계정 정보',
           style: TextStyle(
             fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+            color: context.textSecondaryColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -136,16 +139,17 @@ class ProfileFormFields extends StatelessWidget {
     required Widget child,
     Widget? trailing,
   }) {
+    final isDark = context.isDarkMode;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -155,7 +159,9 @@ class ProfileFormFields extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -165,10 +171,11 @@ class ProfileFormFields extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                  color: context.textPrimaryColor,
                 ),
               ),
               const Spacer(),
@@ -179,10 +186,10 @@ class ProfileFormFields extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: context.backgroundColor,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: Colors.grey[200]!,
+                color: context.dividerColor,
                 width: 1.5,
               ),
             ),
@@ -202,19 +209,21 @@ class ProfileFormFields extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[100]!),
+        border: Border.all(color: context.dividerColor),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.grey[200],
+              color: context.dividerColor.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 16, color: Colors.grey[500]),
+            child: Icon(icon, size: 16, color: context.textSecondaryColor),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -225,8 +234,8 @@ class ProfileFormFields extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[500],
+                    fontWeight: FontWeight.w600,
+                    color: context.textSecondaryColor,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -234,7 +243,7 @@ class ProfileFormFields extends StatelessWidget {
                   value,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey[600],
+                    color: context.textPrimaryColor,
                   ),
                 ),
               ],
@@ -243,19 +252,20 @@ class ProfileFormFields extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(6),
+              color: context.dividerColor.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline, size: 12, color: Colors.grey[500]),
+                Icon(Icons.lock_outline,
+                    size: 12, color: context.textSecondaryColor),
                 const SizedBox(width: 4),
                 Text(
                   '수정불가',
                   style: TextStyle(
                     fontSize: 10,
-                    color: Colors.grey[500],
+                    color: context.textSecondaryColor,
                   ),
                 ),
               ],

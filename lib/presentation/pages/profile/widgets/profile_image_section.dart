@@ -20,11 +20,19 @@ class ProfileImageSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 32),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12),
+            AppColors.primaryLight.withValues(alpha: isDark ? 0.10 : 0.05),
+          ],
+        ),
       ),
       child: Column(
         children: [
@@ -38,14 +46,14 @@ class ProfileImageSection extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white,
+                      color: context.surfaceColor,
                       width: 4,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        color: AppColors.primary.withValues(alpha: 0.35),
+                        blurRadius: 28,
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),
@@ -63,9 +71,9 @@ class ProfileImageSection extends StatelessWidget {
                                 ? nickname[0].toUpperCase()
                                 : '?',
                             style: const TextStyle(
-                              fontSize: 36,
+                              fontSize: 40,
                               color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
                             ),
                           )
                         : null,
@@ -89,25 +97,25 @@ class ProfileImageSection extends StatelessWidget {
                   ),
                 // Edit icon
                 Positioned(
-                  right: 0,
-                  bottom: 0,
+                  right: 2,
+                  bottom: 2,
                   child: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: isLoading ? Colors.grey : AppColors.primary,
+                      gradient: isLoading
+                          ? null
+                          : const LinearGradient(
+                              colors: AppColors.brandGradient,
+                            ),
+                      color: isLoading
+                          ? context.textSecondaryColor
+                          : null,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      border: Border.all(color: context.surfaceColor, width: 3),
                     ),
                     child: const Icon(
-                      Icons.camera_alt,
-                      size: 18,
+                      Icons.camera_alt_rounded,
+                      size: 16,
                       color: Colors.white,
                     ),
                   ),
