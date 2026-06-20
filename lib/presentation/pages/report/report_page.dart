@@ -3,6 +3,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/report.dart';
 import '../../../domain/repositories/report_repository.dart';
+import '../../widgets/gradient_button.dart';
 
 /// Report submission page for users and messages.
 class ReportPage extends StatefulWidget {
@@ -55,9 +56,13 @@ class _ReportPageState extends State<ReportPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('신고가 접수되었습니다'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            content: const Text('신고가 접수되었습니다'),
+            backgroundColor: AppColors.success,
           ),
         );
         Navigator.of(context).pop();
@@ -66,8 +71,12 @@ class _ReportPageState extends State<ReportPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Text('신고 접수에 실패했습니다: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -83,84 +92,158 @@ class _ReportPageState extends State<ReportPage> {
     final typeLabel = widget.type == ReportType.user ? '사용자' : '메시지';
 
     return Scaffold(
+      backgroundColor: context.backgroundColor,
       appBar: AppBar(
         title: Text('$typeLabel 신고'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '신고 사유를 선택해주세요',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            _SectionLabel(
+              icon: Icons.flag_outlined,
+              text: '신고 사유를 선택해주세요',
+            ),
+            const SizedBox(height: 14),
+            ...ReportReason.values.map(
+              (reason) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ReasonCard(
+                  label: reason.displayName,
+                  selected: _selectedReason == reason,
+                  onTap: () => setState(() => _selectedReason = reason),
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            ...ReportReason.values.map((reason) => RadioListTile<ReportReason>(
-              title: Text(reason.displayName),
-              value: reason,
-              groupValue: _selectedReason,
-              onChanged: (value) => setState(() => _selectedReason = value),
-              activeColor: AppColors.primary,
-              contentPadding: EdgeInsets.zero,
-            )),
-            const SizedBox(height: 24),
-            const Text(
-              '상세 설명 (선택)',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+            _SectionLabel(
+              icon: Icons.edit_note_outlined,
+              text: '상세 설명 (선택)',
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             TextField(
               controller: _descriptionController,
               maxLines: 4,
               maxLength: 500,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: '추가 설명을 입력해주세요',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
               ),
             ),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _selectedReason != null && !_isSubmitting
-                    ? _submit
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        '신고하기',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-              ),
+            GradientButton(
+              onPressed: _selectedReason != null && !_isSubmitting
+                  ? _submit
+                  : null,
+              isLoading: _isSubmitting,
+              label: '신고하기',
+              icon: Icons.flag_rounded,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 아이콘 칩 + 라벨로 구성된 섹션 헤더.
+class _SectionLabel extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _SectionLabel({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 17, color: AppColors.primary),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+            color: context.textPrimaryColor,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 선택 시 보라로 강조되는 사유 카드. 라디오 대신 깔끔한 탭 카드.
+class _ReasonCard extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ReasonCard({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.08)
+                : context.surfaceColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? AppColors.primary
+                  : context.dividerColor.withValues(alpha: 0.7),
+              width: selected ? 1.6 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected
+                        ? AppColors.primary
+                        : context.textPrimaryColor,
+                  ),
+                ),
+              ),
+              AnimatedScale(
+                scale: selected ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  size: 22,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

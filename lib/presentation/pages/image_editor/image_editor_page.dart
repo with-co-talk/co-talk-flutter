@@ -5,6 +5,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
 import '../../../core/theme/app_colors.dart';
 
+/// 에디터 전용 다크 팔레트 (의도적 다크 화면 — 앱 다크모드와 별개).
+/// 캔버스는 순수 블랙, 바는 살짝 들어올린 뉴트럴 차콜로 깊이감을 준다.
+const Color _editorCanvas = Color(0xFF000000);
+const Color _editorBar = Color(0xFF15151B);
+
 /// Full-screen image editor page using pro_image_editor.
 /// Supports drawing, text, emoji, filters, and cropping.
 class ImageEditorPage extends StatelessWidget {
@@ -81,36 +86,38 @@ class ImageEditorPage extends StatelessWidget {
         ),
         imageEditorTheme: ImageEditorTheme(
           helperLine: const HelperLineTheme(
-            horizontalColor: AppColors.primary,
-            verticalColor: AppColors.primary,
+            horizontalColor: AppColors.primaryLight,
+            verticalColor: AppColors.primaryLight,
           ),
           paintingEditor: const PaintingEditorTheme(
-            appBarBackgroundColor: Colors.black,
+            appBarBackgroundColor: _editorBar,
             appBarForegroundColor: Colors.white,
-            background: Colors.black,
-            bottomBarColor: Colors.black,
-            bottomBarActiveItemColor: AppColors.primary,
-            bottomBarInactiveItemColor: Colors.white70,
+            background: _editorCanvas,
+            bottomBarColor: _editorBar,
+            bottomBarActiveItemColor: AppColors.primaryLight,
+            bottomBarInactiveItemColor: Colors.white60,
           ),
           textEditor: const TextEditorTheme(
-            appBarBackgroundColor: Colors.black,
+            appBarBackgroundColor: _editorBar,
             appBarForegroundColor: Colors.white,
             background: Colors.black54,
+            bottomBarBackgroundColor: _editorBar,
           ),
           cropRotateEditor: const CropRotateEditorTheme(
-            appBarBackgroundColor: Colors.black,
+            appBarBackgroundColor: _editorBar,
             appBarForegroundColor: Colors.white,
-            background: Colors.black,
-            cropCornerColor: AppColors.primary,
+            background: _editorCanvas,
+            bottomBarBackgroundColor: _editorBar,
+            cropCornerColor: AppColors.primaryLight,
           ),
           filterEditor: const FilterEditorTheme(
-            appBarBackgroundColor: Colors.black,
+            appBarBackgroundColor: _editorBar,
             appBarForegroundColor: Colors.white,
-            background: Colors.black,
+            background: _editorCanvas,
           ),
           emojiEditor: const EmojiEditorTheme(),
-          background: Colors.black,
-          loadingDialogTheme: LoadingDialogTheme(
+          background: _editorCanvas,
+          loadingDialogTheme: const LoadingDialogTheme(
             textColor: Colors.white,
           ),
         ),
