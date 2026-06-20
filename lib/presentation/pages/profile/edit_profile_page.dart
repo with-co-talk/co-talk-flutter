@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../di/injection.dart';
+import '../../widgets/gradient_button.dart';
 import '../../../domain/entities/profile_history.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
@@ -457,6 +458,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
       ],
       child: Scaffold(
+        backgroundColor: context.backgroundColor,
         appBar: AppBar(
           title: const Text('프로필 편집'),
           centerTitle: true,
@@ -520,52 +522,27 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   Container(
                     padding: EdgeInsets.fromLTRB(
                       16,
-                      12,
+                      14,
                       16,
-                      12 + MediaQuery.of(context).padding.bottom,
+                      14 + MediaQuery.of(context).padding.bottom,
                     ),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).scaffoldBackgroundColor,
+                      color: context.surfaceColor,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, -2),
+                          color: Colors.black.withValues(
+                            alpha: context.isDarkMode ? 0.25 : 0.05,
+                          ),
+                          blurRadius: 14,
+                          offset: const Offset(0, -3),
                         ),
                       ],
                     ),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: (_isLoading || !_hasChanges) ? null : _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.grey[300],
-                          disabledForegroundColor: Colors.grey[500],
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                _hasChanges ? '저장하기' : '변경사항 없음',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                      ),
+                    child: GradientButton(
+                      onPressed:
+                          (_isLoading || !_hasChanges) ? null : _saveProfile,
+                      isLoading: _isLoading,
+                      label: _hasChanges ? '저장하기' : '변경사항 없음',
                     ),
                   ),
                 ],

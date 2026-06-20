@@ -86,15 +86,20 @@ class _ProfileViewContent extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ),
+            backgroundColor: context.backgroundColor,
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: 48,
+                    color: context.textSecondaryColor,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     profileState.errorMessage ?? '프로필을 불러올 수 없습니다',
-                    style: const TextStyle(color: Colors.grey),
+                    style: TextStyle(color: context.textSecondaryColor),
                   ),
                 ],
               ),
@@ -301,7 +306,7 @@ class _ProfileViewContent extends StatelessWidget {
       builder: (sheetContext) => Container(
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
@@ -441,7 +446,7 @@ class _ProfileViewContent extends StatelessWidget {
       builder: (sheetContext) => Container(
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(

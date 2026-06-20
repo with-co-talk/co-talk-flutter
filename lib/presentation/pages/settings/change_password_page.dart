@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../blocs/settings/change_password_bloc.dart';
 import '../../blocs/settings/change_password_event.dart';
 import '../../blocs/settings/change_password_state.dart';
+import '../../widgets/gradient_button.dart';
 
 /// 비밀번호 변경 페이지
 class ChangePasswordPage extends StatefulWidget {
@@ -49,13 +50,18 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         ),
         title: const Text('비밀번호 변경'),
       ),
+      backgroundColor: context.backgroundColor,
       body: BlocConsumer<ChangePasswordBloc, ChangePasswordState>(
         listener: (context, state) {
           if (state.status == ChangePasswordStatus.success) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('비밀번호가 성공적으로 변경되었습니다.'),
-                backgroundColor: Colors.green,
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                content: const Text('비밀번호가 성공적으로 변경되었습니다.'),
+                backgroundColor: AppColors.success,
               ),
             );
             if (context.canPop()) {
@@ -73,7 +79,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         builder: (context, state) {
           final isLoading = state.status == ChangePasswordStatus.loading;
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             child: Form(
               key: _formKey,
               child: Column(
@@ -139,26 +145,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   _buildPasswordRequirements(),
                   const SizedBox(height: 32),
-                  ElevatedButton(
+                  GradientButton(
                     onPressed: isLoading ? null : _handleChangePassword,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('비밀번호 변경'),
+                    isLoading: isLoading,
+                    label: '비밀번호 변경',
                   ),
                 ],
               ),
@@ -181,9 +174,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       obscureText: obscure,
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.lock_outline_rounded),
         suffixIcon: IconButton(
-          icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+          icon: Icon(
+            obscure
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+          ),
           onPressed: onToggleObscure,
         ),
       ),
@@ -193,21 +190,26 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   Widget _buildPasswordRequirements() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.14),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '비밀번호 요구 사항',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: context.textPrimaryColor,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildRequirement('최소 8자 이상'),
           _buildRequirement('영문 대/소문자 포함'),
           _buildRequirement('숫자 포함'),
@@ -222,17 +224,18 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Icon(
-            Icons.check_circle_outline,
+          const Icon(
+            Icons.check_circle_rounded,
             size: 16,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            color: AppColors.primary,
           ),
           const SizedBox(width: 8),
           Text(
             text,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+            style: TextStyle(
+              fontSize: 12.5,
+              color: context.textSecondaryColor,
+            ),
           ),
         ],
       ),

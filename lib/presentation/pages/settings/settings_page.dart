@@ -37,6 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: context.backgroundColor,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -51,6 +52,7 @@ class _SettingsPageState extends State<SettingsPage> {
         title: const Text('설정'),
       ),
       body: ListView(
+        padding: const EdgeInsets.only(top: 8),
         children: [
           // 프로필 섹션
           _SettingsSection(
@@ -196,17 +198,33 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           // 로그아웃 버튼
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: OutlinedButton(
-              onPressed: () => _showLogoutDialog(context),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: () => _showLogoutDialog(context),
+                icon: const Icon(Icons.logout_rounded, size: 20),
+                label: const Text(
+                  '로그아웃',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: BorderSide(
+                    color: AppColors.error.withValues(alpha: 0.4),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
               ),
-              child: const Text('로그아웃'),
             ),
           ),
           const SizedBox(height: 32),
@@ -252,22 +270,58 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+            style: TextStyle(
+              color: context.textSecondaryColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              letterSpacing: 0.3,
+            ),
           ),
         ),
-        ...children,
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Column(children: _withDividers(context, children)),
+          ),
+        ),
       ],
     );
+  }
+
+  List<Widget> _withDividers(BuildContext context, List<Widget> items) {
+    final result = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      result.add(items[i]);
+      if (i != items.length - 1) {
+        result.add(Divider(
+          height: 1,
+          thickness: 1,
+          indent: 60,
+          color: context.dividerColor.withValues(alpha: 0.5),
+        ));
+      }
+    }
+    return result;
   }
 }
 
@@ -290,16 +344,46 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = titleColor ?? AppColors.primary;
     return ListTile(
-      leading: Icon(icon),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      leading: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Icon(icon, size: 20, color: accent),
+      ),
       title: Text(
         title,
-        style: titleColor != null
-            ? TextStyle(color: titleColor)
-            : null,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: titleColor ?? context.textPrimaryColor,
+        ),
       ),
-      subtitle: subtitle != null ? Text(subtitle!) : null,
-      trailing: trailing ?? (onTap != null ? const Icon(Icons.chevron_right) : null),
+      subtitle: subtitle != null
+          ? Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                subtitle!,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: context.textSecondaryColor,
+                ),
+              ),
+            )
+          : null,
+      trailing: trailing ??
+          (onTap != null
+              ? Icon(
+                  Icons.chevron_right_rounded,
+                  color: context.textSecondaryColor.withValues(alpha: 0.6),
+                )
+              : null),
       onTap: onTap,
     );
   }

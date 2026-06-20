@@ -44,6 +44,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         ),
         title: const Text('알림 설정'),
       ),
+      backgroundColor: context.backgroundColor,
       body: BlocConsumer<NotificationSettingsCubit, NotificationSettingsState>(
         listenWhen: (previous, current) =>
             current.status == NotificationSettingsStatus.error &&
@@ -83,6 +84,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           }
 
           return ListView(
+            padding: const EdgeInsets.only(top: 8),
             children: [
               _buildSection(
                 title: '알림 유형',
@@ -194,50 +196,90 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     required String title,
     required List<Widget> children,
   }) {
+    final isDark = context.isDarkMode;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+            style: TextStyle(
+              color: context.textSecondaryColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              letterSpacing: 0.3,
+            ),
           ),
         ),
-        ...children,
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(children: children),
+        ),
       ],
+    );
+  }
+
+  Widget _leadingChip(IconData icon, {Color? color}) {
+    final accent = color ?? AppColors.primary;
+    return Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Icon(icon, size: 20, color: accent),
     );
   }
 
   Widget _buildPreviewModeSelector(NotificationSettingsState state) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.notifications_active_outlined),
-              const SizedBox(width: 16),
+              _leadingChip(Icons.notifications_active_outlined),
+              const SizedBox(width: 14),
               Expanded(
                 child: Text(
                   '알림 미리보기',
-                  style: Theme.of(context).textTheme.bodyLarge,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: context.textPrimaryColor,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            '알림에 표시할 내용을 선택합니다',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 52),
+            child: Text(
+              '알림에 표시할 내용을 선택합니다',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: context.textSecondaryColor,
+              ),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           _buildRadioOption(
             title: '이름 + 메시지',
             subtitle: '보낸 사람 이름과 메시지 내용을 표시',
@@ -268,16 +310,30 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     required NotificationPreviewMode groupValue,
   }) {
     return RadioListTile<NotificationPreviewMode>(
-      title: Text(title),
-      subtitle: Text(subtitle),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          color: context.textPrimaryColor,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 12,
+          color: context.textSecondaryColor,
+        ),
+      ),
       value: value,
       groupValue: groupValue,
+      activeColor: AppColors.primary,
       onChanged: (newValue) {
         if (newValue != null) {
           context.read<NotificationSettingsCubit>().setNotificationPreviewMode(newValue);
         }
       },
-      contentPadding: EdgeInsets.zero,
+      contentPadding: const EdgeInsets.only(left: 38),
       dense: true,
     );
   }
@@ -290,9 +346,26 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     required ValueChanged<bool> onChanged,
   }) {
     return SwitchListTile(
-      secondary: Icon(icon),
-      title: Text(title),
-      subtitle: Text(subtitle),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      secondary: _leadingChip(icon),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: context.textPrimaryColor,
+        ),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 12.5,
+            color: context.textSecondaryColor,
+          ),
+        ),
+      ),
       value: value,
       onChanged: (v) {
         AppHaptics.selection();
@@ -308,19 +381,32 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      leading: _leadingChip(icon),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: context.textPrimaryColor,
+        ),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             time,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.primary,
-                ),
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
           ),
-          const SizedBox(width: 8),
-          const Icon(Icons.chevron_right),
+          const SizedBox(width: 6),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: context.textSecondaryColor.withValues(alpha: 0.6),
+          ),
         ],
       ),
       onTap: onTap,
