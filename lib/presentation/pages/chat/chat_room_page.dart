@@ -482,9 +482,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+        backgroundColor: context.backgroundColor,
         appBar: AppBar(
+          backgroundColor: context.surfaceColor,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             onPressed: () {
               if (context.canPop()) {
                 context.pop();
@@ -498,6 +500,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 18,
+              letterSpacing: -0.3,
             ),
           ),
           actions: [

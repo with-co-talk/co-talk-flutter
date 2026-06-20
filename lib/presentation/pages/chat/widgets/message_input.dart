@@ -379,12 +379,12 @@ class _MessageInputState extends State<MessageInput> {
         if (state.isUploadingFile) {
           return Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
+              color: context.surfaceColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 16,
+                  offset: const Offset(0, -3),
                 ),
               ],
             ),
@@ -416,12 +416,12 @@ class _MessageInputState extends State<MessageInput> {
         if (state.isOtherUserLeft) {
           return Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
+              color: context.surfaceColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 16,
+                  offset: const Offset(0, -3),
                 ),
               ],
             ),
@@ -587,13 +587,14 @@ class _MessageInputState extends State<MessageInput> {
                     children: [
                   IconButton(
                     icon: Icon(
-                      Icons.add_circle_outline,
+                      Icons.add_rounded,
                       color: context.textSecondaryColor,
+                      size: 28,
                     ),
                     onPressed: _showAttachmentOptions,
                     tooltip: '첨부',
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 2),
                   Expanded(
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 120),
@@ -608,28 +609,25 @@ class _MessageInputState extends State<MessageInput> {
                               color: context.textSecondaryColor.withValues(alpha: 0.6),
                             ),
                             filled: true,
-                            fillColor: context.surfaceColor,
+                            fillColor: context.backgroundColor,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(22),
                               borderSide: BorderSide.none,
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(28),
-                              borderSide: BorderSide(
-                                color: context.dividerColor,
-                                width: 1.5,
-                              ),
+                              borderRadius: BorderRadius.circular(22),
+                              borderSide: BorderSide.none,
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(28),
-                              borderSide: BorderSide(
+                              borderRadius: BorderRadius.circular(22),
+                              borderSide: const BorderSide(
                                 color: AppColors.primary,
-                                width: 2,
+                                width: 1.5,
                               ),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 18,
-                              vertical: 12,
+                              vertical: 11,
                             ),
                           ),
                           maxLines: null,
@@ -676,9 +674,25 @@ class _MessageInputState extends State<MessageInput> {
                           curve: AppMotion.standard,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
+                            gradient: canSend
+                                ? LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: context.brandGradient,
+                                  )
+                                : null,
                             color: canSend
-                                ? AppColors.primary
-                                : context.textSecondaryColor.withValues(alpha: 0.3),
+                                ? null
+                                : context.textSecondaryColor.withValues(alpha: 0.25),
+                            boxShadow: canSend
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(alpha: 0.35),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: IconButton(
                             icon: state.isSending
