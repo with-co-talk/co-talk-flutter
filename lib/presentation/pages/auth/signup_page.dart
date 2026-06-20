@@ -7,6 +7,7 @@ import '../../../core/utils/validators.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
+import '../../widgets/gradient_button.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -67,11 +68,12 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return Scaffold(
       appBar: AppBar(
         title: const Text('회원가입'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.go(AppRoutes.login),
         ),
       ),
@@ -88,6 +90,10 @@ class _SignUpPageState extends State<SignUpPage> {
           } else if (state.status == AuthStatus.failure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 content: Text(state.errorMessage ?? '회원가입에 실패했습니다'),
                 backgroundColor: AppColors.error,
               ),
@@ -95,48 +101,106 @@ class _SignUpPageState extends State<SignUpPage> {
           }
         },
         builder: (context, state) {
+          final isLoading = state.status == AuthStatus.loading;
           return SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
+                  constraints: const BoxConstraints(maxWidth: 420),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // ── 브랜드 로고 (그라데이션 스퀴클) ──
+                        Center(
+                          child: Container(
+                            width: 76,
+                            height: 76,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: AppColors.brandGradient,
+                              ),
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      AppColors.primary.withValues(alpha: 0.32),
+                                  blurRadius: 22,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.person_add_alt_1_rounded,
+                              size: 34,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          '계정 만들기',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.8,
+                                color: context.textPrimaryColor,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '코톡에서 새로운 대화를 시작해보세요',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: context.textSecondaryColor,
+                                    letterSpacing: -0.2,
+                                  ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 36),
+                        // ── 이메일 ──
                         TextFormField(
                           controller: _emailController,
                           decoration: const InputDecoration(
                             labelText: '이메일',
-                            prefixIcon: Icon(Icons.email_outlined),
+                            hintText: 'name@example.com',
+                            prefixIcon: Icon(Icons.alternate_email_rounded),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
                           validator: Validators.email,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
+                        // ── 닉네임 ──
                         TextFormField(
                           controller: _nicknameController,
                           decoration: const InputDecoration(
                             labelText: '닉네임',
-                            prefixIcon: Icon(Icons.person_outlined),
+                            prefixIcon: Icon(Icons.person_outline_rounded),
                           ),
                           textInputAction: TextInputAction.next,
                           validator: Validators.nickname,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
+                        // ── 비밀번호 ──
                         TextFormField(
                           controller: _passwordController,
                           decoration: InputDecoration(
                             labelText: '비밀번호',
-                            prefixIcon: const Icon(Icons.lock_outlined),
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscurePassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -149,17 +213,18 @@ class _SignUpPageState extends State<SignUpPage> {
                           textInputAction: TextInputAction.next,
                           validator: Validators.password,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
+                        // ── 비밀번호 확인 ──
                         TextFormField(
                           controller: _confirmPasswordController,
                           decoration: InputDecoration(
                             labelText: '비밀번호 확인',
-                            prefixIcon: const Icon(Icons.lock_outlined),
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscureConfirmPassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -179,43 +244,62 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                         if (_showKoreanWarning)
                           Padding(
-                            padding: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.only(top: 10, left: 4),
                             child: Row(
                               children: [
                                 Icon(
                                   Icons.warning_amber_rounded,
                                   size: 16,
-                                  color: Colors.orange[700],
+                                  color: AppColors.warning,
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 6),
                                 Text(
                                   '한글이 입력되어 있습니다. 영문 키보드를 확인하세요.',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.orange[700],
+                                    color: isDark
+                                        ? AppColors.warning
+                                        : const Color(0xFFB45309),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: state.status == AuthStatus.loading
-                                ? null
-                                : _onSignUp,
-                            child: state.status == AuthStatus.loading
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text('회원가입'),
-                          ),
+                        const SizedBox(height: 28),
+                        // ── 그라데이션 회원가입 버튼 ──
+                        GradientButton(
+                          onPressed: isLoading ? null : _onSignUp,
+                          isLoading: isLoading,
+                          label: '회원가입',
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '이미 계정이 있으신가요?',
+                                style: TextStyle(
+                                  color: context.textSecondaryColor,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => context.go(AppRoutes.login),
+                              style: TextButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                minimumSize: const Size(0, 0),
+                                tapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text(
+                                '로그인',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
