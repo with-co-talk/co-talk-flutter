@@ -261,11 +261,13 @@ class WebSocketService {
   bool sendMessage({
     required int roomId,
     required String content,
+    String? clientMessageId,
   }) {
     return _messageSender.sendMessage(
       stompClient: _connectionManager.stompClient,
       roomId: roomId,
       content: content,
+      clientMessageId: clientMessageId,
     );
   }
 

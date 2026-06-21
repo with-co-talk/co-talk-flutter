@@ -43,6 +43,11 @@ class WebSocketChatMessage {
   final int? relatedUserId;
   final String? relatedUserNickname;
 
+  /// 클라이언트가 전송 시 부여한 메시지 ID(UUID). 백엔드가 echo에 되돌려주면
+  /// 낙관적 전송 메시지를 정확히 매칭/교체하는 데 사용된다 (H1).
+  /// 백엔드 미지원 시 null (기존 content+window fallback 동작).
+  final String? clientMessageId;
+
   WebSocketChatMessage({
     this.schemaVersion,
     this.eventId,
@@ -65,6 +70,7 @@ class WebSocketChatMessage {
     this.eventType,
     this.relatedUserId,
     this.relatedUserNickname,
+    this.clientMessageId,
   });
 
   factory WebSocketChatMessage.fromJson(Map<String, dynamic> json, int roomId) {
@@ -90,6 +96,8 @@ class WebSocketChatMessage {
       eventType: json['eventType'] as String?,
       relatedUserId: json['relatedUserId'] as int?,
       relatedUserNickname: json['relatedUserNickname'] as String?,
+      // 백엔드 echo가 clientMessageId를 실어 보내면 정확 매칭에 사용 (없으면 null).
+      clientMessageId: json['clientMessageId'] as String?,
     );
   }
 

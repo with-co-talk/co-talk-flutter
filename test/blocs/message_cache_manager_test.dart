@@ -217,6 +217,100 @@ void main() {
               'and the bubble does not animate a second time');
     });
 
+    // ── H1: clientMessageId 기반 정확 매칭 ──────────────────────────────
+    test(
+        'echo with matching clientMessageId replaces the CORRECT pending '
+        'message even when two pending messages share identical content', () {
+      final now = DateTime.now();
+
+      // 동일 내용("ㅇㅇ")의 pending 메시지 2개 (실제 사용자가 연속 전송하는 상황).
+      final pending1 = Message(
+        id: -1,
+        chatRoomId: 1,
+        senderId: 42,
+        content: 'ㅇㅇ',
+        createdAt: now,
+        sendStatus: MessageSendStatus.sending,
+        localId: 'cmid-1',
+      );
+      final pending2 = Message(
+        id: -2,
+        chatRoomId: 1,
+        senderId: 42,
+        content: 'ㅇㅇ',
+        createdAt: now.add(const Duration(seconds: 1)),
+        sendStatus: MessageSendStatus.sending,
+        localId: 'cmid-2',
+      );
+      cacheManager.addPendingMessage(pending1);
+      cacheManager.addPendingMessage(pending2);
+
+      // 서버 echo가 두 번째 메시지(cmid-2)의 clientMessageId를 되돌려준다.
+      // convertToMessage가 이를 localId 슬롯에 담는다.
+      final echo = Message(
+        id: 500,
+        chatRoomId: 1,
+        senderId: 42,
+        content: 'ㅇㅇ',
+        // FIFO content 매칭이라면 가장 오래된 cmid-1을 골랐겠지만,
+        // clientMessageId 정확 매칭이면 cmid-2가 교체돼야 한다.
+        createdAt: now.add(const Duration(seconds: 3)),
+        localId: 'cmid-2',
+      );
+      final replaced =
+          cacheManager.replacePendingMessageWithReal('ㅇㅇ', echo);
+
+      expect(replaced, isTrue);
+      expect(cacheManager.messages.length, 2);
+
+      // cmid-2가 확정(sent, id=500)으로 교체됐는지 정확히 검증.
+      final confirmed = cacheManager.messages
+          .firstWhere((m) => m.localId == 'cmid-2');
+      expect(confirmed.id, 500);
+      expect(confirmed.sendStatus, MessageSendStatus.sent);
+
+      // cmid-1은 그대로 미확정(여전히 로컬 임시 ID)으로 남아 있어야 한다.
+      final stillPending = cacheManager.messages
+          .firstWhere((m) => m.localId == 'cmid-1');
+      expect(stillPending.id, -1);
+      expect(stillPending.isPending, isTrue);
+    });
+
+    test(
+        'falls back to content+window matching when echo lacks clientMessageId',
+        () {
+      final now = DateTime.now();
+      final pending = Message(
+        id: -1,
+        chatRoomId: 1,
+        senderId: 42,
+        content: 'Hello',
+        createdAt: now,
+        sendStatus: MessageSendStatus.sending,
+        localId: 'cmid-1',
+      );
+      cacheManager.addPendingMessage(pending);
+
+      // 백엔드 미지원: echo에 clientMessageId(localId)가 없다.
+      final echo = Message(
+        id: 600,
+        chatRoomId: 1,
+        senderId: 42,
+        content: 'Hello',
+        createdAt: now.add(const Duration(seconds: 2)),
+        // localId 없음 → fallback 경로
+      );
+      final replaced =
+          cacheManager.replacePendingMessageWithReal('Hello', echo);
+
+      expect(replaced, isTrue, reason: 'fallback content match should succeed');
+      final confirmed = cacheManager.messages.first;
+      expect(confirmed.id, 600);
+      expect(confirmed.sendStatus, MessageSendStatus.sent);
+      // fallback이어도 로컬 localId는 보존된다.
+      expect(confirmed.localId, 'cmid-1');
+    });
+
     test('addMessage adds new message at the beginning', () async {
       final msg1 = Message(
         id: 1,

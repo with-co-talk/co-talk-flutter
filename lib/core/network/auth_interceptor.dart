@@ -1,15 +1,18 @@
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import '../constants/api_constants.dart';
 import '../../data/datasources/local/auth_local_datasource.dart';
 import '../../presentation/blocs/auth/auth_bloc.dart';
 import '../../presentation/blocs/auth/auth_event.dart';
+import 'certificate_pinning_interceptor.dart';
 import 'websocket_service.dart';
 
 @lazySingleton
 class AuthInterceptor extends QueuedInterceptor {
   final AuthLocalDataSource _authLocalDataSource;
+  final CertificatePinningService _certificatePinningService;
   AuthBloc? _authBloc;
   WebSocketService? _webSocketService;
 
@@ -30,11 +33,8 @@ class AuthInterceptor extends QueuedInterceptor {
   @visibleForTesting
   Dio get refreshDio => _refreshDio;
 
-  AuthInterceptor(this._authLocalDataSource) {
+  AuthInterceptor(this._authLocalDataSource, this._certificatePinningService) {
     // 토큰 갱신 전용 클라이언트 생성 (인터셉터 없이)
-    // TODO: When real certificate pinning is enabled (non-placeholder certificates),
-    // add CertificatePinningInterceptor to _refreshDio to prevent MITM attacks
-    // during token refresh requests
     _refreshDio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.apiBaseUrl,
@@ -46,6 +46,10 @@ class AuthInterceptor extends QueuedInterceptor {
           'Accept': 'application/json',
         },
       ),
+    );
+    // 토큰 갱신 요청도 동일한 인증서 피닝을 적용해 refresh 중 MITM을 방지한다.
+    _refreshDio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: _certificatePinningService.createPinnedHttpClient,
     );
   }
 

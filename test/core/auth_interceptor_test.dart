@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:dio/dio.dart';
 import 'package:co_talk_flutter/core/network/auth_interceptor.dart';
+import 'package:co_talk_flutter/core/network/certificate_pinning_interceptor.dart';
 import 'package:co_talk_flutter/data/datasources/local/auth_local_datasource.dart';
 
 class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
@@ -133,7 +134,8 @@ void main() {
 
   setUp(() {
     mockLocalDataSource = MockAuthLocalDataSource();
-    interceptor = AuthInterceptor(mockLocalDataSource);
+    interceptor =
+        AuthInterceptor(mockLocalDataSource, const CertificatePinningService());
   });
 
   group('AuthInterceptor', () {

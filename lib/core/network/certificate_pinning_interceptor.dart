@@ -1,114 +1,74 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import '../config/security_config.dart';
 
-/// Dio interceptor for certificate pinning
+/// 인증서 피닝 서비스.
 ///
-/// This interceptor validates SSL/TLS certificates against a list of
-/// pinned certificate fingerprints to prevent man-in-the-middle attacks.
+/// SSL/TLS 인증서를 설정된 핀(서버 인증서 DER의 SHA-256 지문) 목록과 비교해
+/// 중간자(MITM) 공격을 방지한다.
 ///
-/// Only active when [SecurityConfig.certificatePinningEnabled] is true.
+/// 사용 방식: [createPinnedHttpClient]가 반환하는 [HttpClient]를 Dio의
+/// `IOHttpClientAdapter(createHttpClient: ...)`에 연결한다. 이렇게 해야
+/// [HttpClient.badCertificateCallback]이 실제 TLS 핸드셰이크 검증에 사용된다.
+/// (과거 구현은 Dio의 plain Interceptor로 등록되어 콜백이 호출되지 않는
+/// 보안상 무의미한 코드였다.)
+///
+/// [SecurityConfig.isPinningActive]가 true일 때에만 실제 핀 검증을 수행한다.
 @lazySingleton
-class CertificatePinningInterceptor extends Interceptor {
-  HttpClient? _httpClient;
+class CertificatePinningService {
+  const CertificatePinningService();
 
-  CertificatePinningInterceptor() {
-    if (SecurityConfig.certificatePinningEnabled) {
-      _initializeHttpClient();
-    }
+  /// 인증서 DER 바이트의 SHA-256 지문(소문자 hex)을 계산한다.
+  static String sha256OfDer(List<int> der) {
+    return sha256.convert(der).toString();
   }
 
-  void _initializeHttpClient() {
-    _httpClient = HttpClient()
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) {
-        // Validate certificate against pinned fingerprints
-        return _validateCertificate(cert);
-      };
-  }
-
-  bool _validateCertificate(X509Certificate cert) {
+  /// [cert]가 설정된 핀 중 하나와 일치하는지 검증한다.
+  ///
+  /// 피닝이 비활성(개발/디버그)이면 모든 인증서를 허용한다.
+  /// 핀이 설정되지 않았으면(실제 핀 없음) 보호가 없으므로 거부한다.
+  static bool isCertificateValid(X509Certificate cert) {
     if (!SecurityConfig.certificatePinningEnabled) {
-      return true; // Allow all certificates when pinning is disabled
+      return true; // 개발/디버그: 핀 검증을 수행하지 않음
     }
 
-    if (SecurityConfig.pinnedCertificates.isEmpty) {
+    if (!SecurityConfig.hasRealPin) {
       if (kDebugMode) {
         debugPrint(
-          'WARNING: Certificate pinning is enabled but no certificates are configured',
+          'WARNING: Certificate pinning is enabled but no real pin is configured',
         );
       }
       return false;
     }
 
-    // Extract SHA-256 fingerprint from certificate
-    final certSha256 = _getSha256Fingerprint(cert);
-
-    // Check if certificate matches any pinned fingerprint
-    final isValid = SecurityConfig.pinnedCertificates.any(
-      (pinnedFingerprint) =>
-          pinnedFingerprint.toLowerCase() == certSha256.toLowerCase(),
-    );
+    final fingerprint = sha256OfDer(cert.der).toLowerCase();
+    final isValid = SecurityConfig.pinnedCertificates
+        .any((pin) => pin.toLowerCase() == fingerprint);
 
     if (!isValid && kDebugMode) {
-      debugPrint('Certificate verification failed for host: ${cert.subject}');
-      debugPrint('Certificate SHA-256: $certSha256');
-      debugPrint(
-        'Pinned fingerprints: ${SecurityConfig.pinnedCertificates}',
-      );
+      debugPrint('Certificate pinning failed for: ${cert.subject}');
+      debugPrint('Presented SHA-256: $fingerprint');
     }
 
     return isValid;
   }
 
-  String _getSha256Fingerprint(X509Certificate cert) {
-    // Get DER-encoded certificate
-    final derCert = cert.der;
-
-    // Calculate SHA-256 hash
-    // Note: For public key pinning (more secure), we would hash only the public key
-    // For now, we're doing certificate pinning (full certificate hash)
-    final sha256Hash = _calculateSha256(derCert);
-
-    // Convert to hex string
-    return sha256Hash;
-  }
-
-  String _calculateSha256(Uint8List data) {
-    // Use a simple hex conversion
-    // For production, consider using crypto package for proper SHA-256
-    return data
-        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-        .join('')
-        .toLowerCase();
-  }
-
-  @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (err.type == DioExceptionType.badCertificate ||
-        err.error is HandshakeException) {
-      if (kDebugMode) {
-        debugPrint('Certificate pinning error: ${err.message}');
-      }
-
-      // Create a user-friendly error
-      final error = DioException(
-        requestOptions: err.requestOptions,
-        error:
-            'Certificate verification failed: Server certificate does not match pinned certificates',
-        type: DioExceptionType.badCertificate,
-      );
-
-      handler.next(error);
-      return;
+  /// 피닝이 적용된 [HttpClient]를 생성한다.
+  ///
+  /// [SecurityConfig.isPinningActive]가 true일 때에만
+  /// [HttpClient.badCertificateCallback]을 설정해 핀 검증을 수행한다.
+  /// 피닝이 비활성이면 기본 동작(시스템 신뢰 저장소)을 그대로 사용한다.
+  HttpClient createPinnedHttpClient([HttpClient? client]) {
+    final httpClient = client ?? HttpClient();
+    if (SecurityConfig.isPinningActive) {
+      httpClient.badCertificateCallback =
+          (X509Certificate cert, String host, int port) {
+        return isCertificateValid(cert);
+      };
     }
-
-    handler.next(err);
-  }
-
-  void dispose() {
-    _httpClient?.close();
+    return httpClient;
   }
 }

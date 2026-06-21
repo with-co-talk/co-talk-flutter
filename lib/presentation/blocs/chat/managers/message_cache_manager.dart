@@ -383,33 +383,60 @@ class MessageCacheManager {
   /// - pending messages waiting for echo
   /// - messages already marked as "sent" via fire-and-forget
   ///
-  /// Matching criteria:
-  /// - Locally originated (negative ID)
-  /// - Same content
-  /// - Created within 60 seconds of the real message
-  /// - If multiple matches, select the OLDEST one (FIFO)
+  /// Matching strategy (H1):
+  /// 1) PREFER exact match by clientMessageId: 서버 echo가 clientMessageId를
+  ///    실어 보내면([realMessage.localId]에 담김), 동일한 localId를 가진
+  ///    로컬 메시지를 정확히 교체한다. 동일 내용("ㅇㅇ" 등) 메시지가 여러 개
+  ///    pending 상태여도 올바른 버블을 교체한다.
+  /// 2) FALLBACK by content + 시간 window: echo에 clientMessageId가 없을 때만
+  ///    (백엔드 미지원) 기존 방식으로 매칭한다.
+  ///    - Locally originated (negative ID)
+  ///    - Same content
+  ///    - Created within 60 seconds of the real message
+  ///    - If multiple matches, select the OLDEST one (FIFO)
+  ///
+  /// NOTE(backend): 정확 매칭을 위해 백엔드가 broadcast/echo 메시지에
+  /// `clientMessageId`를 그대로 되돌려줘야 한다 (백엔드 PR 예정). 그 전까지는
+  /// fallback이 동작하므로 무회귀(no-regression) 개선이다.
   bool replacePendingMessageWithReal(String content, Message realMessage) {
-    final matchingIndices = <int>[];
-    const maxTimeDiff = Duration(seconds: 60);
+    final maxTimeDiff = const Duration(seconds: 60);
+    int? localIndex;
 
-    for (int i = 0; i < _messages.length; i++) {
-      final m = _messages[i];
-      // Match locally-originated messages (negative temp ID) with same content
-      if (m.id < 0 && m.content == content) {
-        final timeDiff = realMessage.createdAt.difference(m.createdAt).abs();
-        if (timeDiff <= maxTimeDiff) {
-          matchingIndices.add(i);
+    // 1) clientMessageId(=localId) 정확 매칭 우선.
+    final echoedClientMessageId = realMessage.localId;
+    if (echoedClientMessageId != null) {
+      for (int i = 0; i < _messages.length; i++) {
+        final m = _messages[i];
+        if (m.id < 0 && m.localId == echoedClientMessageId) {
+          localIndex = i;
+          break;
         }
       }
     }
 
-    if (matchingIndices.isEmpty) {
-      return false;
+    // 2) clientMessageId가 없거나 매칭 실패 시 content+window fallback.
+    if (localIndex == null) {
+      final matchingIndices = <int>[];
+      for (int i = 0; i < _messages.length; i++) {
+        final m = _messages[i];
+        // Match locally-originated messages (negative temp ID) with same content
+        if (m.id < 0 && m.content == content) {
+          final timeDiff = realMessage.createdAt.difference(m.createdAt).abs();
+          if (timeDiff <= maxTimeDiff) {
+            matchingIndices.add(i);
+          }
+        }
+      }
+
+      if (matchingIndices.isEmpty) {
+        return false;
+      }
+
+      // Select the OLDEST matching local message (FIFO ordering)
+      // Since messages are added at the beginning, the oldest is at the highest index
+      localIndex = matchingIndices.reduce((a, b) => a > b ? a : b);
     }
 
-    // Select the OLDEST matching local message (FIFO ordering)
-    // Since messages are added at the beginning, the oldest is at the highest index
-    final localIndex = matchingIndices.reduce((a, b) => a > b ? a : b);
     final localMessage = _messages[localIndex];
 
     _log('Replacing local message (localId=${localMessage.localId}) with real message (id=${realMessage.id})');
