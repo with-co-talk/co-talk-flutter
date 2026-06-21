@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:co_talk_flutter/presentation/pages/error/error_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/gradient_button.dart';
 
 void main() {
   group('ErrorPage', () {
@@ -21,7 +22,8 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      // Warm Sand 리뉴얼: EmptyStateView 스타일의 친근한 에러 아이콘(cloud_off_rounded)
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
     });
 
     testWidgets('shows default error message when message is null', (tester) async {
@@ -61,12 +63,13 @@ void main() {
         ),
       );
 
-      final button = find.widgetWithText(ElevatedButton, '홈으로 돌아가기');
+      // Warm Sand 리뉴얼: 홈 버튼이 공용 GradientButton 으로 변경
+      final button = find.widgetWithText(GradientButton, '홈으로 돌아가기');
       expect(button, findsOneWidget);
 
       // Verify button is enabled
-      final elevatedButton = tester.widget<ElevatedButton>(button);
-      expect(elevatedButton.onPressed, isNotNull);
+      final gradientButton = tester.widget<GradientButton>(button);
+      expect(gradientButton.onPressed, isNotNull);
     });
   });
 }

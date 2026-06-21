@@ -95,7 +95,11 @@ void main() {
       await tester.pumpWidget(createTestWidget(child: const Text('Test')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(NavigationBar), findsOneWidget);
+      // Warm Sand 리뉴얼: 모바일 하단 네비가 NavigationBar -> 커스텀 _AuroraBottomNav 로 변경됨.
+      // 커스텀 위젯은 private 이므로 네비 항목 아이콘으로 모바일 레이아웃을 검증한다.
+      // (/friends 선택 상태: 친구 탭 active=Icons.people, 채팅 탭 inactive=Icons.chat_outlined)
+      expect(find.byIcon(Icons.people), findsOneWidget);
+      expect(find.byIcon(Icons.chat_outlined), findsOneWidget);
       expect(find.byType(NavigationRail), findsNothing);
 
       addTearDown(() {
@@ -128,8 +132,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // MainPage has 2 tabs: 친구 (friends) and 채팅 (chat)
-      expect(find.text('친구'), findsOneWidget);
-      expect(find.text('채팅'), findsOneWidget);
+      // Warm Sand 리뉴얼: _AuroraBottomNav 는 활성 탭의 라벨만 텍스트로 렌더링하고
+      // 비활성 탭은 아이콘만 표시한다. (/friends 선택 → '친구' 라벨 + 채팅 아이콘)
+      expect(find.text('친구'), findsOneWidget); // 활성 탭 라벨
+      expect(find.byIcon(Icons.people), findsOneWidget); // 친구 탭(활성) 아이콘
+      expect(find.byIcon(Icons.chat_outlined), findsOneWidget); // 채팅 탭(비활성) 아이콘
 
       addTearDown(() {
         tester.view.resetPhysicalSize();

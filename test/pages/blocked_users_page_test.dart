@@ -98,9 +98,10 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
+      // Warm Sand 리뉴얼: 공용 EmptyStateView 카피로 변경
       expect(find.byIcon(Icons.block_outlined), findsOneWidget);
-      expect(find.text('차단한 사용자가 없습니다'), findsOneWidget);
-      expect(find.text('차단한 사용자가 여기에 표시됩니다'), findsOneWidget);
+      expect(find.text('차단한 사용자가 없어요'), findsOneWidget);
+      expect(find.text('차단한 사용자가 생기면 여기에서 관리할 수 있어요.'), findsOneWidget);
     });
 
     testWidgets('shows error state when error occurs with empty list', (tester) async {
@@ -113,8 +114,9 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
-      expect(find.text('차단 목록을 불러오는데 실패했습니다'), findsOneWidget);
+      // Warm Sand 리뉴얼: 공용 EmptyStateView 에러 스타일(cloud_off_rounded + 새 카피)
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
+      expect(find.text('차단 목록을 불러오지 못했어요'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });
 

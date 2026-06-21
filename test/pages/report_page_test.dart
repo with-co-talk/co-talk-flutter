@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/domain/entities/report.dart';
 import 'package:co_talk_flutter/domain/repositories/report_repository.dart';
 import 'package:co_talk_flutter/presentation/pages/report/report_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/gradient_button.dart';
 
 class MockReportRepository extends Mock implements ReportRepository {}
 
@@ -66,10 +67,10 @@ void main() {
     testWidgets('submit button is disabled when no reason selected', (tester) async {
       await tester.pumpWidget(createWidget());
 
-      final submitButton = find.widgetWithText(ElevatedButton, '신고하기');
+      final submitButton = find.widgetWithText(GradientButton, '신고하기');
       expect(submitButton, findsOneWidget);
 
-      final button = tester.widget<ElevatedButton>(submitButton);
+      final button = tester.widget<GradientButton>(submitButton);
       expect(button.onPressed, isNull);
     });
 
@@ -80,8 +81,8 @@ void main() {
       await tester.tap(find.text('스팸'));
       await tester.pump();
 
-      final submitButton = find.widgetWithText(ElevatedButton, '신고하기');
-      final button = tester.widget<ElevatedButton>(submitButton);
+      final submitButton = find.widgetWithText(GradientButton, '신고하기');
+      final button = tester.widget<GradientButton>(submitButton);
       expect(button.onPressed, isNotNull);
     });
 
@@ -99,11 +100,11 @@ void main() {
       await tester.pump();
 
       // Scroll to button
-      await tester.ensureVisible(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pump();
 
       // Submit
-      await tester.tap(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.tap(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pumpAndSettle();
 
       verify(() => mockReportRepository.reportUser(
@@ -127,11 +128,11 @@ void main() {
       await tester.pump();
 
       // Scroll to button
-      await tester.ensureVisible(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pump();
 
       // Submit
-      await tester.tap(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.tap(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pumpAndSettle();
 
       verify(() => mockReportRepository.reportMessage(
@@ -159,11 +160,11 @@ void main() {
       await tester.pump();
 
       // Scroll to button
-      await tester.ensureVisible(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pump();
 
       // Submit
-      await tester.tap(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.tap(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pumpAndSettle();
 
       verify(() => mockReportRepository.reportUser(
@@ -187,9 +188,9 @@ void main() {
       await tester.pump();
 
       // Scroll to button and submit
-      await tester.ensureVisible(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.tap(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pump(); // Pump once to show SnackBar
 
       // Verify success message appears (before pumpAndSettle which closes the page)
@@ -213,9 +214,9 @@ void main() {
       await tester.pump();
 
       // Scroll to button and submit
-      await tester.ensureVisible(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.tap(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pumpAndSettle();
 
       // Verify error message appears
@@ -236,12 +237,12 @@ void main() {
       await tester.pump();
 
       // Scroll to button
-      await tester.ensureVisible(find.widgetWithText(ElevatedButton, '신고하기'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '신고하기'));
       await tester.pump();
 
       // Verify button is enabled before submit
-      var submitButton = find.widgetWithText(ElevatedButton, '신고하기');
-      var button = tester.widget<ElevatedButton>(submitButton);
+      var submitButton = find.widgetWithText(GradientButton, '신고하기');
+      var button = tester.widget<GradientButton>(submitButton);
       expect(button.onPressed, isNotNull);
 
       // Tap submit button

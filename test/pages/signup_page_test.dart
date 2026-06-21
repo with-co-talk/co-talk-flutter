@@ -7,6 +7,7 @@ import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_state.dart';
 import 'package:co_talk_flutter/presentation/pages/auth/signup_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/gradient_button.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -44,7 +45,8 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      await tester.tap(find.widgetWithText(ElevatedButton, '회원가입'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '회원가입'));
+      await tester.tap(find.widgetWithText(GradientButton, '회원가입'));
       await tester.pump();
 
       expect(find.text('이메일을 입력해주세요'), findsOneWidget);
@@ -57,7 +59,8 @@ void main() {
 
       final emailField = find.byType(TextFormField).first;
       await tester.enterText(emailField, 'invalid-email');
-      await tester.tap(find.widgetWithText(ElevatedButton, '회원가입'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '회원가입'));
+      await tester.tap(find.widgetWithText(GradientButton, '회원가입'));
       await tester.pump();
 
       expect(find.text('올바른 이메일 형식이 아닙니다'), findsOneWidget);
@@ -70,7 +73,8 @@ void main() {
 
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), 'test@example.com');
-      await tester.tap(find.widgetWithText(ElevatedButton, '회원가입'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '회원가입'));
+      await tester.tap(find.widgetWithText(GradientButton, '회원가입'));
       await tester.pump();
 
       expect(find.text('닉네임을 입력해주세요'), findsOneWidget);
@@ -84,7 +88,8 @@ void main() {
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), 'test@example.com');
       await tester.enterText(fields.at(1), 'TestUser');
-      await tester.tap(find.widgetWithText(ElevatedButton, '회원가입'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '회원가입'));
+      await tester.tap(find.widgetWithText(GradientButton, '회원가입'));
       await tester.pump();
 
       expect(find.text('비밀번호를 입력해주세요'), findsOneWidget);
@@ -99,7 +104,8 @@ void main() {
       await tester.enterText(fields.at(0), 'test@example.com');
       await tester.enterText(fields.at(1), 'TestUser');
       await tester.enterText(fields.at(2), '1234567');
-      await tester.tap(find.widgetWithText(ElevatedButton, '회원가입'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '회원가입'));
+      await tester.tap(find.widgetWithText(GradientButton, '회원가입'));
       await tester.pump();
 
       expect(find.text('비밀번호는 8자 이상이어야 합니다'), findsOneWidget);
@@ -115,7 +121,8 @@ void main() {
       await tester.enterText(fields.at(1), 'TestUser');
       await tester.enterText(fields.at(2), 'password123');
       await tester.enterText(fields.at(3), 'password456');
-      await tester.tap(find.widgetWithText(ElevatedButton, '회원가입'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '회원가입'));
+      await tester.tap(find.widgetWithText(GradientButton, '회원가입'));
       await tester.pump();
 
       expect(find.text('비밀번호가 일치하지 않습니다'), findsOneWidget);
@@ -131,7 +138,8 @@ void main() {
       await tester.enterText(fields.at(1), 'TestUser');
       await tester.enterText(fields.at(2), 'password123');
       await tester.enterText(fields.at(3), 'password123');
-      await tester.tap(find.widgetWithText(ElevatedButton, '회원가입'));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, '회원가입'));
+      await tester.tap(find.widgetWithText(GradientButton, '회원가입'));
       await tester.pump();
 
       verify(() => mockAuthBloc.add(const AuthSignUpRequested(
@@ -183,17 +191,17 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // Initially visibility_off icons are shown
-      expect(find.byIcon(Icons.visibility_off), findsNWidgets(2));
-      expect(find.byIcon(Icons.visibility), findsNothing);
+      // Initially visibility_off_outlined icons are shown (password + confirm)
+      expect(find.byIcon(Icons.visibility_off_outlined), findsNWidgets(2));
+      expect(find.byIcon(Icons.visibility_outlined), findsNothing);
 
       // Tap first visibility toggle
-      await tester.tap(find.byIcon(Icons.visibility_off).first);
+      await tester.tap(find.byIcon(Icons.visibility_off_outlined).first);
       await tester.pump();
 
-      // Now one visibility icon is shown
-      expect(find.byIcon(Icons.visibility), findsOneWidget);
-      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
+      // Now one visibility_outlined icon is shown
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
     });
   });
 }

@@ -9,6 +9,7 @@ import 'package:co_talk_flutter/presentation/blocs/friend/friend_state.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_state.dart';
 import 'package:co_talk_flutter/presentation/pages/friends/friend_list_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/skeletons/list_skeleton.dart';
 import 'package:co_talk_flutter/domain/entities/friend.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 
@@ -77,12 +78,13 @@ void main() {
       expect(find.text('친구'), findsOneWidget);
     });
 
-    testWidgets('shows loading indicator when loading', (tester) async {
+    testWidgets('shows loading skeleton when loading', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest(
         friendState: const FriendState(status: FriendStatus.loading),
       ));
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      // Warm Sand 리뉴얼: 로딩 상태가 시머 스켈레톤(ListSkeleton)으로 변경
+      expect(find.byType(ListSkeleton), findsOneWidget);
     });
 
     testWidgets('shows empty message when no friends', (tester) async {
@@ -90,9 +92,9 @@ void main() {
         friendState: const FriendState(status: FriendStatus.success),
       ));
 
-      // 실제 구현은 두 개의 별도 Text 위젯으로 되어 있음
-      expect(find.text('친구가 없습니다'), findsOneWidget);
-      expect(find.text('친구를 추가하고 대화를 시작해보세요'), findsOneWidget);
+      // Warm Sand 리뉴얼: 공용 EmptyStateView 카피로 변경
+      expect(find.text('아직 친구가 없어요'), findsOneWidget);
+      expect(find.text('친구를 추가하고 대화를 시작해보세요.'), findsOneWidget);
     });
 
     testWidgets('shows error message on failure', (tester) async {
@@ -103,7 +105,8 @@ void main() {
         ),
       ));
 
-      expect(find.text('친구 목록을 불러오는데 실패했습니다'), findsOneWidget);
+      // Warm Sand 리뉴얼: 공용 EmptyStateView 에러 카피로 변경
+      expect(find.text('친구 목록을 불러오지 못했어요'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });
 

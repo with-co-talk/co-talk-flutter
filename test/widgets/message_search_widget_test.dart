@@ -68,8 +68,9 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest());
 
       expect(find.byType(TextField), findsOneWidget);
-      // 초기 상태에서 검색 아이콘 2개: TextField prefixIcon + 빈 상태 뷰
-      expect(find.byIcon(Icons.search), findsNWidgets(2));
+      // Warm Sand 리뉴얼: 검색 아이콘이 search -> search_rounded 로 변경됨
+      // 초기 상태에서 검색 아이콘 2개: TextField prefixIcon + 빈 상태 placeholder
+      expect(find.byIcon(Icons.search_rounded), findsNWidgets(2));
     });
 
     testWidgets('텍스트 입력 시 MessageSearchQueryChanged 이벤트 발생', (tester) async {
@@ -120,8 +121,16 @@ void main() {
       // 발신자 이름은 일반 Text로 표시됨
       expect(find.text('홍길동'), findsOneWidget);
       expect(find.text('김철수'), findsOneWidget);
-      // 메시지 내용은 RichText(하이라이트)로 표시되므로 Card 개수로 확인
-      expect(find.byType(Card), findsNWidgets(2));
+      // Warm Sand 리뉴얼: 결과 항목이 Card -> Container + InkWell 로 변경됨.
+      // 각 결과 항목이 탭 가능한 InkWell 로 감싸졌는지 발신자 이름 기준으로 확인
+      expect(
+        find.ancestor(of: find.text('홍길동'), matching: find.byType(InkWell)),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(of: find.text('김철수'), matching: find.byType(InkWell)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('검색 결과가 없을 때 빈 결과 메시지 표시', (tester) async {
@@ -162,8 +171,11 @@ void main() {
       ));
       await tester.pump();
 
-      // 첫 번째 검색 결과 Card 탭
-      await tester.tap(find.byType(Card).first);
+      // Warm Sand 리뉴얼: 결과 항목 Card -> Container + InkWell.
+      // 첫 번째 결과(홍길동, id=1) 항목의 InkWell 탭
+      await tester.tap(
+        find.ancestor(of: find.text('홍길동'), matching: find.byType(InkWell)),
+      );
       await tester.pump();
 
       expect(selectedMessageId, 1);
@@ -177,8 +189,8 @@ void main() {
         ),
       ));
 
-      // 클리어 버튼 찾기 (X 아이콘)
-      final clearButton = find.byIcon(Icons.clear);
+      // Warm Sand 리뉴얼: 클리어 아이콘 clear -> clear_rounded 로 변경됨
+      final clearButton = find.byIcon(Icons.clear_rounded);
       expect(clearButton, findsOneWidget);
 
       await tester.tap(clearButton);

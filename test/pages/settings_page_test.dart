@@ -96,6 +96,15 @@ void main() {
     });
 
     testWidgets('shows general settings', (tester) async {
+      // Warm Sand 리뉴얼: 섹션 카드화로 세로 길이가 늘어 '일반' 섹션이 기본 화면
+      // 아래로 밀려나므로, 다른 섹션 테스트와 동일하게 큰 화면으로 전체를 렌더링한다.
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       await tester.pumpWidget(createWidgetUnderTest());
 
       expect(find.text('언어'), findsOneWidget);

@@ -196,7 +196,8 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.byIcon(Icons.edit), findsOneWidget);
+      // Warm Sand 리뉴얼: 편집 아이콘이 edit_outlined 로 변경
+      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
     });
 
     testWidgets('shows camera icon on avatar', (tester) async {
@@ -210,7 +211,8 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.byIcon(Icons.camera_alt), findsOneWidget);
+      // Warm Sand 리뉴얼: 히어로 헤더 아바타의 카메라 아이콘이 camera_alt_rounded 로 변경
+      expect(find.byIcon(Icons.camera_alt_rounded), findsOneWidget);
     });
 
     testWidgets('shows inactive status', (tester) async {

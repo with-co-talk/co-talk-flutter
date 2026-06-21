@@ -36,7 +36,9 @@ void main() {
       expect(find.text('이메일'), findsOneWidget);
       expect(find.text('비밀번호'), findsOneWidget);
       expect(find.text('로그인'), findsOneWidget);
-      expect(find.text('계정이 없으신가요? 회원가입'), findsOneWidget);
+      // Sign-up prompt is now split into a label + tappable link.
+      expect(find.text('계정이 없으신가요?'), findsOneWidget);
+      expect(find.text('회원가입'), findsOneWidget);
     });
 
     testWidgets('shows validation error for empty email', (tester) async {
@@ -144,17 +146,17 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // Initially visibility_off icon is shown (password is obscured)
-      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
-      expect(find.byIcon(Icons.visibility), findsNothing);
+      // Initially visibility_off_outlined icon is shown (password is obscured)
+      expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsNothing);
 
       // Tap visibility toggle
-      await tester.tap(find.byIcon(Icons.visibility_off));
+      await tester.tap(find.byIcon(Icons.visibility_off_outlined));
       await tester.pump();
 
-      // Now visibility icon is shown (password is visible)
-      expect(find.byIcon(Icons.visibility), findsOneWidget);
-      expect(find.byIcon(Icons.visibility_off), findsNothing);
+      // Now visibility_outlined icon is shown (password is visible)
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_off_outlined), findsNothing);
     });
   });
 }
