@@ -100,8 +100,8 @@ extension GetItInjectableX on _i174.GetIt {
     gh.singleton<_i60.WebSocketPayloadParser>(
       () => const _i60.WebSocketPayloadParser(),
     );
-    gh.lazySingleton<_i206.CertificatePinningInterceptor>(
-      () => _i206.CertificatePinningInterceptor(),
+    gh.lazySingleton<_i206.CertificatePinningService>(
+      () => const _i206.CertificatePinningService(),
     );
     gh.lazySingleton<_i480.ActiveRoomTracker>(() => _i480.ActiveRoomTracker());
     gh.lazySingleton<_i507.AppBadgeService>(() => _i507.AppBadgeService());
@@ -128,6 +128,12 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i860.AuthLocalDataSource>(
       () => _i860.AuthLocalDataSourceImpl(gh<_i558.FlutterSecureStorage>()),
     );
+    gh.lazySingleton<_i552.AuthInterceptor>(
+      () => _i552.AuthInterceptor(
+        gh<_i860.AuthLocalDataSource>(),
+        gh<_i206.CertificatePinningService>(),
+      ),
+    );
     gh.lazySingleton<_i809.FcmService>(
       () => _i809.NoOpFcmService(),
       registerFor: {_desktop},
@@ -141,9 +147,6 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i64.NotificationLocalDataSourceImpl(
         gh<_i558.FlutterSecureStorage>(),
       ),
-    );
-    gh.lazySingleton<_i552.AuthInterceptor>(
-      () => _i552.AuthInterceptor(gh<_i860.AuthLocalDataSource>()),
     );
     gh.factory<_i884.BiometricSettingsCubit>(
       () => _i884.BiometricSettingsCubit(
@@ -161,12 +164,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i601.ChatLocalDataSource>(
       () => _i601.ChatLocalDataSourceImpl(gh<_i441.AppDatabase>()),
     );
-    gh.lazySingleton<_i393.DioClient>(
-      () => _i393.DioClient(
-        gh<_i552.AuthInterceptor>(),
-        gh<_i206.CertificatePinningInterceptor>(),
-      ),
-    );
     gh.lazySingleton<_i570.NotificationService>(
       () => _i570.NotificationService(
         plugin: gh<_i163.FlutterLocalNotificationsPlugin>(),
@@ -182,19 +179,14 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i860.AuthLocalDataSource>(),
       ),
     );
-    gh.lazySingleton<_i991.SettingsRemoteDataSource>(
-      () => _i991.SettingsRemoteDataSourceImpl(gh<_i393.DioClient>()),
-    );
-    gh.lazySingleton<_i577.LinkPreviewRemoteDataSource>(
-      () => _i577.LinkPreviewRemoteDataSourceImpl(gh<_i393.DioClient>()),
+    gh.lazySingleton<_i393.DioClient>(
+      () => _i393.DioClient(
+        gh<_i552.AuthInterceptor>(),
+        gh<_i206.CertificatePinningService>(),
+      ),
     );
     gh.lazySingleton<_i738.ReportRemoteDataSource>(
       () => _i738.ReportRemoteDataSourceImpl(gh<_i393.DioClient>()),
-    );
-    gh.lazySingleton<_i1014.LinkPreviewRepository>(
-      () => _i319.LinkPreviewRepositoryImpl(
-        gh<_i577.LinkPreviewRemoteDataSource>(),
-      ),
     );
     gh.lazySingleton<_i633.AuthRemoteDataSource>(
       () => _i633.AuthRemoteDataSourceImpl(gh<_i393.DioClient>()),
@@ -232,12 +224,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i860.AuthLocalDataSource>(),
       ),
     );
-    gh.lazySingleton<_i977.SettingsRepository>(
-      () => _i453.SettingsRepositoryImpl(
-        gh<_i991.SettingsRemoteDataSource>(),
-        gh<_i30.ChatSettingsLocalDataSource>(),
-      ),
-    );
     gh.factory<_i389.EmailVerificationBloc>(
       () => _i389.EmailVerificationBloc(gh<_i800.AuthRepository>()),
     );
@@ -250,14 +236,19 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i487.MessageSearchBloc>(
       () => _i487.MessageSearchBloc(gh<_i792.ChatRepository>()),
     );
-    gh.lazySingleton<_i110.ChatSettingsCubit>(
-      () => _i110.ChatSettingsCubit(gh<_i977.SettingsRepository>()),
-    );
-    gh.lazySingleton<_i728.NotificationSettingsCubit>(
-      () => _i728.NotificationSettingsCubit(gh<_i977.SettingsRepository>()),
-    );
     gh.lazySingleton<_i217.ProfileRepository>(
       () => _i953.ProfileRepositoryImpl(gh<_i710.ProfileRemoteDataSource>()),
+    );
+    gh.lazySingleton<_i991.SettingsRemoteDataSource>(
+      () => _i991.SettingsRemoteDataSourceImpl(gh<_i393.DioClient>()),
+    );
+    gh.lazySingleton<_i577.LinkPreviewRemoteDataSource>(
+      () => _i577.LinkPreviewRemoteDataSourceImpl(gh<_i393.DioClient>()),
+    );
+    gh.lazySingleton<_i1014.LinkPreviewRepository>(
+      () => _i319.LinkPreviewRepositoryImpl(
+        gh<_i577.LinkPreviewRemoteDataSource>(),
+      ),
     );
     gh.lazySingleton<_i995.ChatListBloc>(
       () => _i995.ChatListBloc(
@@ -272,6 +263,24 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i1069.FriendRepository>(),
         gh<_i682.WebSocketService>(),
       ),
+    );
+    gh.lazySingleton<_i977.SettingsRepository>(
+      () => _i453.SettingsRepositoryImpl(
+        gh<_i991.SettingsRemoteDataSource>(),
+        gh<_i30.ChatSettingsLocalDataSource>(),
+      ),
+    );
+    gh.factory<_i256.ProfileBloc>(
+      () => _i256.ProfileBloc(
+        gh<_i217.ProfileRepository>(),
+        gh<_i800.AuthRepository>(),
+      ),
+    );
+    gh.lazySingleton<_i110.ChatSettingsCubit>(
+      () => _i110.ChatSettingsCubit(gh<_i977.SettingsRepository>()),
+    );
+    gh.lazySingleton<_i728.NotificationSettingsCubit>(
+      () => _i728.NotificationSettingsCubit(gh<_i977.SettingsRepository>()),
     );
     gh.factory<_i870.ChangePasswordBloc>(
       () => _i870.ChangePasswordBloc(gh<_i977.SettingsRepository>()),
@@ -304,12 +313,6 @@ extension GetItInjectableX on _i174.GetIt {
         webSocketService: gh<_i682.WebSocketService>(),
         windowFocusTracker: gh<_i156.WindowFocusTracker>(),
         settingsRepository: gh<_i977.SettingsRepository>(),
-      ),
-    );
-    gh.factory<_i256.ProfileBloc>(
-      () => _i256.ProfileBloc(
-        gh<_i217.ProfileRepository>(),
-        gh<_i800.AuthRepository>(),
       ),
     );
     gh.factory<_i995.ChatRoomBloc>(
