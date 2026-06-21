@@ -43,6 +43,7 @@ class MessageHandler {
     required int roomId,
     required String content,
     int? userId,
+    String? clientMessageId,
   }) async {
     if (userId == null) {
       userId = await _authLocalDataSource.getUserId();
@@ -69,6 +70,7 @@ class MessageHandler {
     var success = _webSocketService.sendMessage(
       roomId: roomId,
       content: content,
+      clientMessageId: clientMessageId,
     );
 
     // Retry once: the STOMP connection may have dropped between isConnected
@@ -82,6 +84,7 @@ class MessageHandler {
         success = _webSocketService.sendMessage(
           roomId: roomId,
           content: content,
+          clientMessageId: clientMessageId,
         );
       }
       if (!success) {

@@ -22,6 +22,7 @@ class WebSocketMessageSender {
     required StompClient? stompClient,
     required int roomId,
     required String content,
+    String? clientMessageId,
   }) {
     if (stompClient == null || !stompClient.connected) {
       if (kDebugMode) {
@@ -35,6 +36,12 @@ class WebSocketMessageSender {
       body: jsonEncode({
         'roomId': roomId,
         'content': content,
+        // 낙관적 전송 중복제거용 클라이언트 메시지 ID(UUID).
+        // 백엔드는 broadcast/echo 메시지에 이 값을 그대로 다시 실어 보내야
+        // 클라이언트가 content+시간 매칭이 아닌 정확한 ID 매칭으로 pending
+        // 메시지를 교체할 수 있다. (백엔드 echo 미지원 시에도 무해 — 기존
+        // content+window fallback으로 동작한다. 백엔드 PR 예정.)
+        if (clientMessageId != null) 'clientMessageId': clientMessageId,
       }),
     );
     return true;
