@@ -101,6 +101,7 @@ void main() {
     when(() => mockWebSocketService.sendMessage(
           roomId: any(named: 'roomId'),
           content: any(named: 'content'),
+              clientMessageId: any(named: 'clientMessageId'),
         )).thenReturn(true);
     when(() => mockWebSocketService.sendPresenceInactive(
           roomId: any(named: 'roomId'),
@@ -556,17 +557,63 @@ void main() {
               .having((s) => s.messages.first.content, 'content', '안녕하세요!')
               .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.pending)
               .having((s) => s.messages.first.senderId, 'senderId', 42),
-          // 2. Fire-and-forget 전송 성공 → 즉시 sent로 전환
+          // 2. Fire-and-forget send() 성공 → 서버 echo 전이므로 sending (H2).
+          //    sent로의 승격은 echo 수신 시(_onMessageReceived)에만 일어난다.
           isA<ChatRoomState>()
               .having((s) => s.messages.length, 'messages length', 1)
               .having((s) => s.messages.first.content, 'content', '안녕하세요!')
-              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sent),
+              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sending),
         ],
         verify: (_) {
           verify(() => mockWebSocketService.sendMessage(
                 roomId: 1,
                 content: '안녕하세요!',
+                clientMessageId: any(named: 'clientMessageId'),
               )).called(1);
+        },
+      );
+
+      // ── H2: send() 후 sending, echo 수신 후에만 sent ──────────────────
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'message is `sending` after send() returns and only `sent` after '
+        'the echo arrives',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId())
+              .thenAnswer((_) async => 42);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 42,
+          messages: [],
+        ),
+        act: (bloc) async {
+          // 1) 전송 → fire-and-forget send() 완료 후 sending 이어야 한다.
+          bloc.add(const MessageSent('ping'));
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          final pending = bloc.state.messages.first;
+          expect(pending.sendStatus, MessageSendStatus.sending,
+              reason: 'send() 직후에는 ack가 없으므로 sent가 아닌 sending이어야 한다');
+
+          // 2) 서버 echo 도착(clientMessageId=localId 포함) → 이제서야 sent 승격.
+          bloc.add(MessageReceived(Message(
+            id: 9001,
+            chatRoomId: 1,
+            senderId: 42,
+            content: 'ping',
+            createdAt: DateTime.now(),
+            localId: pending.localId,
+          )));
+          await Future.delayed(const Duration(milliseconds: 100));
+        },
+        verify: (bloc) {
+          final confirmed =
+              bloc.state.messages.firstWhere((m) => m.content == 'ping');
+          expect(confirmed.id, 9001);
+          expect(confirmed.sendStatus, MessageSendStatus.sent,
+              reason: 'echo 수신 후에만 sent로 승격돼야 한다');
         },
       );
 
@@ -585,6 +632,7 @@ void main() {
           verifyNever(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               ));
         },
       );
@@ -595,6 +643,7 @@ void main() {
           when(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               )).thenThrow(Exception('Network error'));
           when(() => mockAuthLocalDataSource.getUserId())
               .thenAnswer((_) async => 42);
@@ -629,6 +678,7 @@ void main() {
           verifyNever(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               ));
         },
       );
@@ -3192,6 +3242,7 @@ void main() {
           when(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               )).thenAnswer((_) {
             sendCallCount++;
             return sendCallCount >= 3;
@@ -3226,9 +3277,9 @@ void main() {
           // MessageRetryRequested: status changes to pending
           isA<ChatRoomState>()
               .having((s) => s.messages.first.sendStatus, 'sendStatus retry', MessageSendStatus.pending),
-          // Fire-and-forget retry succeeds → sent
+          // Fire-and-forget retry send() 성공 → echo 전이므로 sending (H2)
           isA<ChatRoomState>()
-              .having((s) => s.messages.first.sendStatus, 'sendStatus retry sent', MessageSendStatus.sent),
+              .having((s) => s.messages.first.sendStatus, 'sendStatus retry sending', MessageSendStatus.sending),
         ],
       );
 
@@ -3238,6 +3289,7 @@ void main() {
           when(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               )).thenReturn(false);
           when(() => mockWebSocketService.isConnected).thenReturn(false);
           when(() => mockWebSocketService.ensureConnected(
@@ -3300,6 +3352,7 @@ void main() {
           verifyNever(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               ));
         },
       );
@@ -3335,6 +3388,7 @@ void main() {
           when(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               )).thenReturn(false); // Message will fail
           when(() => mockWebSocketService.isConnected).thenReturn(false);
           when(() => mockWebSocketService.ensureConnected(
@@ -4249,9 +4303,9 @@ void main() {
               .having((s) => s.messages.length, 'messages.length', 1)
               .having((s) => s.messages.first.content, 'content', '답장 내용')
               .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.pending),
-          // Second emit: message send completed (success)
+          // Second emit: send 완료 → echo 전이므로 sending (H2)
           isA<ChatRoomState>()
-              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sent),
+              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sending),
         ],
         verify: (_) {
           verify(() => mockChatRepository.replyToMessage(1, '답장 내용')).called(1);

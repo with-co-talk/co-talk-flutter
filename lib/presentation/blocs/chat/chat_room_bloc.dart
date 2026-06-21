@@ -926,6 +926,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       roomId: roomId,
       content: content,
       userId: userId,
+      // localId를 clientMessageId로 함께 전송 → 서버가 echo에 되돌려주면
+      // content+시간이 아닌 정확한 ID로 pending 메시지를 매칭/교체한다 (H1).
+      clientMessageId: localId,
     ).then((_) {
       if (!isClosed) {
         add(MessageSendCompleted(localId: localId, success: true));
@@ -947,12 +950,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (event.success) {
-      _log('_onMessageSendCompleted: sent (localId=${event.localId})');
-      // 전송 성공 → 즉시 "sent" 상태로 변경 (에코를 기다리지 않음).
-      // 에코가 오면 _onMessageReceived에서 서버 메시지로 교체.
+      _log('_onMessageSendCompleted: sending (localId=${event.localId})');
+      // WS send()는 ack를 반환하지 않는다. send() 호출이 끝났다고 해서 서버가
+      // 메시지를 받았다는 보장은 없으므로 아직 "sent"로 표시하지 않는다.
+      // 서버 echo가 _onMessageReceived → replacePendingMessageWithReal에서
+      // 도착하면 그때 "sent"로 승격한다. echo가 끝내 오지 않으면 15초
+      // pending-timeout 체커가 "failed"로 전환한다.
       _cacheManager.updatePendingMessageStatus(
         event.localId,
-        MessageSendStatus.sent,
+        MessageSendStatus.sending,
       );
       emit(state.copyWith(messages: _cacheManager.messages));
     } else {
