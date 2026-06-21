@@ -1,0 +1,7 @@
+{
+  "@@locale": "ko",
+  "appTitle": "Co-Talk",
+  "@appTitle": {
+    "description": "The application title"
+  }
+}
