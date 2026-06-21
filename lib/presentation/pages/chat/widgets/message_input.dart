@@ -570,9 +570,9 @@ class _MessageInputState extends State<MessageInput> {
                               ),
                               GestureDetector(
                                 onTap: widget.onCancelReply,
-                                child: const Padding(
-                                  padding: EdgeInsets.all(4),
-                                  child: Icon(Icons.close, size: 18, color: Colors.grey),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(Icons.close, size: 18, color: context.textSecondaryColor),
                                 ),
                               ),
                             ],

@@ -28,7 +28,7 @@ class ScrollToBottomFab extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             // 브랜드 그라데이션 둥근 FAB — 채팅에서 가장 자주 보이는 액션이므로
-            // 시그니처 보라 글로우로 강조
+            // 브랜드 글로우로 강조
             DecoratedBox(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,

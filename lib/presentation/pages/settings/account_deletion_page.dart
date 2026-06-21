@@ -409,10 +409,12 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
+                Icon(
                   Icons.timer_outlined,
                   size: 17,
-                  color: Color(0xFFB45309),
+                  color: context.isDarkMode
+                      ? AppColors.warning
+                      : const Color(0xFFB45309),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -500,7 +502,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
   }
 }
 
-/// 단계별 입력 카드 — 보라 번호 배지 + 제목 + 콘텐츠.
+/// 단계별 입력 카드 — 브랜드 번호 배지 + 제목 + 콘텐츠.
 class _StepCard extends StatelessWidget {
   final String step;
   final String title;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 
 /// 리스트/화면이 비었을 때 보여주는 표준 빈 상태 뷰.
-/// 부드러운 보라 틴트 원 안의 아이콘 + 제목 + 부제 + (선택) 액션.
+/// 브랜드 틴트 원 안의 아이콘 + 제목 + 부제 + (선택) 액션.
 class EmptyStateView extends StatelessWidget {
   final IconData icon;
   final String title;
