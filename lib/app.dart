@@ -32,6 +32,12 @@ class CoTalkApp extends StatelessWidget {
             authInterceptor.setAuthBloc(authBloc);
             authInterceptor.setWebSocketService(webSocketService);
 
+            // WebSocket 재연결 시 토큰 갱신을 AuthInterceptor의 single-flight
+            // refresh로 위임 (refresh authority 단일화 → rotation race 제거).
+            webSocketService.setTokenRefreshDelegate(
+              authInterceptor.refreshTokenForReconnect,
+            );
+
             return authBloc;
           },
         ),

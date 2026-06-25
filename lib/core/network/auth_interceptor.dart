@@ -169,6 +169,21 @@ class AuthInterceptor extends QueuedInterceptor {
     handler.next(err);
   }
 
+  /// WebSocket 재연결 등 인터셉터 외부에서 토큰 갱신이 필요할 때 호출한다.
+  ///
+  /// HTTP 401 처리와 동일한 single-flight refresh([_ensureRefreshed])를 공유하므로
+  /// refresh authority가 하나로 유지된다. 이전에 WebSocket이 별도 Dio로 refresh를
+  /// 수행하면서 발생하던 refresh-token rotation race(옛 토큰 무효화 → 강제 로그아웃)를
+  /// 방지한다. best-effort: 성공/실패와 무관하게 예외를 던지지 않는다.
+  Future<void> refreshTokenForReconnect() async {
+    if (_isDisposed) return;
+    try {
+      await _ensureRefreshed();
+    } catch (_) {
+      // best-effort: 재연결 흐름을 막지 않도록 실패를 흡수한다.
+    }
+  }
+
   /// Single-flight refresh.
   ///
   /// 진행 중인 refresh가 있으면 그 Future를 그대로 반환하고,
