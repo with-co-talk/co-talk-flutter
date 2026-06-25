@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -35,6 +34,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   late final PresenceManager _presenceManager;
   late final MessageCacheManager _cacheManager;
   late final MessageHandler _messageHandler;
+  late final ReactionHandler _reactionHandler;
+  // 읽음(read-receipt) unreadCount 계산 전담(순수 계산기, 부수효과 없음).
+  final ReadReceiptCalculator _readReceiptCalculator = const ReadReceiptCalculator();
 
   // State tracking
   bool _roomInitialized = false;
@@ -130,6 +132,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _webSocketService,
       _authLocalDataSource,
     );
+    _reactionHandler = ReactionHandler(_cacheManager, _webSocketService);
 
     // Register event handlers
     on<ChatRoomOpened>(_onOpened);
@@ -1126,38 +1129,27 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // 내가 읽은 이벤트는 무시
     if (event.userId == state.currentUserId) return;
 
+    final currentUserId = state.currentUserId!;
+
     // 중복 읽음 이벤트 방지: (userId, lastReadMessageId) 또는 (userId, lastReadAt) 조합으로 체크
-    final eventKey = '${event.userId}_${event.lastReadMessageId ?? event.lastReadAt?.millisecondsSinceEpoch ?? 'all'}';
+    final eventKey = _readReceiptCalculator.dedupKey(
+      userId: event.userId,
+      lastReadMessageId: event.lastReadMessageId,
+      lastReadAt: event.lastReadAt,
+    );
     if (state.processedReadEvents.contains(eventKey)) {
       _log('_onMessagesReadUpdated: Duplicate read event ignored: $eventKey');
       return;
     }
 
-    // 메시지 업데이트 함수
+    // 메시지 업데이트 함수 (순수 계산은 ReadReceiptCalculator에 위임)
     Message updateMessageReadCount(Message message) {
-      // 내가 보낸 메시지만 업데이트
-      if (message.senderId != state.currentUserId) return message;
-      // 이미 0이면 더 감소하지 않음
-      if (message.unreadCount <= 0) return message;
-
-      // 1. lastReadMessageId가 있으면 해당 ID 이하 메시지만 업데이트
-      if (event.lastReadMessageId != null) {
-        if (message.id <= event.lastReadMessageId!) {
-          return message.copyWith(unreadCount: message.unreadCount - 1);
-        }
-        return message;
-      }
-
-      // 2. lastReadMessageId가 없고 lastReadAt이 있으면 해당 시간 이전 메시지만 업데이트
-      if (event.lastReadAt != null) {
-        if (!message.createdAt.isAfter(event.lastReadAt!)) {
-          return message.copyWith(unreadCount: message.unreadCount - 1);
-        }
-        return message;
-      }
-
-      // 3. 둘 다 없으면 모든 메시지를 읽음 처리
-      return message.copyWith(unreadCount: message.unreadCount - 1);
+      return _readReceiptCalculator.applyToMessage(
+        message,
+        currentUserId: currentUserId,
+        lastReadMessageId: event.lastReadMessageId,
+        lastReadAt: event.lastReadAt,
+      );
     }
 
     // Use state.messages directly to handle seed state in tests
@@ -1181,16 +1173,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Also update cache manager for consistency
     _cacheManager.updateMessages(updateMessageReadCount);
 
-    // 처리된 이벤트 기록 (LinkedHashSet을 사용하여 삽입 순서 보장)
-    var newProcessedEvents = LinkedHashSet<String>.from(state.processedReadEvents)..add(eventKey);
-    // Cap the set to prevent unbounded growth
-    if (newProcessedEvents.length > 500) {
-      // Keep only the most recent entries by taking the last 250
-      final eventsList = newProcessedEvents.toList();
-      newProcessedEvents = LinkedHashSet<String>.from(
-        eventsList.sublist(eventsList.length - 250),
-      );
-    }
+    // 처리된 이벤트 기록 (삽입 순서 보장 + 무한 증가 방지 캡은 calculator에 위임)
+    final newProcessedEvents = _readReceiptCalculator.appendProcessedEvent(
+      state.processedReadEvents,
+      eventKey,
+    );
 
     emit(state.copyWith(
       messages: updatedMessages,
@@ -1430,87 +1417,52 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   // Reaction Handlers
   // ============================================================
 
-  /// 리액션 추가 요청 처리
+  /// 리액션 추가 요청 처리 (cache mutation/WS 전송은 ReactionHandler에 위임)
   void _onReactionAddRequested(
     ReactionAddRequested event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionAddRequested: messageId=${event.messageId}, emoji=${event.emoji}');
-
-    // Sync cache manager with state if out of sync (for tests with seeded state)
-    if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
-      _cacheManager.syncMessages(state.messages);
-    }
-
-    // Optimistic UI update - add reaction immediately
-    final currentUserId = state.currentUserId;
-    if (currentUserId != null) {
-      final optimisticReaction = MessageReaction(
-        id: 0, // temporary ID, will be replaced by server echo
-        messageId: event.messageId,
-        userId: currentUserId,
-        emoji: event.emoji,
-      );
-      _cacheManager.addReaction(event.messageId, optimisticReaction);
-      emit(state.copyWith(messages: _cacheManager.messages));
-    }
-
-    _webSocketService.addReaction(
+    final updated = _reactionHandler.addRequested(
       messageId: event.messageId,
       emoji: event.emoji,
+      currentUserId: state.currentUserId,
+      stateMessages: state.messages,
     );
+    if (updated != null) {
+      emit(state.copyWith(messages: updated));
+    }
   }
 
-  /// 리액션 제거 요청 처리
+  /// 리액션 제거 요청 처리 (cache mutation/WS 전송은 ReactionHandler에 위임)
   void _onReactionRemoveRequested(
     ReactionRemoveRequested event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionRemoveRequested: messageId=${event.messageId}, emoji=${event.emoji}');
-
-    // Sync cache manager with state if out of sync (for tests with seeded state)
-    if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
-      _cacheManager.syncMessages(state.messages);
-    }
-
-    // Optimistic UI update - remove reaction immediately
-    final currentUserId = state.currentUserId;
-    if (currentUserId != null) {
-      _cacheManager.removeReaction(event.messageId, currentUserId, event.emoji);
-      emit(state.copyWith(messages: _cacheManager.messages));
-    }
-
-    _webSocketService.removeReaction(
+    final updated = _reactionHandler.removeRequested(
       messageId: event.messageId,
       emoji: event.emoji,
+      currentUserId: state.currentUserId,
+      stateMessages: state.messages,
     );
+    if (updated != null) {
+      emit(state.copyWith(messages: updated));
+    }
   }
 
-  /// 리액션 이벤트 수신 처리 (WebSocket)
+  /// 리액션 이벤트 수신 처리 (WebSocket) — cache mutation은 ReactionHandler에 위임
   void _onReactionEventReceived(
     ReactionEventReceived event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionEventReceived: messageId=${event.messageId}, userId=${event.userId}, emoji=${event.emoji}, isAdd=${event.isAdd}');
-
-    // Sync cache manager with state if out of sync (for tests with seeded state)
-    if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
-      _cacheManager.syncMessages(state.messages);
-    }
-
-    if (event.isAdd) {
-      final reaction = MessageReaction(
-        id: event.reactionId ?? 0,
-        messageId: event.messageId,
-        userId: event.userId,
-        userNickname: event.userNickname,
-        emoji: event.emoji,
-      );
-      _cacheManager.addReaction(event.messageId, reaction);
-    } else {
-      _cacheManager.removeReaction(event.messageId, event.userId, event.emoji);
-    }
-
-    emit(state.copyWith(messages: _cacheManager.messages));
+    final updated = _reactionHandler.eventReceived(
+      messageId: event.messageId,
+      userId: event.userId,
+      userNickname: event.userNickname,
+      emoji: event.emoji,
+      isAdd: event.isAdd,
+      reactionId: event.reactionId,
+      stateMessages: state.messages,
+    );
+    emit(state.copyWith(messages: updated));
   }
 }
