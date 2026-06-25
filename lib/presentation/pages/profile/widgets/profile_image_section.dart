@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class ProfileImageSection extends StatelessWidget {
   final String? avatarUrl;
@@ -124,7 +125,7 @@ class ProfileImageSection extends StatelessWidget {
           TextButton.icon(
             onPressed: isLoading ? null : onTap,
             icon: const Icon(Icons.edit, size: 16),
-            label: const Text('사진 변경'),
+            label: Text(AppLocalizations.of(context)!.profileChangePhoto),
             style: TextButton.styleFrom(
               foregroundColor: AppColors.primary,
             ),

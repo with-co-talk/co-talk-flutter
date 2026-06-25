@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 
@@ -14,7 +15,7 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('프로필'),
+        title: Text(AppLocalizations.of(context)!.profileTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -125,20 +126,20 @@ class ProfilePage extends StatelessWidget {
                   children: [
                     _ProfileInfoRow(
                       icon: Icons.badge,
-                      label: '상태',
-                      value: _getStatusText(user.status),
+                      label: AppLocalizations.of(context)!.profileStatusLabel,
+                      value: _getStatusText(context, user.status),
                     ),
                     const Divider(),
                     _ProfileInfoRow(
                       icon: Icons.circle,
-                      label: '온라인 상태',
-                      value: _getOnlineStatusText(user.onlineStatus),
+                      label: AppLocalizations.of(context)!.profileOnlineStatusLabel,
+                      value: _getOnlineStatusText(context, user.onlineStatus),
                       valueColor: _getOnlineStatusColor(user.onlineStatus),
                     ),
                     const Divider(),
                     _ProfileInfoRow(
                       icon: Icons.calendar_today,
-                      label: '가입일',
+                      label: AppLocalizations.of(context)!.profileJoinDateLabel,
                       value: _formatDate(user.createdAt),
                     ),
                   ],
@@ -151,27 +152,29 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  String _getStatusText(status) {
+  String _getStatusText(BuildContext context, status) {
+    final l10n = AppLocalizations.of(context)!;
     switch (status.toString()) {
       case 'UserStatus.active':
-        return '활성';
+        return l10n.profileStatusActive;
       case 'UserStatus.inactive':
-        return '비활성';
+        return l10n.profileStatusInactive;
       case 'UserStatus.suspended':
-        return '정지됨';
+        return l10n.profileStatusSuspended;
       default:
-        return '알 수 없음';
+        return l10n.profileStatusUnknown;
     }
   }
 
-  String _getOnlineStatusText(onlineStatus) {
+  String _getOnlineStatusText(BuildContext context, onlineStatus) {
+    final l10n = AppLocalizations.of(context)!;
     switch (onlineStatus.toString()) {
       case 'OnlineStatus.online':
-        return '온라인';
+        return l10n.profileOnlineStatusOnline;
       case 'OnlineStatus.away':
-        return '자리 비움';
+        return l10n.profileOnlineStatusAway;
       default:
-        return '오프라인';
+        return l10n.profileOnlineStatusOffline;
     }
   }
 

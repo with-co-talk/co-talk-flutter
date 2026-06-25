@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../handlers/profile_submit_handler.dart';
 
 class ProfileFormFields extends StatelessWidget {
@@ -23,11 +24,11 @@ class ProfileFormFields extends StatelessWidget {
         _buildEditCard(
           context: context,
           icon: Icons.person,
-          label: '닉네임',
+          label: AppLocalizations.of(context)!.profileNickname,
           child: TextFormField(
             controller: nicknameController,
             decoration: InputDecoration(
-              hintText: '닉네임을 입력하세요',
+              hintText: AppLocalizations.of(context)!.profileNicknameHint,
               hintStyle: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 16,
@@ -49,7 +50,8 @@ class ProfileFormFields extends StatelessWidget {
               fontWeight: FontWeight.w500,
               height: 1.5,
             ),
-            validator: ProfileSubmitHandler.validateNickname,
+            validator: (value) =>
+                ProfileSubmitHandler.validateNickname(context, value),
           ),
         ),
 
@@ -59,11 +61,11 @@ class ProfileFormFields extends StatelessWidget {
         _buildEditCard(
           context: context,
           icon: Icons.chat_bubble_outline,
-          label: '상태메시지',
+          label: AppLocalizations.of(context)!.profileStatusMessage,
           child: TextFormField(
             controller: statusMessageController,
             decoration: InputDecoration(
-              hintText: '상태메시지를 입력하세요 (선택)',
+              hintText: AppLocalizations.of(context)!.profileStatusMessageOptionalHint,
               hintStyle: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 16,
@@ -109,7 +111,7 @@ class ProfileFormFields extends StatelessWidget {
 
         // Account info section
         Text(
-          '계정 정보',
+          AppLocalizations.of(context)!.profileAccountInfo,
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -122,7 +124,7 @@ class ProfileFormFields extends StatelessWidget {
         _buildInfoCard(
           context: context,
           icon: Icons.email,
-          label: '이메일',
+          label: AppLocalizations.of(context)!.profileEmail,
           value: email,
         ),
       ],
@@ -252,7 +254,7 @@ class ProfileFormFields extends StatelessWidget {
                 Icon(Icons.lock_outline, size: 12, color: Colors.grey[500]),
                 const SizedBox(width: 4),
                 Text(
-                  '수정불가',
+                  AppLocalizations.of(context)!.profileNotEditable,
                   style: TextStyle(
                     fontSize: 10,
                     color: Colors.grey[500],

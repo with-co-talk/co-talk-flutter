@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class ProfileDialogs {
   /// Show image source picker for avatar
@@ -33,9 +34,9 @@ class ProfileDialogs {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                '프로필 사진',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context)!.profileAvatar,
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
@@ -50,8 +51,8 @@ class ProfileDialogs {
                   ),
                   child: const Icon(Icons.camera_alt, color: AppColors.primary),
                 ),
-                title: const Text('카메라로 촬영'),
-                subtitle: const Text('새 사진 찍기'),
+                title: Text(AppLocalizations.of(context)!.profileTakePhoto),
+                subtitle: Text(AppLocalizations.of(context)!.profileTakePhotoSubtitle),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   onCamera();
@@ -66,8 +67,8 @@ class ProfileDialogs {
                   ),
                   child: const Icon(Icons.photo_library, color: AppColors.primary),
                 ),
-                title: const Text('앨범에서 선택'),
-                subtitle: const Text('저장된 사진 선택'),
+                title: Text(AppLocalizations.of(context)!.profileSelectFromAlbum),
+                subtitle: Text(AppLocalizations.of(context)!.profileSelectFromAlbumSubtitle),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   onGallery();
@@ -82,8 +83,8 @@ class ProfileDialogs {
                   ),
                   child: const Icon(Icons.history, color: AppColors.primary),
                 ),
-                title: const Text('기존 프로필에서 선택'),
-                subtitle: const Text('이전에 사용한 사진 선택'),
+                title: Text(AppLocalizations.of(context)!.profileSelectFromExisting),
+                subtitle: Text(AppLocalizations.of(context)!.profileSelectFromExistingSubtitle),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   onHistory();
@@ -100,11 +101,11 @@ class ProfileDialogs {
                     ),
                     child: const Icon(Icons.delete_outline, color: Colors.red),
                   ),
-                  title: const Text(
-                    '기본 이미지로 변경',
-                    style: TextStyle(color: Colors.red),
+                  title: Text(
+                    AppLocalizations.of(context)!.profileResetToDefault,
+                    style: const TextStyle(color: Colors.red),
                   ),
-                  subtitle: const Text('현재 프로필 사진 삭제'),
+                  subtitle: Text(AppLocalizations.of(context)!.profileResetToDefaultSubtitle),
                   onTap: () {
                     Navigator.pop(bottomSheetContext);
                     onDelete();
@@ -155,8 +156,8 @@ class ProfileDialogs {
                   ),
                   child: const Icon(Icons.folder_open, color: AppColors.primary),
                 ),
-                title: const Text('파일에서 선택'),
-                subtitle: const Text('이미지 파일을 선택합니다'),
+                title: Text(AppLocalizations.of(context)!.profileSelectFromFile),
+                subtitle: Text(AppLocalizations.of(context)!.profileSelectFromFileSubtitle),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   onFilePick();
@@ -198,9 +199,9 @@ class ProfileDialogs {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                '배경화면',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              Text(
+                AppLocalizations.of(context)!.profileBackground,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
               ListTile(
@@ -212,7 +213,7 @@ class ProfileDialogs {
                   ),
                   child: const Icon(Icons.photo_library, color: AppColors.primary),
                 ),
-                title: const Text('앨범에서 선택'),
+                title: Text(AppLocalizations.of(context)!.profileSelectFromAlbum),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   onGallery();
@@ -227,7 +228,7 @@ class ProfileDialogs {
                   ),
                   child: const Icon(Icons.history, color: Colors.grey),
                 ),
-                title: const Text('배경 이력에서 선택'),
+                title: Text(AppLocalizations.of(context)!.profileSelectFromBackgroundHistory),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   onHistory();
@@ -277,8 +278,8 @@ class ProfileDialogs {
                   ),
                   child: const Icon(Icons.folder_open, color: AppColors.primary),
                 ),
-                title: const Text('파일에서 선택'),
-                subtitle: const Text('배경 이미지 파일을 선택합니다'),
+                title: Text(AppLocalizations.of(context)!.profileSelectFromFile),
+                subtitle: Text(AppLocalizations.of(context)!.profileSelectBackgroundFileSubtitle),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   onFilePick();
@@ -297,17 +298,17 @@ class ProfileDialogs {
     return showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('프로필 사진 삭제'),
-        content: const Text('프로필 사진을 삭제하고 기본 이미지로 변경하시겠습니까?'),
+        title: Text(AppLocalizations.of(context)!.profileAvatarDeleteTitle),
+        content: Text(AppLocalizations.of(context)!.profileAvatarDeleteConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('삭제'),
+            child: Text(AppLocalizations.of(context)!.commonDelete),
           ),
         ],
       ),

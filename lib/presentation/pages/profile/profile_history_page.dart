@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/profile_history.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/profile/profile_bloc.dart';
 import '../../blocs/profile/profile_event.dart';
 import '../../blocs/profile/profile_state.dart';
@@ -118,7 +119,7 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '아직 ${_getTypeLabel()} 이력이 없습니다',
+                    AppLocalizations.of(context)!.profileHistoryEmpty(_getTypeLabel(context)),
                     style: const TextStyle(
                       color: Colors.white54,
                       fontSize: 16,
@@ -130,7 +131,7 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
                       onPressed: () => _navigateToEditProfile(context),
                       icon: const Icon(Icons.add_photo_alternate, color: Colors.white),
                       label: Text(
-                        _getAddButtonLabel(),
+                        _getAddButtonLabel(context),
                         style: const TextStyle(color: Colors.white, fontSize: 16),
                       ),
                       style: TextButton.styleFrom(
@@ -166,7 +167,7 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
-              _getTypeLabel(),
+              _getTypeLabel(context),
               style: const TextStyle(color: Colors.white),
             ),
             centerTitle: true,
@@ -248,16 +249,16 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(24),
                         onTap: () => _showOptionsSheet(context, histories[_currentIndex]),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.more_horiz, color: Colors.white, size: 20),
-                              SizedBox(width: 6),
+                              const Icon(Icons.more_horiz, color: Colors.white, size: 20),
+                              const SizedBox(width: 6),
                               Text(
-                                '더보기',
-                                style: TextStyle(
+                                AppLocalizations.of(context)!.profileMore,
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -324,26 +325,28 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
     }
   }
 
-  String _getTypeLabel() {
+  String _getTypeLabel(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     switch (widget.type) {
       case ProfileHistoryType.avatar:
-        return '프로필 사진';
+        return l10n.profileAvatar;
       case ProfileHistoryType.background:
-        return '배경화면';
+        return l10n.profileBackground;
       case ProfileHistoryType.statusMessage:
-        return '상태메시지';
+        return l10n.profileStatusMessage;
     }
   }
 
   /// 빈 이력일 때 "추가하기" 버튼 라벨
-  String _getAddButtonLabel() {
+  String _getAddButtonLabel(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     switch (widget.type) {
       case ProfileHistoryType.avatar:
-        return '사진 추가하기';
+        return l10n.profileAddAvatar;
       case ProfileHistoryType.background:
-        return '배경 추가하기';
+        return l10n.profileAddBackground;
       case ProfileHistoryType.statusMessage:
-        return '상태메시지 추가';
+        return l10n.profileAddStatusMessage;
     }
   }
 
@@ -534,13 +537,13 @@ class _HistoryInfoOverlay extends StatelessWidget {
             if (history.isCurrent)
               _Badge(
                 icon: Icons.check_circle,
-                label: '현재',
+                label: AppLocalizations.of(context)!.profileBadgeCurrent,
                 color: AppColors.success,
               ),
             if (history.isPrivate)
               _Badge(
                 icon: Icons.lock,
-                label: '나만보기',
+                label: AppLocalizations.of(context)!.profileBadgePrivate,
                 color: AppColors.warning,
               ),
           ],
