@@ -7,6 +7,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/app_haptics.dart';
 import '../../../domain/entities/notification_settings.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/settings/notification_settings_cubit.dart';
 import '../../blocs/settings/notification_settings_state.dart';
 
@@ -42,7 +43,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             }
           },
         ),
-        title: const Text('알림 설정'),
+        title: Text(AppLocalizations.of(context)!.settingsNotificationSettings),
       ),
       body: BlocConsumer<NotificationSettingsCubit, NotificationSettingsState>(
         listenWhen: (previous, current) =>
@@ -67,7 +68,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    state.errorMessage ?? '오류가 발생했습니다',
+                    state.errorMessage ?? AppLocalizations.of(context)!.settingsErrorOccurred,
                     style: TextStyle(color: AppColors.error),
                   ),
                   const SizedBox(height: 16),
@@ -75,7 +76,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     onPressed: () {
                       context.read<NotificationSettingsCubit>().loadSettings();
                     },
-                    child: const Text('다시 시도'),
+                    child: Text(AppLocalizations.of(context)!.commonRetry),
                   ),
                 ],
               ),
@@ -85,12 +86,12 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           return ListView(
             children: [
               _buildSection(
-                title: '알림 유형',
+                title: AppLocalizations.of(context)!.settingsNotificationType,
                 children: [
                   _buildSwitchTile(
                     icon: Icons.message_outlined,
-                    title: '메시지 알림',
-                    subtitle: '새 메시지를 받을 때 알림',
+                    title: AppLocalizations.of(context)!.settingsMessageNotification,
+                    subtitle: AppLocalizations.of(context)!.settingsMessageNotificationDesc,
                     value: state.settings.messageNotification,
                     onChanged: (value) {
                       context
@@ -100,8 +101,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   ),
                   _buildSwitchTile(
                     icon: Icons.person_add_outlined,
-                    title: '친구 요청 알림',
-                    subtitle: '새 친구 요청을 받을 때 알림',
+                    title: AppLocalizations.of(context)!.settingsFriendRequestNotification,
+                    subtitle: AppLocalizations.of(context)!.settingsFriendRequestNotificationDesc,
                     value: state.settings.friendRequestNotification,
                     onChanged: (value) {
                       context
@@ -111,8 +112,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   ),
                   _buildSwitchTile(
                     icon: Icons.group_add_outlined,
-                    title: '그룹 초대 알림',
-                    subtitle: '그룹 채팅에 초대받을 때 알림',
+                    title: AppLocalizations.of(context)!.settingsGroupInviteNotification,
+                    subtitle: AppLocalizations.of(context)!.settingsGroupInviteNotificationDesc,
                     value: state.settings.groupInviteNotification,
                     onChanged: (value) {
                       context
@@ -123,13 +124,13 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 ],
               ),
               _buildSection(
-                title: '알림 방식',
+                title: AppLocalizations.of(context)!.settingsNotificationMethod,
                 children: [
                   _buildPreviewModeSelector(state),
                   _buildSwitchTile(
                     icon: Icons.volume_up_outlined,
-                    title: '소리',
-                    subtitle: '알림 소리 재생',
+                    title: AppLocalizations.of(context)!.settingsSound,
+                    subtitle: AppLocalizations.of(context)!.settingsSoundDesc,
                     value: state.settings.soundEnabled,
                     onChanged: (value) {
                       context
@@ -141,8 +142,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   if (_isMobile)
                     _buildSwitchTile(
                       icon: Icons.vibration,
-                      title: '진동',
-                      subtitle: '알림 시 진동',
+                      title: AppLocalizations.of(context)!.settingsVibration,
+                      subtitle: AppLocalizations.of(context)!.settingsVibrationDesc,
                       value: state.settings.vibrationEnabled,
                       onChanged: (value) {
                         context
@@ -153,12 +154,12 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 ],
               ),
               _buildSection(
-                title: '방해 금지',
+                title: AppLocalizations.of(context)!.settingsDoNotDisturb,
                 children: [
                   _buildSwitchTile(
                     icon: Icons.do_not_disturb_on_outlined,
-                    title: '방해 금지 모드',
-                    subtitle: '설정된 시간 동안 알림 무음',
+                    title: AppLocalizations.of(context)!.settingsDoNotDisturbMode,
+                    subtitle: AppLocalizations.of(context)!.settingsDoNotDisturbDesc,
                     value: state.settings.doNotDisturbEnabled,
                     onChanged: (value) {
                       context.read<NotificationSettingsCubit>().setDoNotDisturb(
@@ -169,13 +170,13 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   if (state.settings.doNotDisturbEnabled) ...[
                     _buildTimeTile(
                       icon: Icons.access_time,
-                      title: '시작 시간',
+                      title: AppLocalizations.of(context)!.settingsStartTime,
                       time: state.settings.doNotDisturbStart ?? '22:00',
                       onTap: () => _selectTime(context, true, state),
                     ),
                     _buildTimeTile(
                       icon: Icons.access_time_filled,
-                      title: '종료 시간',
+                      title: AppLocalizations.of(context)!.settingsEndTime,
                       time: state.settings.doNotDisturbEnd ?? '07:00',
                       onTap: () => _selectTime(context, false, state),
                     ),
@@ -224,7 +225,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
-                  '알림 미리보기',
+                  AppLocalizations.of(context)!.settingsNotificationPreview,
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
@@ -232,7 +233,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '알림에 표시할 내용을 선택합니다',
+            AppLocalizations.of(context)!.settingsNotificationPreviewDesc,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -251,18 +252,18 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildRadioOption(
-                  title: '이름 + 메시지',
-                  subtitle: '보낸 사람 이름과 메시지 내용을 표시',
+                  title: AppLocalizations.of(context)!.settingsPreviewNameAndMessage,
+                  subtitle: AppLocalizations.of(context)!.settingsPreviewNameAndMessageDesc,
                   value: NotificationPreviewMode.nameAndMessage,
                 ),
                 _buildRadioOption(
-                  title: '이름만',
-                  subtitle: '보낸 사람 이름만 표시',
+                  title: AppLocalizations.of(context)!.settingsPreviewNameOnly,
+                  subtitle: AppLocalizations.of(context)!.settingsPreviewNameOnlyDesc,
                   value: NotificationPreviewMode.nameOnly,
                 ),
                 _buildRadioOption(
-                  title: '표시 안함',
-                  subtitle: '이름과 메시지 내용 모두 숨김',
+                  title: AppLocalizations.of(context)!.settingsPreviewNothing,
+                  subtitle: AppLocalizations.of(context)!.settingsPreviewNothingDesc,
                   value: NotificationPreviewMode.nothing,
                 ),
               ],
