@@ -220,7 +220,12 @@ class FcmServiceImpl implements FcmService {
       previewMode = settings.notificationPreviewMode;
       soundEnabled = settings.soundEnabled;
       vibrationEnabled = settings.vibrationEnabled;
-    } catch (_) {}
+    } catch (e) {
+      // best-effort: 설정 조회 실패 시 기본값 유지하되 debug에서는 가시화.
+      if (kDebugMode) {
+        debugPrint('[FcmService] Failed to load notification settings, using defaults: $e');
+      }
+    }
 
     String title;
     String body;

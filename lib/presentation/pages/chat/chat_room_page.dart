@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -300,7 +301,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
       if (activeRoomTracker.activeRoomId == widget.roomId) {
         activeRoomTracker.activeRoomId = null;
       }
-    } catch (_) {}
+    } catch (e) {
+      // best-effort: dispose 중 GetIt 미등록 등은 무시하되 debug에서는 가시화.
+      if (kDebugMode) {
+        debugPrint('[ChatRoomPage] ActiveRoomTracker reset skipped: $e');
+      }
+    }
 
     if (!_chatRoomBloc.isClosed) {
       _chatRoomBloc.add(const ChatRoomClosed());
@@ -312,7 +318,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     try {
       final notificationClickHandler = GetIt.instance<NotificationClickHandler>();
       notificationClickHandler.onSameRoomRefresh = null;
-    } catch (_) {}
+    } catch (e) {
+      // best-effort: 콜백 해제 실패는 무시하되 debug에서는 가시화.
+      if (kDebugMode) {
+        debugPrint('[ChatRoomPage] onSameRoomRefresh unregister skipped: $e');
+      }
+    }
     super.dispose();
   }
 
