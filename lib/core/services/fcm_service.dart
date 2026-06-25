@@ -50,21 +50,21 @@ class NoOpFcmService implements FcmService {
   void dispose() {}
 }
 
-/// FCM 푸시 알림 서비스 구현 (현재 Android 전용)
+/// FCM 푸시 알림 서비스 구현 (Android 및 iOS 지원)
 ///
 /// Firebase Cloud Messaging을 통한 푸시 알림을 처리합니다.
 /// - FCM 토큰 발급 및 갱신
 /// - 포그라운드 메시지 처리 (로컬 알림으로 표시)
 /// - 백그라운드 메시지 핸들러 설정
 ///
-/// TODO: iOS 푸시 알림 활성화 필요
-/// iOS 설정 필요사항:
-/// 1. Apple Developer Program 유료 가입 ($99/년)
-/// 2. Xcode > Signing & Capabilities > Push Notifications 추가
-/// 3. Xcode > Signing & Capabilities > Background Modes > Remote notifications 체크
-/// 4. Apple Developer > Keys에서 APNs 키 발급 (.p8 파일)
-/// 5. Firebase Console > 프로젝트 설정 > 클라우드 메시징에 APNs 키 업로드
-/// 6. main.dart와 이 파일에서 Platform.isIOS 조건 추가
+/// iOS 푸시는 코드/네이티브 양쪽에서 활성화되어 있습니다:
+/// - main.dart / di/injection.dart / auth_bloc.dart 의 Platform.isIOS 분기
+///   (iOS는 mobile 환경 → 이 FcmServiceImpl 사용, NoOp 아님)
+/// - ios/Runner/AppDelegate.swift: registerForRemoteNotifications() +
+///   Messaging.messaging().apnsToken 전달
+/// - ios/Runner/Runner.entitlements: aps-environment (production),
+///   RunnerDebug.entitlements: development
+/// - ios/Runner/Info.plist: UIBackgroundModes에 remote-notification
 @LazySingleton(as: FcmService, env: [_mobileEnv])
 class FcmServiceImpl implements FcmService {
   final FirebaseMessaging _messaging;
