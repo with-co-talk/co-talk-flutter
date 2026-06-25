@@ -108,6 +108,18 @@ class CoTalkApp extends StatelessWidget {
   }
 }
 
+/// 앱 전역(global) 라이프사이클 옵저버.
+///
+/// 책임 경계(M2): 이 옵저버는 **앱 전역 보안 잠금(AppLockCubit)** 만 담당한다.
+/// 채팅 presence(active/inactive)와 WebSocket 연결 관리는 의도적으로 여기서
+/// 다루지 않는다 — presence는 본질적으로 "특정 방을 보고 있는가"라는 per-room
+/// 상태이고(presence_manager: sendPresenceActive/Inactive(roomId)), 그 책임은
+/// 방이 열려 있는 동안에만 존재하는 chat_room_page의 WidgetsBindingObserver가
+/// 가진다(1.5s 디바운스, iOS inactive-vs-paused 구분 포함).
+///
+/// 따라서 채팅 "목록"(방 밖)에서 백그라운드로 가도 누락되는 presence 의무는
+/// 없다: 목록에서는 활성(active)으로 표시된 방이 애초에 없으므로 해제할 상태가
+/// 없고, 모든 방의 푸시는 정상 수신된다. 두 옵저버의 역할은 겹치지 않는다.
 class _AppLifecycleHandler extends StatefulWidget {
   final Widget child;
   const _AppLifecycleHandler({required this.child});

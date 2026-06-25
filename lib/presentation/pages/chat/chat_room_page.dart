@@ -42,6 +42,14 @@ class ChatRoomPage extends StatefulWidget {
   State<ChatRoomPage> createState() => _ChatRoomPageState();
 }
 
+/// 채팅 방(room) 전용 라이프사이클 옵저버.
+///
+/// 책임 경계(M2): 이 옵저버는 방이 열려 있는 동안의 **per-room presence와
+/// WebSocket 연결**을 담당한다 — paused 즉시 presence-inactive 전송, 1.5s
+/// 디바운스 후 ChatRoomBackgrounded(소켓 정리), iOS inactive-vs-paused 구분.
+/// 앱 전역 보안 잠금은 app.dart의 _AppLifecycleHandler가 담당한다(역할 분리).
+/// presence는 per-room이므로, 방 밖(채팅 목록)에서의 백그라운드 전환에는 별도
+/// presence 의무가 없다 — 자세한 근거는 app.dart의 _AppLifecycleHandler 주석 참고.
 class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
