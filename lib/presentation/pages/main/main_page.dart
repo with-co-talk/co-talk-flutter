@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
@@ -134,10 +135,10 @@ class _MainPageState extends State<MainPage> {
                     ),
                   ),
                   destinations: [
-                    const NavigationRailDestination(
-                      icon: Icon(Icons.people_outlined),
-                      selectedIcon: Icon(Icons.people),
-                      label: Text('친구'),
+                    NavigationRailDestination(
+                      icon: const Icon(Icons.people_outlined),
+                      selectedIcon: const Icon(Icons.people),
+                      label: Text(AppLocalizations.of(context)!.mainTabFriends),
                     ),
                     NavigationRailDestination(
                       icon: _buildBadgeIcon(
@@ -148,7 +149,7 @@ class _MainPageState extends State<MainPage> {
                         icon: const Icon(Icons.chat),
                         count: totalUnread,
                       ),
-                      label: const Text('채팅'),
+                      label: Text(AppLocalizations.of(context)!.mainTabChat),
                     ),
                   ],
                 ),
@@ -165,10 +166,10 @@ class _MainPageState extends State<MainPage> {
             selectedIndex: _selectedIndex,
             onDestinationSelected: _onDestinationSelected,
             destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.people_outlined),
-                selectedIcon: Icon(Icons.people),
-                label: '친구',
+              NavigationDestination(
+                icon: const Icon(Icons.people_outlined),
+                selectedIcon: const Icon(Icons.people),
+                label: AppLocalizations.of(context)!.mainTabFriends,
               ),
               NavigationDestination(
                 icon: _buildBadgeIcon(
@@ -179,7 +180,7 @@ class _MainPageState extends State<MainPage> {
                   icon: const Icon(Icons.chat),
                   count: totalUnread,
                 ),
-                label: '채팅',
+                label: AppLocalizations.of(context)!.mainTabChat,
               ),
             ],
           ),

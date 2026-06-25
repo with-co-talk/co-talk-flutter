@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/date_utils.dart';
 import '../../domain/entities/message.dart';
+import '../../l10n/app_localizations.dart';
 import '../blocs/chat/message_search/message_search_bloc.dart';
 import '../blocs/chat/message_search/message_search_event.dart';
 import '../blocs/chat/message_search/message_search_state.dart';
@@ -85,7 +86,7 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
             controller: _searchController,
             focusNode: _focusNode,
             decoration: InputDecoration(
-              hintText: '메시지 검색',
+              hintText: AppLocalizations.of(context)!.widgetMessageSearchHint,
               prefixIcon: const Icon(Icons.search),
               suffixIcon: state.hasQuery
                   ? IconButton(
@@ -128,7 +129,8 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                state.errorMessage ?? '검색 중 오류가 발생했습니다',
+                state.errorMessage ??
+                    AppLocalizations.of(context)!.widgetSearchError,
                 style: TextStyle(
                   color: AppColors.error,
                   fontSize: 14,
@@ -152,7 +154,7 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '검색 결과가 없습니다',
+                  AppLocalizations.of(context)!.widgetSearchNoResults,
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 16,
@@ -176,7 +178,7 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '검색어를 입력하세요',
+                  AppLocalizations.of(context)!.widgetSearchPrompt,
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 16,
@@ -217,7 +219,8 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
                 children: [
                   // 발신자 이름
                   Text(
-                    message.senderNickname ?? '알 수 없음',
+                    message.senderNickname ??
+                        AppLocalizations.of(context)!.widgetUnknownSender,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
