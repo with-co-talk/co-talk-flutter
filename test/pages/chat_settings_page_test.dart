@@ -7,6 +7,7 @@ import 'package:co_talk_flutter/presentation/blocs/settings/chat_settings_cubit.
 import 'package:co_talk_flutter/presentation/blocs/settings/chat_settings_state.dart';
 import 'package:co_talk_flutter/presentation/pages/settings/chat_settings_page.dart';
 import 'package:co_talk_flutter/domain/entities/chat_settings.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockChatSettingsCubit extends MockCubit<ChatSettingsState>
     implements ChatSettingsCubit {}
@@ -24,6 +25,9 @@ void main() {
 
   Widget createWidgetUnderTest() {
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: BlocProvider<ChatSettingsCubit>.value(
         value: mockChatSettingsCubit,
         child: const ChatSettingsPage(),

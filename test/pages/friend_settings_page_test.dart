@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:co_talk_flutter/presentation/pages/friends/friend_settings_page.dart';
 import 'package:co_talk_flutter/core/router/app_router.dart';
 import 'package:go_router/go_router.dart';
@@ -43,6 +44,9 @@ void main() {
   Widget createWidgetUnderTest() {
     return MaterialApp.router(
       routerConfig: router,
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
     );
   }
 

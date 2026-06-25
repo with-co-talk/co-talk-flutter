@@ -12,6 +12,7 @@ import 'package:co_talk_flutter/presentation/pages/friends/friend_list_page.dart
 import 'package:co_talk_flutter/presentation/widgets/skeletons/list_skeleton.dart';
 import 'package:co_talk_flutter/domain/entities/friend.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockFriendBloc extends Mock implements FriendBloc {}
 
@@ -60,6 +61,9 @@ void main() {
     when(() => mockFriendBloc.close()).thenAnswer((_) async {});
 
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: MultiBlocProvider(
         providers: [
           BlocProvider<FriendBloc>.value(value: mockFriendBloc),

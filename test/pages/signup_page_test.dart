@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:bloc_test/bloc_test.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_state.dart';
@@ -19,6 +20,9 @@ void main() {
 
   Widget createWidgetUnderTest() {
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: BlocProvider<AuthBloc>.value(
         value: mockAuthBloc,
         child: const SignUpPage(),

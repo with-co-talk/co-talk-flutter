@@ -13,6 +13,7 @@ import 'package:co_talk_flutter/presentation/blocs/profile/profile_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/profile/profile_state.dart';
 import 'package:co_talk_flutter/presentation/pages/profile/edit_profile_page.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -120,6 +121,9 @@ void main() {
 
   Widget createWidgetUnderTest() {
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: MultiBlocProvider(
         providers: [
           BlocProvider<AuthBloc>.value(value: mockAuthBloc),
