@@ -40,11 +40,10 @@ void main() async {
     await initializeDateFormatting('ko_KR', null);
 
     // Initialize Firebase (Android and iOS)
-    // iOS 설정 필요사항:
-    // 1. Apple Developer Program 유료 가입
-    // 2. Xcode에서 Push Notifications capability 추가
-    // 3. Xcode에서 Background Modes > Remote notifications 추가
-    // 4. APNs 인증 키 발급 후 Firebase Console에 업로드
+    // iOS 푸시는 이미 활성화되어 있다(Apple Developer 가입, Push Notifications
+    // capability, Background Modes > Remote notifications, APNs 키 업로드 완료).
+    // 네이티브 설정은 ios/Runner/AppDelegate.swift, Runner.entitlements,
+    // Info.plist(UIBackgroundModes: remote-notification) 참고.
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       await Firebase.initializeApp();
 

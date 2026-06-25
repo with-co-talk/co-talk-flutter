@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart' hide NotificationSettings;
 import 'package:firebase_messaging/firebase_messaging.dart' as fcm show NotificationSettings;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:injectable/injectable.dart';
 
 import '../../domain/entities/notification_settings.dart';
@@ -311,14 +312,111 @@ class FcmServiceImpl implements FcmService {
 /// 앱이 백그라운드 또는 종료 상태일 때 FCM 메시지를 처리합니다.
 /// main() 함수에서 FirebaseMessaging.onBackgroundMessage로 등록해야 합니다.
 ///
-/// 중요: 이 함수는 top-level 함수여야 하며, 클래스 인스턴스에 의존하면 안 됩니다.
+/// 중요: 이 함수는 top-level 함수여야 하며, 별도 isolate에서 실행되므로
+/// 앱의 DI(NotificationService 등) 인스턴스에 의존하면 안 됩니다.
+///
+/// 동작:
+/// - notification 블록이 있는 푸시: OS/FCM이 트레이 알림을 자동 표시하므로
+///   여기서는 아무것도 하지 않는다(중복 알림 방지). 포그라운드 억제 경로
+///   (_handleForegroundMessageAsync)와도 겹치지 않는다 — 그쪽은 onMessage(포그라운드)
+///   전용이고 이 핸들러는 백그라운드/종료 상태 전용이다.
+/// - data-only 푸시(notification == null): 시스템이 자동 표시하지 않으므로
+///   killed/background 사용자에게 알림이 누락된다. 이 경우에만 별도 isolate에서
+///   가벼운 FlutterLocalNotificationsPlugin을 생성해 로컬 알림을 직접 표시한다.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (kDebugMode) {
-    debugPrint('[FCM] Background message received: ${message.messageId}');
+    debugPrint('[FCM] Background message received: ${message.messageId}, '
+        'hasNotification=${message.notification != null}, data=${message.data}');
   }
-  // 백그라운드 메시지는 시스템이 자동으로 알림을 표시합니다.
-  // 추가적인 데이터 처리가 필요한 경우 여기에 로직을 추가합니다.
+
+  // notification 블록이 있으면 OS/FCM이 트레이 알림을 표시한다 → 중복 방지를 위해 종료.
+  if (message.notification != null) {
+    return;
+  }
+
+  // data-only 푸시: 표시할 내용이 없으면 종료.
+  final data = message.data;
+  if (data.isEmpty) {
+    if (kDebugMode) {
+      debugPrint('[FCM] Background data-only push with empty data, nothing to show');
+    }
+    return;
+  }
+
+  await _showDataOnlyBackgroundNotification(data);
+}
+
+/// data-only 백그라운드 푸시를 로컬 알림으로 표시한다.
+///
+/// 별도 isolate에서 호출되므로 새 플러그인 인스턴스를 만들어 초기화한다.
+/// Android 채널 id는 NotificationService와 동일한 'chat_messages'를 사용해
+/// 포그라운드/데스크톱 경로와 채널 설정을 일치시킨다.
+Future<void> _showDataOnlyBackgroundNotification(
+  Map<String, dynamic> data,
+) async {
+  try {
+    final plugin = FlutterLocalNotificationsPlugin();
+
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const darwinInit = DarwinInitializationSettings();
+    const initSettings = InitializationSettings(
+      android: androidInit,
+      iOS: darwinInit,
+      macOS: darwinInit,
+    );
+    await plugin.initialize(initSettings);
+
+    // 서버 data 페이로드에서 제목/본문/네비게이션 정보를 추출한다.
+    // 서버 키 변형을 흡수하기 위해 몇 가지 후보 키를 순서대로 확인한다.
+    final title = (data['title'] ?? data['senderNickname'] ?? '새 메시지').toString();
+    final body = (data['body'] ?? data['message'] ?? data['lastMessage'] ?? '새 메시지가 도착했습니다').toString();
+
+    // 알림 탭 시 채팅방으로 이동할 수 있도록 payload 형식: 'chatRoom:roomId'
+    String? payload;
+    final chatRoomId = data['chatRoomId'];
+    if (chatRoomId != null) {
+      payload = 'chatRoom:$chatRoomId';
+    } else {
+      payload = jsonEncode(data);
+    }
+
+    const androidDetails = AndroidNotificationDetails(
+      'chat_messages', // NotificationService._channelId 와 동일하게 유지
+      'Chat Messages',
+      channelDescription: 'Notifications for new chat messages',
+      icon: '@mipmap/ic_launcher',
+      importance: Importance.high,
+      priority: Priority.high,
+      autoCancel: true,
+    );
+    const darwinDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: darwinDetails,
+      macOS: darwinDetails,
+    );
+
+    // 백그라운드 isolate에는 카운터 상태가 없으므로 시간 기반 id를 사용한다.
+    final notificationId =
+        DateTime.now().millisecondsSinceEpoch.remainder(2147483647);
+
+    await plugin.show(
+      notificationId,
+      title,
+      body,
+      notificationDetails,
+      payload: payload,
+    );
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('[FCM] Failed to show data-only background notification: $e');
+    }
+  }
 }
 
 // 환경 상수
