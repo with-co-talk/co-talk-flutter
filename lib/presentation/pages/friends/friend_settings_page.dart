@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 
 class FriendSettingsPage extends StatelessWidget {
   const FriendSettingsPage({super.key});
@@ -20,9 +21,9 @@ class FriendSettingsPage extends StatelessWidget {
             }
           },
         ),
-        title: const Text(
-          '친구 관리',
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context)!.friendSettingsTitle,
+          style: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 18,
           ),
@@ -33,35 +34,35 @@ class FriendSettingsPage extends StatelessWidget {
       body: ListView(
         children: [
           _FriendSettingsSection(
-            title: '친구 요청',
+            title: AppLocalizations.of(context)!.friendSettingsRequestSection,
             children: [
               _FriendSettingsTile(
                 icon: Icons.inbox,
-                title: '받은 친구 요청',
-                subtitle: '수락 대기 중인 요청을 확인하세요',
+                title: AppLocalizations.of(context)!.friendSettingsReceivedRequests,
+                subtitle: AppLocalizations.of(context)!.friendSettingsReceivedRequestsDesc,
                 onTap: () => context.push(AppRoutes.receivedRequests),
               ),
               _FriendSettingsTile(
                 icon: Icons.send,
-                title: '보낸 친구 요청',
-                subtitle: '보낸 요청을 확인하세요',
+                title: AppLocalizations.of(context)!.friendSettingsSentRequests,
+                subtitle: AppLocalizations.of(context)!.friendSettingsSentRequestsDesc,
                 onTap: () => context.push(AppRoutes.sentRequests),
               ),
             ],
           ),
           _FriendSettingsSection(
-            title: '친구 관리',
+            title: AppLocalizations.of(context)!.friendSettingsManageSection,
             children: [
               _FriendSettingsTile(
                 icon: Icons.visibility_off,
-                title: '숨김 친구 관리',
-                subtitle: '숨긴 친구를 확인하세요',
+                title: AppLocalizations.of(context)!.friendSettingsHiddenFriends,
+                subtitle: AppLocalizations.of(context)!.friendSettingsHiddenFriendsDesc,
                 onTap: () => context.push(AppRoutes.hiddenFriends),
               ),
               _FriendSettingsTile(
                 icon: Icons.block,
-                title: '차단 사용자 관리',
-                subtitle: '차단한 사용자를 관리하세요',
+                title: AppLocalizations.of(context)!.friendSettingsBlockedUsers,
+                subtitle: AppLocalizations.of(context)!.friendSettingsBlockedUsersDesc,
                 onTap: () => context.push(AppRoutes.blockedUsers),
               ),
             ],

@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/friend.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
@@ -53,9 +54,9 @@ class _HiddenFriendsView extends StatelessWidget {
               }
             },
           ),
-          title: const Text(
-            '숨김 친구',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context)!.friendsHiddenTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 18,
             ),
@@ -81,7 +82,7 @@ class _HiddenFriendsView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '숨김 친구 목록을 불러오는데 실패했습니다',
+                      AppLocalizations.of(context)!.friendsHiddenLoadError,
                       style: TextStyle(color: context.textSecondaryColor),
                     ),
                     const SizedBox(height: 16),
@@ -89,7 +90,7 @@ class _HiddenFriendsView extends StatelessWidget {
                       onPressed: () {
                         context.read<FriendBloc>().add(const HiddenFriendsLoadRequested());
                       },
-                      child: const Text('다시 시도'),
+                      child: Text(AppLocalizations.of(context)!.commonRetry),
                     ),
                   ],
                 ),
@@ -108,14 +109,14 @@ class _HiddenFriendsView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '숨긴 친구가 없습니다',
+                      AppLocalizations.of(context)!.friendsHiddenEmptyTitle,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: context.textSecondaryColor,
                           ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '친구 목록에서 숨긴 친구가 여기에 표시됩니다',
+                      AppLocalizations.of(context)!.friendsHiddenEmptyDesc,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: context.textSecondaryColor.withValues(alpha: 0.7),
                           ),
@@ -213,7 +214,10 @@ class _HiddenFriendTile extends StatelessWidget {
               context.read<FriendBloc>().add(UnhideFriendRequested(friend.user.id));
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('${friend.user.nickname}님을 숨김 해제했습니다'),
+                  content: Text(
+                    AppLocalizations.of(context)!
+                        .friendsUnhideSuccess(friend.user.nickname),
+                  ),
                   backgroundColor: AppColors.primary,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
@@ -223,7 +227,7 @@ class _HiddenFriendTile extends StatelessWidget {
               );
             },
             icon: const Icon(Icons.visibility, size: 18),
-            label: const Text('숨김 해제'),
+            label: Text(AppLocalizations.of(context)!.friendsUnhide),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
               side: const BorderSide(color: AppColors.primary),
