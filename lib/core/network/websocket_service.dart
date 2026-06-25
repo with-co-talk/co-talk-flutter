@@ -45,6 +45,12 @@ class WebSocketService {
   final WebSocketMessageSender _messageSender;
   final EventDedupeCache _dedupeCache;
 
+  // WebSocket 재연결 시 토큰 갱신을 위임할 single-flight refresh 콜백.
+  // AuthInterceptor.refreshTokenForReconnect를 app.dart에서 주입한다.
+  // 콜백(typedef)으로 두어 auth_interceptor ↔ websocket_service 임포트 순환을
+  // 피한다 (AuthInterceptor가 이미 WebSocketService를 참조하므로).
+  Future<void> Function()? _externalTokenRefresh;
+
   // Subscription restore timer
   Timer? _subscriptionRestoreTimer;
 
@@ -83,6 +89,12 @@ class WebSocketService {
     _connectionManager.onConnected = _onConnected;
     _connectionManager.onDisconnected = _onDisconnected;
     _connectionManager.onTokenRefreshNeeded = _refreshTokenForReconnect;
+  }
+
+  /// 재연결 시 토큰 갱신을 위임할 single-flight refresh 콜백을 주입한다.
+  /// (순환 참조 방지를 위해 app.dart에서 AuthInterceptor의 메서드를 늦게 설정)
+  void setTokenRefreshDelegate(Future<void> Function() refresh) {
+    _externalTokenRefresh = refresh;
   }
 
   // ============================================================
@@ -573,7 +585,31 @@ class WebSocketService {
 
   /// Attempts to refresh the access token when WebSocket auth error occurs.
   /// Called by [WebSocketConnectionManager] before reconnection.
+  ///
+  /// 토큰 갱신은 AuthInterceptor의 single-flight refresh([_externalTokenRefresh])로
+  /// 위임한다. refresh authority를 하나로 통합해, WebSocket이 별도 Dio로 refresh를
+  /// 수행하며 HTTP 인터셉터의 single-flight와 경쟁하던 race(refresh-token rotation으로
+  /// 한쪽 토큰이 무효화 → 강제 로그아웃)를 제거한다. best-effort.
+  ///
+  /// delegate가 아직 주입되지 않은 경우(예: 위젯 외부 테스트)에는 기존처럼 일회용
+  /// Dio로 직접 refresh하는 fallback을 유지해 동작 변화를 막는다.
   Future<void> _refreshTokenForReconnect() async {
+    final delegate = _externalTokenRefresh;
+    if (delegate != null) {
+      try {
+        await delegate();
+        if (kDebugMode) {
+          debugPrint('[WebSocket] Token refresh delegated to single-flight refresh');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[WebSocket] Delegated token refresh failed: $e');
+        }
+      }
+      return;
+    }
+
+    // Fallback (delegate 미주입): 기존 동작 보존을 위한 일회용 Dio refresh.
     Dio? dio;
     try {
       final refreshToken = await _authLocalDataSource.getRefreshToken();

@@ -211,24 +211,56 @@ class WebSocketConnectionManager {
 
   void _onStompError(StompFrame frame) {
     if (kDebugMode) {
-      debugPrint('[WebSocket] STOMP Error: ${frame.body}');
+      debugPrint('[WebSocket] STOMP Error: headers=${frame.headers}, body=${frame.body}');
     }
 
-    final body = frame.body ?? '';
-    final isAuthError = body.contains('401') ||
-                        body.toLowerCase().contains('unauthorized') ||
-                        body.toLowerCase().contains('authentication') ||
-                        body.toLowerCase().contains('access denied');
+    final isAuthError = _isAuthError(frame);
 
     _updateConnectionState(WebSocketConnectionState.disconnected);
     onDisconnected?.call();
 
     if (isAuthError) {
-      if (kDebugMode) debugPrint('[WebSocket] Auth error detected: $body');
+      if (kDebugMode) debugPrint('[WebSocket] Auth error detected: ${frame.body}');
       // Mark that a token refresh is needed before the next reconnection.
       _needsTokenRefresh = true;
     }
     _attemptReconnect();
+  }
+
+  /// STOMP ERROR 프레임이 인증(토큰 만료/거부) 오류인지 판정한다.
+  ///
+  /// 인증 오류 감지의 단일 진입점(centralized): 분산된 문자열 매칭을 한곳에 모아
+  /// 재연결 전 토큰 갱신 여부를 결정한다.
+  ///
+  /// 우선순위:
+  /// 1. 구조적 신호 — STOMP ERROR 프레임의 헤더. STOMP 명세상 ERROR 프레임은
+  ///    사람이 읽을 수 있는 `message` 헤더를 가질 수 있고, 서버가 status/code
+  ///    헤더로 HTTP 상태를 전달하는 경우도 있다. 헤더가 401/403/UNAUTHORIZED
+  ///    계열이면 우선 신뢰한다(본문 문자열보다 견고).
+  /// 2. fallback — 서버가 구조화된 헤더 없이 텍스트 본문만 보낼 때를 대비해
+  ///    본문/메시지 헤더 텍스트를 robust하게 매칭한다.
+  static bool _isAuthError(StompFrame frame) {
+    final headers = frame.headers;
+
+    // 1. 구조적 신호: status/code 류 헤더의 HTTP 상태 코드.
+    for (final key in const ['status', 'status-code', 'code']) {
+      final value = headers[key];
+      if (value != null) {
+        final parsed = int.tryParse(value.trim());
+        if (parsed == 401 || parsed == 403) return true;
+      }
+    }
+
+    // 2. 텍스트 매칭 fallback: `message` 헤더 + 본문을 합쳐 한 번에 검사한다.
+    final haystack =
+        '${headers['message'] ?? ''} ${frame.body ?? ''}'.toLowerCase();
+    if (haystack.isEmpty) return false;
+    return haystack.contains('401') ||
+        haystack.contains('403') ||
+        haystack.contains('unauthorized') ||
+        haystack.contains('authentication') ||
+        haystack.contains('access denied') ||
+        haystack.contains('forbidden');
   }
 
   void _onWebSocketError(dynamic error) {
