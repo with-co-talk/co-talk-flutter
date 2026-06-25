@@ -8,6 +8,7 @@ import 'package:co_talk_flutter/presentation/blocs/friend/friend_state.dart';
 import 'package:co_talk_flutter/presentation/pages/friends/blocked_users_page.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:co_talk_flutter/di/injection.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockFriendBloc extends MockBloc<FriendEvent, FriendState>
     implements FriendBloc {}
@@ -33,8 +34,11 @@ void main() {
   });
 
   Widget createWidgetUnderTest() {
-    return const MaterialApp(
-      home: BlockedUsersPage(),
+    return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: const BlockedUsersPage(),
     );
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/app/app_lock_cubit.dart';
 import '../../blocs/app/app_lock_state.dart';
 
@@ -58,7 +59,7 @@ class _AppLockPageState extends State<AppLockPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '잠금을 해제하려면 인증해주세요',
+                      AppLocalizations.of(context)!.appLockPrompt,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Colors.grey,
                           ),
@@ -72,7 +73,7 @@ class _AppLockPageState extends State<AppLockPage> {
                           context.read<AppLockCubit>().authenticate();
                         },
                         icon: const Icon(Icons.fingerprint),
-                        label: const Text('인증하기'),
+                        label: Text(AppLocalizations.of(context)!.appLockAuthenticate),
                       ),
                   ],
                 ),

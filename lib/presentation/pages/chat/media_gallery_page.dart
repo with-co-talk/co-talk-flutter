@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../data/models/media_gallery_model.dart';
 import '../../../di/injection.dart';
 import '../../blocs/chat/media_gallery_bloc.dart';
@@ -39,13 +40,13 @@ class _MediaGalleryPageState extends State<MediaGalleryPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('미디어 모아보기'),
+        title: Text(AppLocalizations.of(context)!.chatMediaGallery),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: '사진'),
-            Tab(text: '파일'),
-            Tab(text: '링크'),
+          tabs: [
+            Tab(text: AppLocalizations.of(context)!.chatMediaTabPhotos),
+            Tab(text: AppLocalizations.of(context)!.chatMediaTabFiles),
+            Tab(text: AppLocalizations.of(context)!.chatMediaTabLinks),
           ],
           labelColor: AppColors.primary,
           unselectedLabelColor: Colors.grey,
@@ -100,7 +101,7 @@ class _MediaTabContent extends StatelessWidget {
               children: [
                 const Icon(Icons.error_outline, size: 48, color: Colors.grey),
                 const SizedBox(height: 16),
-                Text(state.errorMessage ?? '미디어를 불러올 수 없습니다'),
+                Text(state.errorMessage ?? AppLocalizations.of(context)!.chatMediaLoadFailed),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
@@ -110,7 +111,7 @@ class _MediaTabContent extends StatelessWidget {
                       type: type,
                     ));
                   },
-                  child: const Text('다시 시도'),
+                  child: Text(AppLocalizations.of(context)!.commonRetry),
                 ),
               ],
             ),
@@ -129,7 +130,7 @@ class _MediaTabContent extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  _getEmptyMessage(),
+                  _getEmptyMessage(context),
                   style: TextStyle(color: Colors.grey[600]),
                 ),
               ],
@@ -167,14 +168,15 @@ class _MediaTabContent extends StatelessWidget {
     }
   }
 
-  String _getEmptyMessage() {
+  String _getEmptyMessage(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     switch (type) {
       case MediaType.photo:
-        return '사진이 없습니다';
+        return l10n.chatMediaEmptyPhotos;
       case MediaType.file:
-        return '파일이 없습니다';
+        return l10n.chatMediaEmptyFiles;
       case MediaType.link:
-        return '링크가 없습니다';
+        return l10n.chatMediaEmptyLinks;
     }
   }
 
@@ -301,7 +303,7 @@ class _MediaTabContent extends StatelessWidget {
         child: const Icon(Icons.insert_drive_file, color: AppColors.primary),
       ),
       title: Text(
-        item.fileName ?? '파일',
+        item.fileName ?? AppLocalizations.of(context)!.chatFileFallback,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -344,7 +346,7 @@ class _MediaTabContent extends StatelessWidget {
               child: const Icon(Icons.link, color: Colors.blue),
             ),
       title: Text(
-        item.linkPreviewTitle ?? item.linkPreviewUrl ?? '링크',
+        item.linkPreviewTitle ?? item.linkPreviewUrl ?? AppLocalizations.of(context)!.chatLinkFallback,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),

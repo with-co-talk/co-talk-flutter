@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:co_talk_flutter/data/models/media_gallery_model.dart';
 import 'package:co_talk_flutter/di/injection.dart';
@@ -41,8 +42,11 @@ void main() {
   );
 
   Widget createWidget() {
-    return const MaterialApp(
-      home: MediaGalleryPage(roomId: 1),
+    return MaterialApp(
+      home: const MediaGalleryPage(roomId: 1),
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
     );
   }
 

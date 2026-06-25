@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class BackgroundImageSection extends StatelessWidget {
   final String? backgroundUrl;
@@ -24,7 +25,7 @@ class BackgroundImageSection extends StatelessWidget {
     return _buildEditCard(
       context: context,
       icon: Icons.wallpaper,
-      label: '배경화면',
+      label: AppLocalizations.of(context)!.profileBackground,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -41,13 +42,13 @@ class BackgroundImageSection extends StatelessWidget {
               TextButton.icon(
                 onPressed: isLoading ? null : onChangeBackground,
                 icon: const Icon(Icons.edit, size: 16),
-                label: const Text('배경 변경'),
+                label: Text(AppLocalizations.of(context)!.profileBackgroundChangeShort),
                 style: TextButton.styleFrom(foregroundColor: AppColors.primary),
               ),
               TextButton.icon(
                 onPressed: isLoading ? null : onViewHistory,
                 icon: const Icon(Icons.history, size: 16),
-                label: const Text('배경 이력'),
+                label: Text(AppLocalizations.of(context)!.profileBackgroundHistoryShort),
                 style: TextButton.styleFrom(foregroundColor: AppColors.primary),
               ),
             ],

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// Full-screen image editor page using pro_image_editor.
 /// Supports drawing, text, emoji, filters, and cropping.
@@ -22,62 +23,63 @@ class ImageEditorPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return ProImageEditor.file(
       imageFile,
       configs: ProImageEditorConfigs(
-        i18n: const I18n(
+        i18n: I18n(
           various: I18nVarious(
-            loadingDialogMsg: '처리 중...',
-            closeEditorWarningTitle: '편집 취소',
-            closeEditorWarningMessage: '편집 내용을 취소하시겠습니까?',
-            closeEditorWarningConfirmBtn: '취소',
-            closeEditorWarningCancelBtn: '계속 편집',
+            loadingDialogMsg: l10n.imageEditorProcessing,
+            closeEditorWarningTitle: l10n.imageEditorCloseWarningTitle,
+            closeEditorWarningMessage: l10n.imageEditorCloseWarningMessage,
+            closeEditorWarningConfirmBtn: l10n.commonCancel,
+            closeEditorWarningCancelBtn: l10n.imageEditorContinueEditing,
           ),
           paintEditor: I18nPaintingEditor(
-            bottomNavigationBarText: '그리기',
-            freestyle: '자유',
-            arrow: '화살표',
-            line: '직선',
-            rectangle: '사각형',
-            circle: '원',
-            dashLine: '점선',
-            lineWidth: '두께',
-            toggleFill: '채우기',
-            undo: '실행 취소',
-            redo: '다시 실행',
-            done: '완료',
-            back: '뒤로',
+            bottomNavigationBarText: l10n.imageEditorPaint,
+            freestyle: l10n.imageEditorFreestyle,
+            arrow: l10n.imageEditorArrow,
+            line: l10n.imageEditorLine,
+            rectangle: l10n.imageEditorRectangle,
+            circle: l10n.imageEditorCircle,
+            dashLine: l10n.imageEditorDashLine,
+            lineWidth: l10n.imageEditorLineWidth,
+            toggleFill: l10n.imageEditorToggleFill,
+            undo: l10n.imageEditorUndo,
+            redo: l10n.imageEditorRedo,
+            done: l10n.imageEditorDone,
+            back: l10n.imageEditorBack,
           ),
           textEditor: I18nTextEditor(
-            inputHintText: '텍스트 입력',
-            bottomNavigationBarText: '텍스트',
-            back: '뒤로',
-            done: '완료',
+            inputHintText: l10n.imageEditorTextInputHint,
+            bottomNavigationBarText: l10n.imageEditorText,
+            back: l10n.imageEditorBack,
+            done: l10n.imageEditorDone,
           ),
           cropRotateEditor: I18nCropRotateEditor(
-            bottomNavigationBarText: '자르기',
-            rotate: '회전',
-            flip: '뒤집기',
-            ratio: '비율',
-            back: '뒤로',
-            done: '완료',
-            cancel: '취소',
-            reset: '초기화',
+            bottomNavigationBarText: l10n.imageEditorCrop,
+            rotate: l10n.imageEditorRotate,
+            flip: l10n.imageEditorFlip,
+            ratio: l10n.imageEditorRatio,
+            back: l10n.imageEditorBack,
+            done: l10n.imageEditorDone,
+            cancel: l10n.commonCancel,
+            reset: l10n.imageEditorReset,
           ),
           filterEditor: I18nFilterEditor(
-            bottomNavigationBarText: '필터',
-            back: '뒤로',
-            done: '완료',
+            bottomNavigationBarText: l10n.imageEditorFilter,
+            back: l10n.imageEditorBack,
+            done: l10n.imageEditorDone,
           ),
           emojiEditor: I18nEmojiEditor(
-            bottomNavigationBarText: '이모지',
+            bottomNavigationBarText: l10n.imageEditorEmoji,
           ),
-          cancel: '취소',
-          undo: '실행 취소',
-          redo: '다시 실행',
-          done: '완료',
-          remove: '삭제',
-          doneLoadingMsg: '저장 중...',
+          cancel: l10n.commonCancel,
+          undo: l10n.imageEditorUndo,
+          redo: l10n.imageEditorRedo,
+          done: l10n.imageEditorDone,
+          remove: l10n.commonDelete,
+          doneLoadingMsg: l10n.imageEditorSaving,
         ),
         imageEditorTheme: ImageEditorTheme(
           helperLine: const HelperLineTheme(

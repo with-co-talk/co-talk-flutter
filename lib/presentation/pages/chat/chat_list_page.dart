@@ -6,6 +6,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/error_message_mapper.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../domain/entities/chat_room.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
@@ -67,7 +68,7 @@ class _ChatListPageState extends State<ChatListPage> {
   String _selfChatDisplayName(BuildContext context) {
     final user = context.read<AuthBloc>().state.user;
     final nickname = (user?.nickname ?? '').trim();
-    return nickname.isNotEmpty ? nickname : '나';
+    return nickname.isNotEmpty ? nickname : AppLocalizations.of(context)!.chatSelfName;
   }
 
   /// 채팅방 목록 표시명 (나와의 채팅은 내 이름/나)
@@ -89,9 +90,9 @@ class _ChatListPageState extends State<ChatListPage> {
   /// 일반 AppBar
   AppBar _buildNormalAppBar() {
     return AppBar(
-      title: const Text(
-        '채팅',
-        style: TextStyle(
+      title: Text(
+        AppLocalizations.of(context)!.chatTitle,
+        style: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 18,
         ),
@@ -122,7 +123,7 @@ class _ChatListPageState extends State<ChatListPage> {
         controller: _searchController,
         autofocus: true,
         decoration: InputDecoration(
-          hintText: '채팅방 검색',
+          hintText: AppLocalizations.of(context)!.chatSearchHint,
           hintStyle: TextStyle(
             color: context.textSecondaryColor,
             fontSize: 16,
@@ -187,7 +188,7 @@ class _ChatListPageState extends State<ChatListPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '채팅방을 불러오는데 실패했습니다',
+                    AppLocalizations.of(context)!.chatListLoadFailed,
                     style: TextStyle(color: context.textSecondaryColor),
                   ),
                   const SizedBox(height: 16),
@@ -197,7 +198,7 @@ class _ChatListPageState extends State<ChatListPage> {
                           .read<ChatListBloc>()
                           .add(const ChatListLoadRequested());
                     },
-                    child: const Text('다시 시도'),
+                    child: Text(AppLocalizations.of(context)!.commonRetry),
                   ),
                 ],
               ),
@@ -205,8 +206,8 @@ class _ChatListPageState extends State<ChatListPage> {
           }
 
           if (state.chatRooms.isEmpty) {
-            return const Center(
-              child: Text('채팅방이 없습니다\n친구를 추가하고 대화를 시작해보세요'),
+            return Center(
+              child: Text(AppLocalizations.of(context)!.chatListEmpty),
             );
           }
 
@@ -226,7 +227,7 @@ class _ChatListPageState extends State<ChatListPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '"$_searchQuery" 검색 결과가 없습니다',
+                    AppLocalizations.of(context)!.chatSearchNoResults(_searchQuery),
                     style: TextStyle(
                       color: context.textSecondaryColor,
                       fontSize: 16,

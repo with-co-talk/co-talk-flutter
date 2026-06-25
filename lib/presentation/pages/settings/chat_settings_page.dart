@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/app_haptics.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/settings/chat_settings_cubit.dart';
 import '../../blocs/settings/chat_settings_state.dart';
 
@@ -44,7 +45,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
             }
           },
         ),
-        title: const Text('채팅 설정'),
+        title: Text(AppLocalizations.of(context)!.settingsChatSettings),
       ),
       body: BlocConsumer<ChatSettingsCubit, ChatSettingsState>(
         listenWhen: (previous, current) =>
@@ -56,20 +57,20 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
         listener: (context, state) {
           if (state.status == ChatSettingsStatus.clearing) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('캐시를 삭제하는 중...')),
+              SnackBar(content: Text(AppLocalizations.of(context)!.settingsClearingCache)),
             );
           } else if (state.status == ChatSettingsStatus.loaded) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
-                const SnackBar(content: Text('캐시가 삭제되었습니다')),
+                SnackBar(content: Text(AppLocalizations.of(context)!.settingsCacheCleared)),
               );
           } else if (state.status == ChatSettingsStatus.error) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
-                  content: Text(state.errorMessage ?? '오류가 발생했습니다'),
+                  content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsErrorOccurred),
                   backgroundColor: AppColors.error,
                 ),
               );
@@ -83,21 +84,21 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
           return ListView(
             children: [
               _buildSection(
-                title: '글꼴 크기',
+                title: AppLocalizations.of(context)!.settingsFontSize,
                 children: [
                   _buildFontSizeSlider(state),
                   _buildFontSizePreview(state),
                 ],
               ),
               _buildSection(
-                title: '미디어 자동 다운로드',
+                title: AppLocalizations.of(context)!.settingsMediaAutoDownload,
                 children: _isMobile
                     ? [
                         // 모바일: Wi-Fi/모바일 데이터 구분
-                        _buildSubsectionTitle('이미지'),
+                        _buildSubsectionTitle(AppLocalizations.of(context)!.settingsImage),
                         _buildSwitchTile(
                           icon: Icons.wifi,
-                          title: 'Wi-Fi 연결 시',
+                          title: AppLocalizations.of(context)!.settingsOnWifi,
                           value: state.settings.autoDownloadImagesOnWifi,
                           onChanged: (value) {
                             context
@@ -107,7 +108,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                         ),
                         _buildSwitchTile(
                           icon: Icons.signal_cellular_alt,
-                          title: '모바일 데이터 사용 시',
+                          title: AppLocalizations.of(context)!.settingsOnMobileData,
                           value: state.settings.autoDownloadImagesOnMobile,
                           onChanged: (value) {
                             context
@@ -116,10 +117,10 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                           },
                         ),
                         const Divider(indent: 16, endIndent: 16),
-                        _buildSubsectionTitle('동영상'),
+                        _buildSubsectionTitle(AppLocalizations.of(context)!.settingsVideo),
                         _buildSwitchTile(
                           icon: Icons.wifi,
-                          title: 'Wi-Fi 연결 시',
+                          title: AppLocalizations.of(context)!.settingsOnWifi,
                           value: state.settings.autoDownloadVideosOnWifi,
                           onChanged: (value) {
                             context
@@ -129,7 +130,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                         ),
                         _buildSwitchTile(
                           icon: Icons.signal_cellular_alt,
-                          title: '모바일 데이터 사용 시',
+                          title: AppLocalizations.of(context)!.settingsOnMobileData,
                           value: state.settings.autoDownloadVideosOnMobile,
                           onChanged: (value) {
                             context
@@ -142,7 +143,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                         // 데스크톱: 단순 on/off (Wi-Fi 설정을 네트워크 설정으로 사용)
                         _buildSwitchTile(
                           icon: Icons.image_outlined,
-                          title: '이미지 자동 다운로드',
+                          title: AppLocalizations.of(context)!.settingsImageAutoDownload,
                           value: state.settings.autoDownloadImagesOnWifi,
                           onChanged: (value) {
                             context
@@ -152,7 +153,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                         ),
                         _buildSwitchTile(
                           icon: Icons.videocam_outlined,
-                          title: '동영상 자동 다운로드',
+                          title: AppLocalizations.of(context)!.settingsVideoAutoDownload,
                           value: state.settings.autoDownloadVideosOnWifi,
                           onChanged: (value) {
                             context
@@ -163,11 +164,11 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                       ],
               ),
               _buildSection(
-                title: '입력 표시',
+                title: AppLocalizations.of(context)!.settingsTypingDisplay,
                 children: [
                   _buildSwitchTile(
                     icon: Icons.keyboard_outlined,
-                    title: '입력중 표시',
+                    title: AppLocalizations.of(context)!.settingsTypingIndicator,
                     value: state.settings.showTypingIndicator,
                     onChanged: (value) {
                       context
@@ -178,7 +179,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      '상대방이 메시지를 입력 중일 때 표시합니다. 켜면 나의 입력 상태도 상대방에게 전송됩니다.',
+                      AppLocalizations.of(context)!.settingsTypingIndicatorDesc,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context)
                                 .colorScheme
@@ -189,12 +190,12 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                 ],
               ),
               _buildSection(
-                title: '저장 공간',
+                title: AppLocalizations.of(context)!.settingsStorage,
                 children: [
                   ListTile(
                     leading: const Icon(Icons.cleaning_services_outlined),
-                    title: const Text('캐시 삭제'),
-                    subtitle: const Text('임시 저장된 데이터를 삭제합니다'),
+                    title: Text(AppLocalizations.of(context)!.settingsClearCache),
+                    subtitle: Text(AppLocalizations.of(context)!.settingsClearCacheDesc),
                     trailing: state.status == ChatSettingsStatus.clearing
                         ? const SizedBox(
                             width: 24,
@@ -276,11 +277,11 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '작게',
+                AppLocalizations.of(context)!.settingsFontSizeSmall,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               Text(
-                '크게',
+                AppLocalizations.of(context)!.settingsFontSizeLarge,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -290,7 +291,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
             min: 0.8,
             max: 1.4,
             divisions: 6,
-            label: _getFontSizeLabel(_draggingFontSize ?? state.settings.fontSize),
+            label: _getFontSizeLabel(context, _draggingFontSize ?? state.settings.fontSize),
             onChanged: (value) {
               setState(() {
                 _draggingFontSize = value;
@@ -321,21 +322,21 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '미리보기',
+            AppLocalizations.of(context)!.settingsPreview,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
-            '안녕하세요! 글꼴 크기를 조절해보세요.',
+            AppLocalizations.of(context)!.settingsFontPreviewKorean,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontSize: 16 * fontSize,
                 ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Hello! Try adjusting the font size.',
+            AppLocalizations.of(context)!.settingsFontPreviewEnglish,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontSize: 14 * fontSize,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -346,25 +347,26 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
     );
   }
 
-  String _getFontSizeLabel(double fontSize) {
-    if (fontSize <= 0.85) return '아주 작게';
-    if (fontSize <= 0.95) return '작게';
-    if (fontSize <= 1.05) return '보통';
-    if (fontSize <= 1.15) return '크게';
-    if (fontSize <= 1.25) return '아주 크게';
-    return '매우 크게';
+  String _getFontSizeLabel(BuildContext context, double fontSize) {
+    final l10n = AppLocalizations.of(context)!;
+    if (fontSize <= 0.85) return l10n.settingsFontSizeVerySmall;
+    if (fontSize <= 0.95) return l10n.settingsFontSizeSmall;
+    if (fontSize <= 1.05) return l10n.settingsFontSizeNormal;
+    if (fontSize <= 1.15) return l10n.settingsFontSizeLarge;
+    if (fontSize <= 1.25) return l10n.settingsFontSizeVeryLarge;
+    return l10n.settingsFontSizeExtraLarge;
   }
 
   void _showClearCacheDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('캐시 삭제'),
-        content: const Text('임시 저장된 데이터를 삭제하시겠습니까?\n다운로드한 이미지와 동영상 캐시가 삭제됩니다.'),
+        title: Text(AppLocalizations.of(context)!.settingsClearCache),
+        content: Text(AppLocalizations.of(context)!.settingsClearCacheConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -372,7 +374,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
               context.read<ChatSettingsCubit>().clearCache();
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('삭제'),
+            child: Text(AppLocalizations.of(context)!.commonDelete),
           ),
         ],
       ),

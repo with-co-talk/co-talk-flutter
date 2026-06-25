@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'l10n/app_localizations.dart';
 import 'core/network/auth_interceptor.dart';
 import 'core/network/websocket_service.dart';
 import 'core/router/app_router.dart';
@@ -58,6 +59,8 @@ class CoTalkApp extends StatelessWidget {
                 theme: AppTheme.lightTheme,
                 darkTheme: AppTheme.darkTheme,
                 themeMode: themeMode,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
                 routerConfig: appRouter.router,
                 builder: (context, child) {
                   // Apply global text scaling from chat settings

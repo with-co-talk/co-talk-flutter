@@ -15,6 +15,7 @@ import 'package:co_talk_flutter/presentation/widgets/skeletons/list_skeleton.dar
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockChatListBloc extends MockBloc<ChatListEvent, ChatListState>
     implements ChatListBloc {}
@@ -46,6 +47,9 @@ void main() {
 
   Widget createWidgetUnderTest() {
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: MultiBlocProvider(
         providers: [
           BlocProvider<ChatListBloc>.value(value: mockChatListBloc),

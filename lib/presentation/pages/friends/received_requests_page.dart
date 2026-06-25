@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/friend.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
@@ -55,9 +56,9 @@ class _ReceivedRequestsView extends StatelessWidget {
               }
             },
           ),
-          title: const Text(
-            '받은 친구 요청',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context)!.friendsReceivedTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 18,
             ),
@@ -83,7 +84,7 @@ class _ReceivedRequestsView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '받은 친구 요청을 불러오는데 실패했습니다',
+                      AppLocalizations.of(context)!.friendsReceivedLoadError,
                       style: TextStyle(color: context.textSecondaryColor),
                     ),
                     const SizedBox(height: 16),
@@ -91,7 +92,7 @@ class _ReceivedRequestsView extends StatelessWidget {
                       onPressed: () {
                         context.read<FriendBloc>().add(const ReceivedFriendRequestsLoadRequested());
                       },
-                      child: const Text('다시 시도'),
+                      child: Text(AppLocalizations.of(context)!.commonRetry),
                     ),
                   ],
                 ),
@@ -110,14 +111,14 @@ class _ReceivedRequestsView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '받은 친구 요청이 없습니다',
+                      AppLocalizations.of(context)!.friendsReceivedEmptyTitle,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: context.textSecondaryColor,
                           ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '다른 사용자가 친구 요청을 보내면 여기에 표시됩니다',
+                      AppLocalizations.of(context)!.friendsReceivedEmptyDesc,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: context.textSecondaryColor.withValues(alpha: 0.7),
                           ),
@@ -242,7 +243,7 @@ class _ReceivedRequestTile extends StatelessWidget {
                     vertical: 8,
                   ),
                 ),
-                child: const Text('거절'),
+                child: Text(AppLocalizations.of(context)!.friendsReject),
               ),
               const SizedBox(width: 8),
               ElevatedButton(
@@ -273,7 +274,7 @@ class _ReceivedRequestTile extends StatelessWidget {
                               AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
-                    : const Text('수락'),
+                    : Text(AppLocalizations.of(context)!.friendsAccept),
               ),
             ],
           ),

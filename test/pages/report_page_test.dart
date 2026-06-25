@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/domain/entities/report.dart';
 import 'package:co_talk_flutter/domain/repositories/report_repository.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:co_talk_flutter/presentation/pages/report/report_page.dart';
 
 class MockReportRepository extends Mock implements ReportRepository {}
@@ -33,6 +34,9 @@ void main() {
     int targetId = 1,
   }) {
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: ReportPage(type: type, targetId: targetId),
     );
   }

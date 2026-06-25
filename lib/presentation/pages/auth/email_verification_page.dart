@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/email_verification_bloc.dart';
 import '../../blocs/auth/email_verification_event.dart';
 import '../../blocs/auth/email_verification_state.dart';
@@ -21,21 +22,21 @@ class EmailVerificationPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go(AppRoutes.login),
         ),
-        title: const Text('이메일 인증'),
+        title: Text(AppLocalizations.of(context)!.authEmailVerification),
       ),
       body: BlocConsumer<EmailVerificationBloc, EmailVerificationState>(
         listener: (context, state) {
           if (state.status == EmailVerificationStatus.resent) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('인증 이메일이 재발송되었습니다. 이메일을 확인해주세요.'),
+              SnackBar(
+                content: Text(AppLocalizations.of(context)!.authVerificationEmailResent),
                 backgroundColor: Colors.green,
               ),
             );
           } else if (state.status == EmailVerificationStatus.error) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage ?? '오류가 발생했습니다'),
+                content: Text(state.errorMessage ?? AppLocalizations.of(context)!.authErrorOccurred),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -58,7 +59,7 @@ class EmailVerificationPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        '이메일 인증이 필요합니다',
+                        AppLocalizations.of(context)!.authEmailVerificationRequired,
                         style: Theme.of(context)
                             .textTheme
                             .headlineSmall
@@ -69,13 +70,13 @@ class EmailVerificationPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        '$email 으로\n인증 이메일이 발송되었습니다.',
+                        AppLocalizations.of(context)!.authVerificationEmailSentTo(email),
                         style: Theme.of(context).textTheme.bodyLarge,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '이메일의 인증 링크를 클릭하여\n인증을 완료해주세요.',
+                        AppLocalizations.of(context)!.authVerificationLinkGuide,
                         style:
                             Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: Theme.of(context)
@@ -105,7 +106,7 @@ class EmailVerificationPage extends StatelessWidget {
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2),
                                 )
-                              : const Text('인증 이메일 재발송'),
+                              : Text(AppLocalizations.of(context)!.authResendVerificationEmail),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -114,7 +115,7 @@ class EmailVerificationPage extends StatelessWidget {
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () => context.go(AppRoutes.login),
-                          child: const Text('로그인으로 돌아가기'),
+                          child: Text(AppLocalizations.of(context)!.authBackToLogin),
                         ),
                       ),
                     ],

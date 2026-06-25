@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/profile_history.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -138,7 +139,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (mounted) {
         ProfileSubmitHandler.showSnackbar(
           context,
-          '파일을 선택할 수 없습니다: $e',
+          AppLocalizations.of(context)!.profileFilePickFailed(e.toString()),
         );
       }
     }
@@ -151,7 +152,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await _pickImageForAvatar(imageFile.path);
     } catch (e) {
       if (mounted) {
-        ProfileSubmitHandler.showSnackbar(context, '카메라를 사용할 수 없습니다');
+        ProfileSubmitHandler.showSnackbar(
+          context, AppLocalizations.of(context)!.profileCameraUnavailable);
       }
     }
   }
@@ -163,7 +165,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await _pickImageForAvatar(imageFile.path);
     } catch (e) {
       if (mounted) {
-        ProfileSubmitHandler.showSnackbar(context, '앨범에 접근할 수 없습니다');
+        ProfileSubmitHandler.showSnackbar(
+          context, AppLocalizations.of(context)!.profileGalleryUnavailable);
       }
     }
   }
@@ -181,7 +184,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (mounted) {
         ProfileSubmitHandler.showSnackbar(
           context,
-          '선택한 이미지 파일을 찾을 수 없습니다.',
+          AppLocalizations.of(context)!.profileImageFileNotFound,
         );
       }
       return;
@@ -199,7 +202,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (mounted) {
         ProfileSubmitHandler.showSnackbar(
           context,
-          '이미지 편집을 사용할 수 없습니다: $e',
+          AppLocalizations.of(context)!.profileImageEditUnavailable(e.toString()),
         );
         _uploadImage(File(sourcePath));
       }
@@ -235,7 +238,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     ProfileSubmitHandler.showSuccessSnackbar(
       context,
-      '프로필 사진이 삭제되었습니다',
+      AppLocalizations.of(context)!.profileAvatarDeleted,
     );
   }
 
@@ -289,7 +292,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (mounted) {
         ProfileSubmitHandler.showSnackbar(
           context,
-          '파일을 선택할 수 없습니다: $e',
+          AppLocalizations.of(context)!.profileFilePickFailed(e.toString()),
         );
       }
     }
@@ -302,7 +305,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await _pickBackgroundImageForUpload(imageFile.path);
     } catch (e) {
       if (mounted) {
-        ProfileSubmitHandler.showSnackbar(context, '앨범에 접근할 수 없습니다');
+        ProfileSubmitHandler.showSnackbar(
+          context, AppLocalizations.of(context)!.profileGalleryUnavailable);
       }
     }
   }
@@ -320,7 +324,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (mounted) {
         ProfileSubmitHandler.showSnackbar(
           context,
-          '선택한 이미지 파일을 찾을 수 없습니다.',
+          AppLocalizations.of(context)!.profileImageFileNotFound,
         );
       }
       return;
@@ -338,7 +342,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (mounted) {
         ProfileSubmitHandler.showSnackbar(
           context,
-          '이미지 편집을 사용할 수 없습니다: $e',
+          AppLocalizations.of(context)!.profileImageEditUnavailable(e.toString()),
         );
         _uploadBackgroundImage(File(sourcePath));
       }
@@ -396,7 +400,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               });
               ProfileSubmitHandler.showSuccessSnackbar(
                 context,
-                '프로필이 수정되었습니다',
+                AppLocalizations.of(context)!.profileUpdated,
               );
             } else if (state.status == AuthStatus.failure) {
               setState(() {
@@ -405,7 +409,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               });
               ProfileSubmitHandler.showErrorSnackbar(
                 context,
-                state.errorMessage ?? '프로필 수정에 실패했습니다',
+                state.errorMessage ?? AppLocalizations.of(context)!.profileUpdateFailed,
               );
             }
           },
@@ -440,7 +444,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
               ProfileSubmitHandler.showSuccessSnackbar(
                 context,
-                wasBackground ? '배경이 변경되었습니다' : '프로필 사진이 변경되었습니다',
+                wasBackground
+                    ? AppLocalizations.of(context)!.profileBackgroundChanged
+                    : AppLocalizations.of(context)!.profileAvatarChanged,
               );
             } else if (state.status == ProfileStatus.failure) {
               setState(() {
@@ -450,7 +456,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               });
               ProfileSubmitHandler.showErrorSnackbar(
                 context,
-                state.errorMessage ?? '이미지 변경에 실패했습니다',
+                state.errorMessage ?? AppLocalizations.of(context)!.profileImageChangeFailed,
               );
             }
           },
@@ -458,7 +464,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       ],
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('프로필 편집'),
+          title: Text(AppLocalizations.of(context)!.profileEditTitle),
           centerTitle: true,
           elevation: 0,
         ),
@@ -559,7 +565,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 ),
                               )
                             : Text(
-                                _hasChanges ? '저장하기' : '변경사항 없음',
+                                _hasChanges
+                                    ? AppLocalizations.of(context)!.profileSaveButton
+                                    : AppLocalizations.of(context)!.profileNoChanges,
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:co_talk_flutter/core/network/websocket/websocket_events.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:co_talk_flutter/presentation/widgets/connection_status_banner.dart';
 
 void main() {
   group('ConnectionStatusBanner', () {
     Widget buildBanner(WebSocketConnectionState state) {
       return MaterialApp(
+        locale: const Locale('ko'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ConnectionStatusBanner(
             connectionState: state,

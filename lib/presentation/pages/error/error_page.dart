@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
+import '../../../l10n/app_localizations.dart';
 
 class ErrorPage extends StatelessWidget {
   final String? message;
@@ -14,7 +15,7 @@ class ErrorPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('오류'),
+        title: Text(AppLocalizations.of(context)!.errorTitle),
       ),
       body: Center(
         child: Padding(
@@ -29,14 +30,14 @@ class ErrorPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                message ?? '페이지를 불러올 수 없습니다',
+                message ?? AppLocalizations.of(context)!.errorPageLoadFailed,
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: () => context.go(AppRoutes.friends),
-                child: const Text('홈으로 돌아가기'),
+                child: Text(AppLocalizations.of(context)!.errorGoHome),
               ),
             ],
           ),

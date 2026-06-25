@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../domain/entities/profile_history.dart';
+import '../../../../l10n/app_localizations.dart';
 
 /// 프로필 이력 항목 옵션 시트
 /// 길게 눌렀을 때 표시되는 옵션들 (현재 프로필로 설정, 나만보기 토글, 삭제)
@@ -59,7 +60,7 @@ class HistoryItemOptionsSheet extends StatelessWidget {
             if (isMyProfile && !history.isCurrent)
               _OptionTile(
                 icon: Icons.check_circle_outline,
-                label: '현재 프로필로 설정',
+                label: AppLocalizations.of(context)!.profileSetAsCurrent,
                 onTap: () {
                   Navigator.pop(context);
                   onSetCurrent?.call();
@@ -70,7 +71,9 @@ class HistoryItemOptionsSheet extends StatelessWidget {
             if (isMyProfile)
               _OptionTile(
                 icon: history.isPrivate ? Icons.visibility : Icons.visibility_off,
-                label: history.isPrivate ? '공개로 변경' : '나만보기',
+                label: history.isPrivate
+                    ? AppLocalizations.of(context)!.profileMakePublicShort
+                    : AppLocalizations.of(context)!.profileBadgePrivate,
                 onTap: () {
                   Navigator.pop(context);
                   onTogglePrivacy?.call();
@@ -81,7 +84,7 @@ class HistoryItemOptionsSheet extends StatelessWidget {
             if (isMyProfile)
               _OptionTile(
                 icon: Icons.delete_outline,
-                label: '삭제',
+                label: AppLocalizations.of(context)!.commonDelete,
                 isDestructive: true,
                 onTap: () {
                   Navigator.pop(context);
@@ -100,16 +103,16 @@ class HistoryItemOptionsSheet extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('삭제 확인'),
+        title: Text(AppLocalizations.of(context)!.profileDeleteConfirmTitle),
         content: Text(
           history.isCurrent
-              ? '현재 프로필로 사용 중입니다.\n삭제하면 이전 이력으로 변경됩니다.'
-              : '이 이력을 삭제하시겠습니까?',
+              ? AppLocalizations.of(context)!.profileDeleteCurrentWarning
+              : AppLocalizations.of(context)!.profileDeleteHistoryConfirm,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -117,7 +120,7 @@ class HistoryItemOptionsSheet extends StatelessWidget {
               onDelete?.call();
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('삭제'),
+            child: Text(AppLocalizations.of(context)!.commonDelete),
           ),
         ],
       ),

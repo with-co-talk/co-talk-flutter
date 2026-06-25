@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:co_talk_flutter/presentation/blocs/friend/friend_bloc.dart';
@@ -30,7 +31,12 @@ void main() {
   });
 
   Widget createWidget() {
-    return const MaterialApp(home: ReceivedRequestsPage());
+    return MaterialApp(
+      home: const ReceivedRequestsPage(),
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+    );
   }
 
   ElevatedButton acceptButton(WidgetTester tester) =>

@@ -11,6 +11,7 @@ import '../../../core/services/active_room_tracker.dart';
 import '../../../core/services/notification_click_handler.dart';
 import '../../../core/window/window_focus_tracker.dart';
 import '../../../core/network/websocket_service.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
@@ -383,13 +384,13 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
       _chatListBloc.add(const ChatListRefreshRequested());
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('채팅방 이미지가 변경되었습니다.')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.chatRoomImageUpdated)),
       );
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('이미지 변경에 실패했습니다.'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.chatRoomImageUpdateFailed),
           backgroundColor: Colors.red,
         ),
       );
@@ -421,7 +422,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('채팅방 이미지 변경'),
+                title: Text(AppLocalizations.of(context)!.chatRoomChangeImage),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   _pickAndUpdateGroupImage(context);
@@ -429,7 +430,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('미디어 모아보기'),
+                title: Text(AppLocalizations.of(context)!.chatMediaGallery),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   Navigator.of(context).push(
@@ -441,7 +442,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
               ),
               ListTile(
                 leading: const Icon(Icons.exit_to_app, color: Colors.red),
-                title: const Text('채팅방 나가기', style: TextStyle(color: Colors.red)),
+                title: Text(AppLocalizations.of(context)!.chatRoomLeave, style: const TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   _showLeaveConfirmDialog(context);
@@ -459,12 +460,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('채팅방 나가기'),
-        content: const Text('채팅방을 나가시겠습니까?\n대화 내용은 삭제됩니다.'),
+        title: Text(AppLocalizations.of(context)!.chatRoomLeave),
+        content: Text(AppLocalizations.of(context)!.chatRoomLeaveConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -472,7 +473,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
               context.read<ChatRoomBloc>().add(const ChatRoomLeaveRequested());
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('나가기'),
+            child: Text(AppLocalizations.of(context)!.chatRoomLeaveAction),
           ),
         ],
       ),
@@ -607,7 +608,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 if (state.reinviteSuccess) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('${state.otherUserNickname ?? "상대방"}님을 다시 초대했습니다'),
+                      content: Text(AppLocalizations.of(context)!.chatReinviteSuccess(
+                        state.otherUserNickname ?? AppLocalizations.of(context)!.chatOtherUser,
+                      )),
                       backgroundColor: Colors.green,
                     ),
                   );
@@ -617,7 +620,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 } else if (state.errorMessage != null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('재초대 실패: ${state.errorMessage}'),
+                      content: Text(AppLocalizations.of(context)!.chatReinviteFailed(state.errorMessage ?? '')),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -650,8 +653,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
               listener: (context, state) {
                 if (state.forwardSuccess) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('메시지가 전달되었습니다'),
+                    SnackBar(
+                      content: Text(AppLocalizations.of(context)!.chatMessageForwarded),
                       backgroundColor: Colors.green,
                     ),
                   );

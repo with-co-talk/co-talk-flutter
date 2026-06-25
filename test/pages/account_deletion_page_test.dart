@@ -11,6 +11,7 @@ import 'package:co_talk_flutter/presentation/blocs/settings/account_deletion_eve
 import 'package:co_talk_flutter/presentation/blocs/settings/account_deletion_state.dart';
 import 'package:co_talk_flutter/presentation/pages/settings/account_deletion_page.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -45,6 +46,9 @@ void main() {
 
   Widget createWidgetUnderTest() {
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: MultiBlocProvider(
         providers: [
           BlocProvider<AuthBloc>.value(value: mockAuthBloc),

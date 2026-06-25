@@ -8,6 +8,7 @@ import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_state.dart';
 import 'package:co_talk_flutter/presentation/blocs/settings/chat_settings_cubit.dart';
 import 'package:co_talk_flutter/presentation/blocs/settings/chat_settings_state.dart';
 import 'package:co_talk_flutter/presentation/pages/chat/widgets/message_bubble.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +62,9 @@ void main() {
     );
 
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: MultiBlocProvider(
           providers: [

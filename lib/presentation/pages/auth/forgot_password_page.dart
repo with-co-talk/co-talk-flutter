@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/forgot_password_bloc.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -70,7 +71,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('비밀번호 찾기'),
+        title: Text(AppLocalizations.of(context)!.authForgotPasswordTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go(AppRoutes.login),
@@ -89,8 +90,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           }
           if (state.step == ForgotPasswordStep.complete) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('비밀번호가 성공적으로 변경되었습니다'),
+              SnackBar(
+                content: Text(AppLocalizations.of(context)!.authPasswordChanged),
                 backgroundColor: Colors.green,
               ),
             );
@@ -136,16 +137,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           const Icon(Icons.lock_reset_rounded, size: 64, color: AppColors.primary),
           const SizedBox(height: 16),
           Text(
-            '가입한 이메일 주소를 입력해주세요.\n인증 코드를 발송해드립니다.',
+            AppLocalizations.of(context)!.authForgotPasswordEmailGuide,
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
           TextFormField(
             controller: _emailController,
-            decoration: const InputDecoration(
-              labelText: '이메일',
-              prefixIcon: Icon(Icons.email_outlined),
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.authEmail,
+              prefixIcon: const Icon(Icons.email_outlined),
             ),
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.done,
@@ -164,7 +165,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       width: 24, height: 24,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('인증 코드 받기'),
+                  : Text(AppLocalizations.of(context)!.authRequestCode),
             ),
           ),
         ],
@@ -181,16 +182,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           const Icon(Icons.pin_rounded, size: 64, color: AppColors.primary),
           const SizedBox(height: 16),
           Text(
-            '${state.email}으로\n인증 코드를 발송했습니다.',
+            AppLocalizations.of(context)!.authCodeSentTo(state.email ?? ''),
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
           TextFormField(
             controller: _codeController,
-            decoration: const InputDecoration(
-              labelText: '인증 코드 (6자리)',
-              prefixIcon: Icon(Icons.dialpad_rounded),
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.authVerificationCode,
+              prefixIcon: const Icon(Icons.dialpad_rounded),
               counterText: '',
             ),
             keyboardType: TextInputType.number,
@@ -199,10 +200,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return '인증 코드를 입력해주세요';
+                return AppLocalizations.of(context)!.authCodeRequired;
               }
               if (value.length != 6) {
-                return '6자리 코드를 입력해주세요';
+                return AppLocalizations.of(context)!.authCodeLengthInvalid;
               }
               return null;
             },
@@ -220,7 +221,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       width: 24, height: 24,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('인증 코드 확인'),
+                  : Text(AppLocalizations.of(context)!.authVerifyCode),
             ),
           ),
           const SizedBox(height: 12),
@@ -234,7 +235,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           ),
                         );
                   },
-            child: const Text('인증 코드 재발송'),
+            child: Text(AppLocalizations.of(context)!.authResendCode),
           ),
         ],
       ),
@@ -250,7 +251,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           const Icon(Icons.lock_open_rounded, size: 64, color: AppColors.primary),
           const SizedBox(height: 16),
           Text(
-            '새로운 비밀번호를 입력해주세요.',
+            AppLocalizations.of(context)!.authNewPasswordGuide,
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
@@ -258,7 +259,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           TextFormField(
             controller: _passwordController,
             decoration: InputDecoration(
-              labelText: '새 비밀번호',
+              labelText: AppLocalizations.of(context)!.authNewPassword,
               prefixIcon: const Icon(Icons.lock_outlined),
               suffixIcon: IconButton(
                 icon: Icon(
@@ -275,7 +276,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           TextFormField(
             controller: _confirmPasswordController,
             decoration: InputDecoration(
-              labelText: '새 비밀번호 확인',
+              labelText: AppLocalizations.of(context)!.authConfirmNewPassword,
               prefixIcon: const Icon(Icons.lock_outlined),
               suffixIcon: IconButton(
                 icon: Icon(
@@ -301,7 +302,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       width: 24, height: 24,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('비밀번호 변경'),
+                  : Text(AppLocalizations.of(context)!.authChangePassword),
             ),
           ),
         ],

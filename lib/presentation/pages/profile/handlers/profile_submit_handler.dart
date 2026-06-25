@@ -1,27 +1,29 @@
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class ProfileSubmitHandler {
   /// Validate nickname field
-  static String? validateNickname(String? value) {
+  static String? validateNickname(BuildContext context, String? value) {
+    final l10n = AppLocalizations.of(context)!;
     if (value == null || value.trim().isEmpty) {
-      return '닉네임을 입력해주세요';
+      return l10n.profileNicknameRequired;
     }
     if (value.trim().length < 2) {
-      return '닉네임은 2자 이상이어야 합니다';
+      return l10n.profileNicknameTooShort;
     }
     if (value.trim().length > 20) {
-      return '닉네임은 20자 이하여야 합니다';
+      return l10n.profileNicknameTooLong;
     }
     return null;
   }
 
   /// Validate status message field (optional field, only length check)
-  static String? validateStatusMessage(String? value) {
+  static String? validateStatusMessage(BuildContext context, String? value) {
     if (value == null || value.trim().isEmpty) {
       return null; // Status message is optional
     }
     if (value.trim().length > 60) {
-      return '상태메시지는 60자 이하여야 합니다';
+      return AppLocalizations.of(context)!.profileStatusMessageTooLong;
     }
     return null;
   }

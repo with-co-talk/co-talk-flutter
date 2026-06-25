@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/find_email_bloc.dart';
 
 class FindEmailPage extends StatefulWidget {
@@ -39,7 +40,7 @@ class _FindEmailPageState extends State<FindEmailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('아이디 찾기'),
+        title: Text(AppLocalizations.of(context)!.authFindEmail),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go(AppRoutes.login),
@@ -54,14 +55,14 @@ class _FindEmailPageState extends State<FindEmailPage> {
           } else if (state.status == FindEmailStatus.notFound) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.message ?? '일치하는 계정을 찾을 수 없습니다.'),
+                content: Text(state.message ?? AppLocalizations.of(context)!.authAccountNotFound),
                 backgroundColor: AppColors.error,
               ),
             );
           } else if (state.status == FindEmailStatus.failure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage ?? '오류가 발생했습니다'),
+                content: Text(state.errorMessage ?? AppLocalizations.of(context)!.authErrorOccurred),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -86,21 +87,21 @@ class _FindEmailPageState extends State<FindEmailPage> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          '가입 시 등록한 닉네임과 전화번호를\n입력해주세요.',
+                          AppLocalizations.of(context)!.authFindEmailGuide,
                           style: Theme.of(context).textTheme.bodyLarge,
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 32),
                         TextFormField(
                           controller: _nicknameController,
-                          decoration: const InputDecoration(
-                            labelText: '닉네임',
-                            prefixIcon: Icon(Icons.person_outlined),
+                          decoration: InputDecoration(
+                            labelText: AppLocalizations.of(context)!.authNickname,
+                            prefixIcon: const Icon(Icons.person_outlined),
                           ),
                           textInputAction: TextInputAction.next,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return '닉네임을 입력해주세요';
+                              return AppLocalizations.of(context)!.authNicknameRequired;
                             }
                             return null;
                           },
@@ -108,16 +109,16 @@ class _FindEmailPageState extends State<FindEmailPage> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _phoneController,
-                          decoration: const InputDecoration(
-                            labelText: '전화번호',
-                            prefixIcon: Icon(Icons.phone_outlined),
+                          decoration: InputDecoration(
+                            labelText: AppLocalizations.of(context)!.authPhoneNumber,
+                            prefixIcon: const Icon(Icons.phone_outlined),
                             hintText: '010-1234-5678',
                           ),
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.done,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return '전화번호를 입력해주세요';
+                              return AppLocalizations.of(context)!.authPhoneNumberRequired;
                             }
                             return null;
                           },
@@ -139,7 +140,7 @@ class _FindEmailPageState extends State<FindEmailPage> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Text('이메일 찾기'),
+                                : Text(AppLocalizations.of(context)!.authFindEmailButton),
                           ),
                         ),
                       ],

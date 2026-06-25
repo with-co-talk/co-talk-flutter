@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/friend.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
@@ -54,9 +55,9 @@ class _SentRequestsView extends StatelessWidget {
               }
             },
           ),
-          title: const Text(
-            '보낸 친구 요청',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context)!.friendsSentTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 18,
             ),
@@ -82,7 +83,7 @@ class _SentRequestsView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '보낸 친구 요청을 불러오는데 실패했습니다',
+                      AppLocalizations.of(context)!.friendsSentLoadError,
                       style: TextStyle(color: context.textSecondaryColor),
                     ),
                     const SizedBox(height: 16),
@@ -90,7 +91,7 @@ class _SentRequestsView extends StatelessWidget {
                       onPressed: () {
                         context.read<FriendBloc>().add(const SentFriendRequestsLoadRequested());
                       },
-                      child: const Text('다시 시도'),
+                      child: Text(AppLocalizations.of(context)!.commonRetry),
                     ),
                   ],
                 ),
@@ -109,14 +110,14 @@ class _SentRequestsView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '보낸 친구 요청이 없습니다',
+                      AppLocalizations.of(context)!.friendsSentEmptyTitle,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: context.textSecondaryColor,
                           ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '친구를 검색하여 요청을 보내보세요',
+                      AppLocalizations.of(context)!.friendsSentEmptyDesc,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: context.textSecondaryColor.withValues(alpha: 0.7),
                           ),
@@ -216,7 +217,7 @@ class _SentRequestTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              '대기 중',
+              AppLocalizations.of(context)!.friendsSentPending,
               style: TextStyle(
                 color: context.textSecondaryColor,
                 fontSize: 12,

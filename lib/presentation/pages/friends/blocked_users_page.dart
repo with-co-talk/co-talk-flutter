@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/user.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
@@ -53,9 +54,9 @@ class _BlockedUsersView extends StatelessWidget {
               }
             },
           ),
-          title: const Text(
-            '차단 사용자',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context)!.friendsBlockedTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 18,
             ),
@@ -81,7 +82,7 @@ class _BlockedUsersView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '차단 목록을 불러오는데 실패했습니다',
+                      AppLocalizations.of(context)!.friendsBlockedLoadError,
                       style: TextStyle(color: context.textSecondaryColor),
                     ),
                     const SizedBox(height: 16),
@@ -89,7 +90,7 @@ class _BlockedUsersView extends StatelessWidget {
                       onPressed: () {
                         context.read<FriendBloc>().add(const BlockedUsersLoadRequested());
                       },
-                      child: const Text('다시 시도'),
+                      child: Text(AppLocalizations.of(context)!.commonRetry),
                     ),
                   ],
                 ),
@@ -108,14 +109,14 @@ class _BlockedUsersView extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '차단한 사용자가 없습니다',
+                      AppLocalizations.of(context)!.friendsBlockedEmptyTitle,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: context.textSecondaryColor,
                           ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '차단한 사용자가 여기에 표시됩니다',
+                      AppLocalizations.of(context)!.friendsBlockedEmptyDesc,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: context.textSecondaryColor.withValues(alpha: 0.7),
                           ),
@@ -160,17 +161,19 @@ class _BlockedUserTile extends StatelessWidget {
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('차단 해제'),
-        content: Text('${user.nickname}님의 차단을 해제하시겠습니까?'),
+        title: Text(AppLocalizations.of(context)!.friendsUnblock),
+        content: Text(
+          AppLocalizations.of(context)!.friendsUnblockConfirm(user.nickname),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-            child: const Text('차단 해제'),
+            child: Text(AppLocalizations.of(context)!.friendsUnblock),
           ),
         ],
       ),
@@ -239,7 +242,10 @@ class _BlockedUserTile extends StatelessWidget {
                 context.read<FriendBloc>().add(UnblockUserRequested(user.id));
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('${user.nickname}님의 차단을 해제했습니다'),
+                    content: Text(
+                      AppLocalizations.of(context)!
+                          .friendsUnblockSuccess(user.nickname),
+                    ),
                     backgroundColor: AppColors.primary,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
@@ -257,7 +263,7 @@ class _BlockedUserTile extends StatelessWidget {
                 vertical: 8,
               ),
             ),
-            child: const Text('차단 해제'),
+            child: Text(AppLocalizations.of(context)!.friendsUnblock),
           ),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/report.dart';
 import '../../../domain/repositories/report_repository.dart';
@@ -55,8 +56,8 @@ class _ReportPageState extends State<ReportPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('신고가 접수되었습니다'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.reportSubmitted),
             backgroundColor: Colors.green,
           ),
         );
@@ -66,7 +67,7 @@ class _ReportPageState extends State<ReportPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('신고 접수에 실패했습니다: $e'),
+            content: Text(AppLocalizations.of(context)!.reportSubmitFailed('$e')),
             backgroundColor: Colors.red,
           ),
         );
@@ -80,20 +81,23 @@ class _ReportPageState extends State<ReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final typeLabel = widget.type == ReportType.user ? '사용자' : '메시지';
+    final l10n = AppLocalizations.of(context)!;
+    final typeLabel = widget.type == ReportType.user
+        ? l10n.reportTargetUser
+        : l10n.reportTargetMessage;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('$typeLabel 신고'),
+        title: Text(l10n.reportTitle(typeLabel)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '신고 사유를 선택해주세요',
-              style: TextStyle(
+            Text(
+              l10n.reportSelectReason,
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -116,9 +120,9 @@ class _ReportPageState extends State<ReportPage> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              '상세 설명 (선택)',
-              style: TextStyle(
+            Text(
+              l10n.reportDescriptionLabel,
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -129,7 +133,7 @@ class _ReportPageState extends State<ReportPage> {
               maxLines: 4,
               maxLength: 500,
               decoration: InputDecoration(
-                hintText: '추가 설명을 입력해주세요',
+                hintText: l10n.reportDescriptionHint,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -159,9 +163,9 @@ class _ReportPageState extends State<ReportPage> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
-                        '신고하기',
-                        style: TextStyle(
+                    : Text(
+                        l10n.reportSubmit,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),

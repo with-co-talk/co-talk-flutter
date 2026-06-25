@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -73,7 +74,7 @@ class _LoginPageState extends State<LoginPage> {
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(state.errorMessage ?? '로그인에 실패했습니다'),
+                  content: Text(state.errorMessage ?? AppLocalizations.of(context)!.authLoginFailed),
                   backgroundColor: AppColors.error,
                 ),
               );
@@ -110,9 +111,9 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 48),
                         TextFormField(
                           controller: _emailController,
-                          decoration: const InputDecoration(
-                            labelText: '이메일',
-                            prefixIcon: Icon(Icons.email_outlined),
+                          decoration: InputDecoration(
+                            labelText: AppLocalizations.of(context)!.authEmail,
+                            prefixIcon: const Icon(Icons.email_outlined),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
@@ -122,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
                         TextFormField(
                           controller: _passwordController,
                           decoration: InputDecoration(
-                            labelText: '비밀번호',
+                            labelText: AppLocalizations.of(context)!.authPassword,
                             prefixIcon: const Icon(Icons.lock_outlined),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -154,7 +155,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '한글이 입력되어 있습니다. 영문 키보드를 확인하세요.',
+                                  AppLocalizations.of(context)!.authKoreanInputWarning,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.orange[700],
@@ -179,13 +180,13 @@ class _LoginPageState extends State<LoginPage> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Text('로그인'),
+                                : Text(AppLocalizations.of(context)!.authLogin),
                           ),
                         ),
                         const SizedBox(height: 16),
                         TextButton(
                           onPressed: () => context.go(AppRoutes.signUp),
-                          child: const Text('계정이 없으신가요? 회원가입'),
+                          child: Text(AppLocalizations.of(context)!.authNoAccountSignUp),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -193,12 +194,12 @@ class _LoginPageState extends State<LoginPage> {
                           children: [
                             TextButton(
                               onPressed: () => context.go(AppRoutes.findEmail),
-                              child: const Text('아이디를 잊으셨나요?'),
+                              child: Text(AppLocalizations.of(context)!.authForgotEmail),
                             ),
                             const Text('|', style: TextStyle(color: Colors.grey)),
                             TextButton(
                               onPressed: () => context.go(AppRoutes.forgotPassword),
-                              child: const Text('비밀번호를 잊으셨나요?'),
+                              child: Text(AppLocalizations.of(context)!.authForgotPassword),
                             ),
                           ],
                         ),
