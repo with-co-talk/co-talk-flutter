@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_utils.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_state.dart';
@@ -122,14 +123,14 @@ class _MessageListViewState extends State<_MessageListView> {
             ),
             const SizedBox(height: 16),
             Text(
-              '메시지가 없습니다',
+              AppLocalizations.of(context)!.chatNoMessages,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: context.textSecondaryColor,
                   ),
             ),
             const SizedBox(height: 8),
             Text(
-              '대화를 시작해보세요',
+              AppLocalizations.of(context)!.chatStartConversation,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: context.textSecondaryColor.withValues(alpha: 0.7),
                   ),

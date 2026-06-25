@@ -10,6 +10,7 @@ import '../../../../core/utils/app_haptics.dart';
 import '../../../../core/utils/url_utils.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/save_image_to_gallery.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../../domain/entities/link_preview.dart';
 import '../../../../domain/entities/chat_room.dart';
@@ -51,10 +52,11 @@ class MessageBubble extends StatelessWidget {
             .where((m) => m.id == message.replyToMessageId)
             .firstOrNull;
 
+    final l10n = AppLocalizations.of(context)!;
     final previewText = replyMsg?.isDeleted == true
-        ? '삭제된 메시지'
-        : (replyMsg?.content ?? '원본 메시지를 찾을 수 없습니다');
-    final senderName = replyMsg?.senderNickname ?? '알 수 없음';
+        ? l10n.chatDeletedMessage
+        : (replyMsg?.content ?? l10n.chatOriginalMessageNotFound);
+    final senderName = replyMsg?.senderNickname ?? l10n.chatUnknownSender;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -118,7 +120,7 @@ class MessageBubble extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            '전달됨',
+            AppLocalizations.of(context)!.chatForwarded,
             style: TextStyle(
               fontSize: 11,
               fontStyle: FontStyle.italic,
@@ -155,9 +157,9 @@ class MessageBubble extends StatelessWidget {
               color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: const Text(
-              '재전송',
-              style: TextStyle(
+            child: Text(
+              AppLocalizations.of(context)!.chatResend,
+              style: const TextStyle(
                 color: AppColors.primary,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
@@ -180,7 +182,7 @@ class MessageBubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
-              '삭제',
+              AppLocalizations.of(context)!.commonDelete,
               style: TextStyle(
                 color: Colors.red[400],
                 fontSize: 11,
@@ -302,7 +304,7 @@ class MessageBubble extends StatelessWidget {
       if (uri == null || !uri.hasScheme) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('URL을 열 수 없습니다: $url')),
+            SnackBar(content: Text(AppLocalizations.of(context)!.chatCannotOpenUrl(url))),
           );
         }
         return;
@@ -312,14 +314,14 @@ class MessageBubble extends StatelessWidget {
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('URL을 열 수 없습니다: $url')),
+            SnackBar(content: Text(AppLocalizations.of(context)!.chatCannotOpenUrl(url))),
           );
         }
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('URL을 열 수 없습니다: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatCannotOpenUrl('$e'))),
         );
       }
     }
@@ -353,7 +355,7 @@ class MessageBubble extends StatelessWidget {
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.fullscreen_rounded),
-                title: const Text('전체 화면 보기'),
+                title: Text(AppLocalizations.of(context)!.chatViewFullScreen),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _showFullScreenImage(context, imageUrl, heroTag: heroTag);
@@ -362,7 +364,7 @@ class MessageBubble extends StatelessWidget {
               if (!kIsWeb)
                 ListTile(
                   leading: const Icon(Icons.download_rounded),
-                  title: const Text('갤러리에 저장'),
+                  title: Text(AppLocalizations.of(context)!.chatSaveToGallery),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _saveImageToGallery(context, imageUrl);
@@ -371,7 +373,7 @@ class MessageBubble extends StatelessWidget {
               if (canDelete)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  title: Text(AppLocalizations.of(context)!.commonDelete, style: const TextStyle(color: Colors.red)),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _showDeleteConfirmDialog(context);
@@ -411,14 +413,14 @@ class MessageBubble extends StatelessWidget {
       await saveImageFromUrlToGallery(imageUrl);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('사진이 갤러리에 저장되었습니다')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImageSavedToGallery)),
         );
       }
     } catch (e) {
       if (context.mounted) {
         final message = e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장 실패: $message')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatSaveFailed(message))),
         );
       }
     }
@@ -452,7 +454,7 @@ class MessageBubble extends StatelessWidget {
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.download_rounded),
-                title: const Text('다운로드'),
+                title: Text(AppLocalizations.of(context)!.chatDownload),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _downloadFile(context, fileUrl, fileName);
@@ -461,7 +463,7 @@ class MessageBubble extends StatelessWidget {
               if (canDelete)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  title: Text(AppLocalizations.of(context)!.commonDelete, style: const TextStyle(color: Colors.red)),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _showDeleteConfirmDialog(context);
@@ -484,14 +486,14 @@ class MessageBubble extends StatelessWidget {
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('파일을 열 수 없습니다: ${fileName ?? fileUrl}')),
+            SnackBar(content: Text(AppLocalizations.of(context)!.chatCannotOpenFile(fileName ?? fileUrl))),
           );
         }
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('다운로드 실패: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatDownloadFailed('$e'))),
         );
       }
     }
@@ -526,12 +528,12 @@ class MessageBubble extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('메시지 수정'),
+        title: Text(AppLocalizations.of(context)!.chatEditMessageTitle),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            hintText: '메시지를 입력하세요',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: AppLocalizations.of(context)!.chatMessageInputHint,
+            border: const OutlineInputBorder(),
           ),
           maxLines: null,
           autofocus: true,
@@ -539,7 +541,7 @@ class MessageBubble extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -552,7 +554,7 @@ class MessageBubble extends StatelessWidget {
               }
               Navigator.pop(dialogContext);
             },
-            child: const Text('수정'),
+            child: Text(AppLocalizations.of(context)!.commonEdit),
           ),
         ],
       ),
@@ -564,12 +566,12 @@ class MessageBubble extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('메시지 삭제'),
-        content: const Text('이 메시지를 삭제하시겠습니까?'),
+        title: Text(AppLocalizations.of(context)!.chatDeleteMessageTitle),
+        content: Text(AppLocalizations.of(context)!.chatDeleteMessageConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -577,7 +579,7 @@ class MessageBubble extends StatelessWidget {
               Navigator.pop(dialogContext);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('삭제'),
+            child: Text(AppLocalizations.of(context)!.commonDelete),
           ),
         ],
       ),
@@ -672,7 +674,7 @@ class MessageBubble extends StatelessWidget {
               // Message options
               ListTile(
                 leading: const Icon(Icons.reply, color: AppColors.primary),
-                title: const Text('답장'),
+                title: Text(AppLocalizations.of(context)!.chatReply),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   context.read<ChatRoomBloc>().add(ReplyToMessageSelected(message));
@@ -680,7 +682,7 @@ class MessageBubble extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.forward, color: Colors.blue),
-                title: const Text('전달'),
+                title: Text(AppLocalizations.of(context)!.chatForward),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   _showForwardDialog(context);
@@ -689,7 +691,7 @@ class MessageBubble extends StatelessWidget {
               if (canEdit)
                 ListTile(
                   leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
-                  title: const Text('수정'),
+                  title: Text(AppLocalizations.of(context)!.commonEdit),
                   onTap: () {
                     Navigator.pop(bottomSheetContext);
                     _showEditDialog(context);
@@ -698,7 +700,7 @@ class MessageBubble extends StatelessWidget {
               if (canDelete)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  title: Text(AppLocalizations.of(context)!.commonDelete, style: const TextStyle(color: Colors.red)),
                   onTap: () {
                     Navigator.pop(bottomSheetContext);
                     _showDeleteConfirmDialog(context);
@@ -707,7 +709,7 @@ class MessageBubble extends StatelessWidget {
               if (!isMe)
                 ListTile(
                   leading: const Icon(Icons.report_outlined, color: Colors.orange),
-                  title: const Text('신고'),
+                  title: Text(AppLocalizations.of(context)!.chatReport),
                   onTap: () {
                     Navigator.pop(bottomSheetContext);
                     context.push('/report?type=MESSAGE&targetId=${message.id}');
@@ -960,7 +962,7 @@ class MessageBubble extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          message.fileName ?? '동영상',
+                          message.fileName ?? AppLocalizations.of(context)!.chatVideo,
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 11,
@@ -1035,7 +1037,7 @@ class MessageBubble extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      message.fileName ?? '파일',
+                      message.fileName ?? AppLocalizations.of(context)!.chatFileFallback,
                       style: TextStyle(
                         color: isMe ? Colors.white : context.textPrimaryColor,
                         fontSize: 14,
@@ -1197,7 +1199,7 @@ class MessageBubble extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.only(left: 4, bottom: 4),
                             child: Text(
-                              message.senderNickname ?? '알 수 없음',
+                              message.senderNickname ?? AppLocalizations.of(context)!.chatUnknownSender,
                               style: TextStyle(
                                 color: context.textSecondaryColor,
                                 fontSize: 12,
@@ -1303,7 +1305,7 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '탭하여 이미지 보기',
+                  AppLocalizations.of(context)!.chatTapToViewImage,
                   style: TextStyle(
                     color: context.textSecondaryColor,
                     fontSize: 12,
@@ -1345,7 +1347,7 @@ class _AutoDownloadImageWidgetState extends State<_AutoDownloadImageWidget> {
             Icon(Icons.broken_image, color: context.textSecondaryColor, size: 40),
             const SizedBox(height: 8),
             Text(
-              '이미지를 불러올 수 없습니다',
+              AppLocalizations.of(context)!.chatImageLoadFailed,
               style: TextStyle(color: context.textSecondaryColor, fontSize: 12),
             ),
           ],
@@ -1521,7 +1523,7 @@ class _DismissibleImageViewerState extends State<_DismissibleImageViewer>
             IconButton(
               icon: Icon(Icons.download_rounded,
                   color: Colors.white.withValues(alpha: opacity)),
-              tooltip: '갤러리에 저장',
+              tooltip: AppLocalizations.of(context)!.chatSaveToGallery,
               onPressed: widget.onSaveToGallery,
             ),
         ],
@@ -1592,7 +1594,7 @@ class _ForwardRoomPickerDialogState extends State<_ForwardRoomPickerDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('채팅방 선택'),
+      title: Text(AppLocalizations.of(context)!.chatSelectRoom),
       content: SizedBox(
         width: double.maxFinite,
         height: 400,
@@ -1600,7 +1602,7 @@ class _ForwardRoomPickerDialogState extends State<_ForwardRoomPickerDialog> {
           children: [
             TextField(
               decoration: InputDecoration(
-                hintText: '채팅방 검색',
+                hintText: AppLocalizations.of(context)!.chatSearchHint,
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1620,7 +1622,7 @@ class _ForwardRoomPickerDialogState extends State<_ForwardRoomPickerDialog> {
                   }).toList();
 
                   if (rooms.isEmpty) {
-                    return const Center(child: Text('채팅방이 없습니다'));
+                    return Center(child: Text(AppLocalizations.of(context)!.chatRoomListEmpty));
                   }
 
                   return ListView.builder(
@@ -1659,7 +1661,7 @@ class _ForwardRoomPickerDialogState extends State<_ForwardRoomPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('취소'),
+          child: Text(AppLocalizations.of(context)!.commonCancel),
         ),
       ],
     );

@@ -14,6 +14,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_motion.dart';
 import '../../../../core/utils/app_haptics.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_event.dart';
@@ -225,7 +226,7 @@ class _MessageInputState extends State<MessageInput> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 붙여넣기 실패: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImagePasteFailed('$e'))),
         );
       }
     }
@@ -270,8 +271,8 @@ class _MessageInputState extends State<MessageInput> {
                   ),
                   child: const Icon(Icons.photo_library, color: Colors.blue),
                 ),
-                title: const Text('갤러리에서 선택'),
-                subtitle: const Text('사진 또는 동영상을 선택합니다'),
+                title: Text(AppLocalizations.of(context)!.chatPickFromGallery),
+                subtitle: Text(AppLocalizations.of(context)!.chatPickFromGallerySubtitle),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImageFromGallery();
@@ -286,8 +287,8 @@ class _MessageInputState extends State<MessageInput> {
                   ),
                   child: const Icon(Icons.camera_alt, color: Colors.green),
                 ),
-                title: const Text('카메라'),
-                subtitle: const Text('사진을 촬영합니다'),
+                title: Text(AppLocalizations.of(context)!.chatCamera),
+                subtitle: Text(AppLocalizations.of(context)!.chatCameraSubtitle),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImageFromCamera();
@@ -302,8 +303,8 @@ class _MessageInputState extends State<MessageInput> {
                   ),
                   child: const Icon(Icons.attach_file, color: Colors.orange),
                 ),
-                title: const Text('파일'),
-                subtitle: const Text('문서, PDF 등의 파일을 선택합니다'),
+                title: Text(AppLocalizations.of(context)!.chatFile),
+                subtitle: Text(AppLocalizations.of(context)!.chatFileSubtitle),
                 onTap: () {
                   Navigator.pop(context);
                   _pickFile();
@@ -323,7 +324,7 @@ class _MessageInputState extends State<MessageInput> {
     if (sourcePath.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지 경로를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImagePathUnavailable)),
         );
       }
       return;
@@ -333,7 +334,7 @@ class _MessageInputState extends State<MessageInput> {
     if (!sourceFile.existsSync()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('선택한 이미지 파일을 찾을 수 없습니다.')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImageFileNotFound)),
         );
       }
       return;
@@ -368,7 +369,7 @@ class _MessageInputState extends State<MessageInput> {
       if (path.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+            SnackBar(content: Text(AppLocalizations.of(context)!.chatImageUnavailable)),
           );
         }
         return;
@@ -377,7 +378,7 @@ class _MessageInputState extends State<MessageInput> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지를 선택할 수 없습니다: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImagePickFailed('$e'))),
         );
       }
     }
@@ -396,7 +397,7 @@ class _MessageInputState extends State<MessageInput> {
       if (path.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('촬영한 이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+            SnackBar(content: Text(AppLocalizations.of(context)!.chatCameraImageUnavailable)),
           );
         }
         return;
@@ -405,7 +406,7 @@ class _MessageInputState extends State<MessageInput> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('카메라를 사용할 수 없습니다: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatCameraFailed('$e'))),
         );
       }
     }
@@ -427,7 +428,7 @@ class _MessageInputState extends State<MessageInput> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('파일을 선택할 수 없습니다: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatFilePickFailed('$e'))),
         );
       }
     }
@@ -471,7 +472,7 @@ class _MessageInputState extends State<MessageInput> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      '파일 업로드 중...',
+                      AppLocalizations.of(context)!.chatFileUploading,
                       style: TextStyle(color: context.textSecondaryColor),
                     ),
                   ],
@@ -517,7 +518,9 @@ class _MessageInputState extends State<MessageInput> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${state.otherUserNickname ?? "상대방"}님이 채팅방을 나갔습니다',
+                              AppLocalizations.of(context)!.chatOtherUserLeft(
+                                state.otherUserNickname ?? AppLocalizations.of(context)!.chatOtherUser,
+                              ),
                               style: TextStyle(
                                 color: context.textPrimaryColor,
                                 fontSize: 14,
@@ -537,8 +540,8 @@ class _MessageInputState extends State<MessageInput> {
                                 final otherUserId = state.otherUserId;
                                 if (otherUserId == null) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('상대방 정보를 찾을 수 없습니다'),
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context)!.chatOtherUserInfoNotFound),
                                     ),
                                   );
                                   return;
@@ -557,7 +560,9 @@ class _MessageInputState extends State<MessageInput> {
                                 ),
                               )
                             : const Icon(Icons.person_add),
-                        label: Text(state.isReinviting ? '초대 중...' : '다시 초대하기'),
+                        label: Text(state.isReinviting
+                            ? AppLocalizations.of(context)!.chatReinviting
+                            : AppLocalizations.of(context)!.chatReinvite),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
@@ -616,7 +621,7 @@ class _MessageInputState extends State<MessageInput> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      widget.replyToMessage!.senderNickname ?? '알 수 없음',
+                                      widget.replyToMessage!.senderNickname ?? AppLocalizations.of(context)!.chatUnknownSender,
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -625,7 +630,7 @@ class _MessageInputState extends State<MessageInput> {
                                     ),
                                     Text(
                                       widget.replyToMessage!.isDeleted
-                                          ? '삭제된 메시지'
+                                          ? AppLocalizations.of(context)!.chatDeletedMessage
                                           : widget.replyToMessage!.content,
                                       style: TextStyle(
                                         fontSize: 12,
@@ -666,7 +671,9 @@ class _MessageInputState extends State<MessageInput> {
                             : context.textSecondaryColor,
                       ),
                       onPressed: _toggleEmojiPicker,
-                      tooltip: _showEmojiPicker ? '키보드' : '이모지',
+                      tooltip: _showEmojiPicker
+                          ? AppLocalizations.of(context)!.chatKeyboard
+                          : AppLocalizations.of(context)!.chatEmoji,
                     ),
                   IconButton(
                     icon: Icon(
@@ -674,7 +681,7 @@ class _MessageInputState extends State<MessageInput> {
                       color: context.textSecondaryColor,
                     ),
                     onPressed: _showAttachmentOptions,
-                    tooltip: '첨부',
+                    tooltip: AppLocalizations.of(context)!.chatAttach,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -686,7 +693,7 @@ class _MessageInputState extends State<MessageInput> {
                           controller: widget.controller,
                           focusNode: widget.focusNode,
                           decoration: InputDecoration(
-                            hintText: '메시지를 입력하세요',
+                            hintText: AppLocalizations.of(context)!.chatMessageInputHint,
                             hintStyle: TextStyle(
                               color: context.textSecondaryColor.withValues(alpha: 0.6),
                             ),
@@ -817,7 +824,7 @@ class _MessageInputState extends State<MessageInput> {
                         ),
                         searchViewConfig: SearchViewConfig(
                           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                          hintText: '이모지 검색',
+                          hintText: AppLocalizations.of(context)!.chatEmojiSearch,
                         ),
                       ),
                     ),
