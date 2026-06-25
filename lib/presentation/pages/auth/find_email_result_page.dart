@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 
 class FindEmailResultPage extends StatelessWidget {
   final String maskedEmail;
@@ -12,7 +13,7 @@ class FindEmailResultPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('아이디 찾기 결과'),
+        title: Text(AppLocalizations.of(context)!.authFindEmailResult),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go(AppRoutes.login),
@@ -35,7 +36,7 @@ class FindEmailResultPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '가입된 이메일을 찾았습니다',
+                    AppLocalizations.of(context)!.authEmailFound,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -62,7 +63,7 @@ class FindEmailResultPage extends StatelessWidget {
                     height: 48,
                     child: ElevatedButton(
                       onPressed: () => context.go(AppRoutes.login),
-                      child: const Text('로그인하기'),
+                      child: Text(AppLocalizations.of(context)!.authGoToLogin),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -70,7 +71,7 @@ class FindEmailResultPage extends StatelessWidget {
                     height: 48,
                     child: OutlinedButton(
                       onPressed: () => context.go(AppRoutes.forgotPassword),
-                      child: const Text('비밀번호 찾기'),
+                      child: Text(AppLocalizations.of(context)!.authForgotPasswordTitle),
                     ),
                   ),
                 ],

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -69,7 +70,7 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('회원가입'),
+        title: Text(AppLocalizations.of(context)!.authSignUp),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go(AppRoutes.login),
@@ -88,7 +89,7 @@ class _SignUpPageState extends State<SignUpPage> {
           } else if (state.status == AuthStatus.failure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage ?? '회원가입에 실패했습니다'),
+                content: Text(state.errorMessage ?? AppLocalizations.of(context)!.authSignUpFailed),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -108,9 +109,9 @@ class _SignUpPageState extends State<SignUpPage> {
                       children: [
                         TextFormField(
                           controller: _emailController,
-                          decoration: const InputDecoration(
-                            labelText: '이메일',
-                            prefixIcon: Icon(Icons.email_outlined),
+                          decoration: InputDecoration(
+                            labelText: AppLocalizations.of(context)!.authEmail,
+                            prefixIcon: const Icon(Icons.email_outlined),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
@@ -119,9 +120,9 @@ class _SignUpPageState extends State<SignUpPage> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _nicknameController,
-                          decoration: const InputDecoration(
-                            labelText: '닉네임',
-                            prefixIcon: Icon(Icons.person_outlined),
+                          decoration: InputDecoration(
+                            labelText: AppLocalizations.of(context)!.authNickname,
+                            prefixIcon: const Icon(Icons.person_outlined),
                           ),
                           textInputAction: TextInputAction.next,
                           validator: Validators.nickname,
@@ -130,7 +131,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         TextFormField(
                           controller: _passwordController,
                           decoration: InputDecoration(
-                            labelText: '비밀번호',
+                            labelText: AppLocalizations.of(context)!.authPassword,
                             prefixIcon: const Icon(Icons.lock_outlined),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -153,7 +154,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         TextFormField(
                           controller: _confirmPasswordController,
                           decoration: InputDecoration(
-                            labelText: '비밀번호 확인',
+                            labelText: AppLocalizations.of(context)!.authConfirmPassword,
                             prefixIcon: const Icon(Icons.lock_outlined),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -189,7 +190,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '한글이 입력되어 있습니다. 영문 키보드를 확인하세요.',
+                                  AppLocalizations.of(context)!.authKoreanInputWarning,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.orange[700],
@@ -214,7 +215,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Text('회원가입'),
+                                : Text(AppLocalizations.of(context)!.authSignUp),
                           ),
                         ),
                       ],
