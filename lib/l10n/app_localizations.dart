@@ -374,6 +374,24 @@ abstract class AppLocalizations {
   /// **'채팅'**
   String get chatTitle;
 
+  /// No description provided for @chatSelfChatTitle.
+  ///
+  /// In ko, this message translates to:
+  /// **'나와의 채팅'**
+  String get chatSelfChatTitle;
+
+  /// No description provided for @chatTypingSingle.
+  ///
+  /// In ko, this message translates to:
+  /// **'{nickname}님이 입력 중...'**
+  String chatTypingSingle(String nickname);
+
+  /// No description provided for @chatTypingMultiple.
+  ///
+  /// In ko, this message translates to:
+  /// **'{count}명이 입력 중...'**
+  String chatTypingMultiple(int count);
+
   /// No description provided for @chatSearchHint.
   ///
   /// In ko, this message translates to:

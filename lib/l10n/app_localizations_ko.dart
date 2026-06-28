@@ -152,6 +152,19 @@ class AppLocalizationsKo extends AppLocalizations {
   String get chatTitle => '채팅';
 
   @override
+  String get chatSelfChatTitle => '나와의 채팅';
+
+  @override
+  String chatTypingSingle(String nickname) {
+    return '$nickname님이 입력 중...';
+  }
+
+  @override
+  String chatTypingMultiple(int count) {
+    return '$count명이 입력 중...';
+  }
+
+  @override
   String get chatSearchHint => '채팅방 검색';
 
   @override

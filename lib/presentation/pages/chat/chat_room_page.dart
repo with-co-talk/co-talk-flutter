@@ -534,8 +534,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 previous.roomName != current.roomName ||
                 previous.roomType != current.roomType,
             builder: (context, state) {
+              final l10n = AppLocalizations.of(context)!;
+              final title = state.isSelfChat
+                  ? l10n.chatSelfChatTitle
+                  : (state.displayTitleOrNull ?? l10n.chatTitle);
               return Text(
-                state.displayTitle,
+                title,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 18,

@@ -156,6 +156,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatTitle => 'Chat';
 
   @override
+  String get chatSelfChatTitle => 'My Chat';
+
+  @override
+  String chatTypingSingle(String nickname) {
+    return '$nickname is typing...';
+  }
+
+  @override
+  String chatTypingMultiple(int count) {
+    return '$count people are typing...';
+  }
+
+  @override
   String get chatSearchHint => 'Search chats';
 
   @override

@@ -69,27 +69,31 @@ class ChatRoomState extends Equatable {
     this.showTypingIndicator = false,
   });
 
-  /// 채팅방 AppBar에 표시할 제목
-  String get displayTitle {
-    if (roomType == ChatRoomType.self) return '나와의 채팅';
+  /// 나와의 채팅방 여부 (AppBar 제목 지역화용)
+  bool get isSelfChat => roomType == ChatRoomType.self;
+
+  /// AppBar에 표시할 동적 제목(상대 닉네임/방 이름).
+  /// 지역화가 필요한 기본 제목은 위젯 레이어에서 [AppLocalizations]로 해석한다.
+  /// 동적 제목이 없으면 null을 반환한다.
+  String? get displayTitleOrNull {
+    if (isSelfChat) return null;
     if (roomType == ChatRoomType.direct && otherUserNickname != null) {
       return otherUserNickname!;
     }
     if (roomName != null && roomName!.isNotEmpty) return roomName!;
-    return '채팅';
+    return null;
   }
 
   /// 누군가 타이핑 중인지 여부
   bool get isAnyoneTyping => typingUsers.isNotEmpty;
 
-  /// 타이핑 인디케이터 텍스트
-  String get typingIndicatorText {
-    if (typingUsers.isEmpty) return '';
-    if (typingUsers.length == 1) {
-      return '${typingUsers.values.first}님이 입력 중...';
-    }
-    return '${typingUsers.length}명이 입력 중...';
-  }
+  /// 타이핑 중인 첫 번째 사용자의 닉네임(단일 타이핑 표시용).
+  /// 지역화 텍스트는 위젯 레이어에서 해석한다.
+  String? get firstTypingNickname =>
+      typingUsers.isEmpty ? null : typingUsers.values.first;
+
+  /// 타이핑 중인 사용자 수
+  int get typingCount => typingUsers.length;
 
   ChatRoomState copyWith({
     ChatRoomStatus? status,

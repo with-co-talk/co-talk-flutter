@@ -46,6 +46,23 @@
   "authConfirmNewPassword": "Confirm New Password",
   "authChangePassword": "Change Password",
   "chatTitle": "Chat",
+  "chatSelfChatTitle": "My Chat",
+  "chatTypingSingle": "{nickname} is typing...",
+  "@chatTypingSingle": {
+    "placeholders": {
+      "nickname": {
+        "type": "String"
+      }
+    }
+  },
+  "chatTypingMultiple": "{count} people are typing...",
+  "@chatTypingMultiple": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatSearchHint": "Search chats",
   "chatListLoadFailed": "Failed to load chats",
   "chatListEmpty": "No chats yet\nAdd friends and start a conversation",

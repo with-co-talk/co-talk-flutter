@@ -47,10 +47,14 @@ class MessageList extends StatelessWidget {
                   children: [
                     const AnimatedTypingDots(),
                     const SizedBox(width: 8),
-                    if (state.typingIndicatorText.isNotEmpty)
+                    if (state.firstTypingNickname != null)
                       Flexible(
                         child: Text(
-                          state.typingIndicatorText,
+                          state.typingCount == 1
+                              ? AppLocalizations.of(context)!
+                                  .chatTypingSingle(state.firstTypingNickname!)
+                              : AppLocalizations.of(context)!
+                                  .chatTypingMultiple(state.typingCount),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(

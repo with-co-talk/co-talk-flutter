@@ -3,10 +3,11 @@ import 'package:co_talk_flutter/domain/entities/chat_room.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_room_state.dart';
 
 void main() {
-  group('ChatRoomState.displayTitle', () {
-    test('returns "나와의 채팅" for self chat room', () {
+  group('ChatRoomState.displayTitleOrNull / isSelfChat', () {
+    test('self chat room: isSelfChat true, dynamic title null', () {
       const state = ChatRoomState(roomType: ChatRoomType.self);
-      expect(state.displayTitle, '나와의 채팅');
+      expect(state.isSelfChat, isTrue);
+      expect(state.displayTitleOrNull, isNull);
     });
 
     test('returns otherUserNickname for direct chat room', () {
@@ -14,15 +15,16 @@ void main() {
         roomType: ChatRoomType.direct,
         otherUserNickname: 'Alice',
       );
-      expect(state.displayTitle, 'Alice');
+      expect(state.isSelfChat, isFalse);
+      expect(state.displayTitleOrNull, 'Alice');
     });
 
-    test('returns "채팅" for direct chat room without otherUserNickname', () {
+    test('returns null for direct chat room without otherUserNickname', () {
       const state = ChatRoomState(
         roomType: ChatRoomType.direct,
         otherUserNickname: null,
       );
-      expect(state.displayTitle, '채팅');
+      expect(state.displayTitleOrNull, isNull);
     });
 
     test('returns roomName for group chat room', () {
@@ -30,41 +32,43 @@ void main() {
         roomType: ChatRoomType.group,
         roomName: '프로젝트 팀',
       );
-      expect(state.displayTitle, '프로젝트 팀');
+      expect(state.displayTitleOrNull, '프로젝트 팀');
     });
 
-    test('returns "채팅" for group chat room without name', () {
+    test('returns null for group chat room without name', () {
       const state = ChatRoomState(
         roomType: ChatRoomType.group,
         roomName: null,
       );
-      expect(state.displayTitle, '채팅');
+      expect(state.displayTitleOrNull, isNull);
     });
 
-    test('returns "채팅" for group chat room with empty name', () {
+    test('returns null for group chat room with empty name', () {
       const state = ChatRoomState(
         roomType: ChatRoomType.group,
         roomName: '',
       );
-      expect(state.displayTitle, '채팅');
+      expect(state.displayTitleOrNull, isNull);
     });
 
-    test('returns "채팅" when roomType is null', () {
+    test('returns null when roomType is null and no name', () {
       const state = ChatRoomState();
-      expect(state.displayTitle, '채팅');
+      expect(state.isSelfChat, isFalse);
+      expect(state.displayTitleOrNull, isNull);
     });
 
     test('returns roomName when roomType is null but roomName is set', () {
       const state = ChatRoomState(roomName: '임시 방');
-      expect(state.displayTitle, '임시 방');
+      expect(state.displayTitleOrNull, '임시 방');
     });
 
-    test('self type takes priority over roomName', () {
+    test('self type takes priority: isSelfChat true even with roomName', () {
       const state = ChatRoomState(
         roomType: ChatRoomType.self,
         roomName: 'Custom Name',
       );
-      expect(state.displayTitle, '나와의 채팅');
+      expect(state.isSelfChat, isTrue);
+      expect(state.displayTitleOrNull, isNull);
     });
 
     test('direct type with nickname takes priority over roomName', () {
@@ -73,7 +77,7 @@ void main() {
         otherUserNickname: 'Bob',
         roomName: 'Custom Name',
       );
-      expect(state.displayTitle, 'Bob');
+      expect(state.displayTitleOrNull, 'Bob');
     });
   });
 
@@ -90,20 +94,23 @@ void main() {
     });
   });
 
-  group('ChatRoomState.typingIndicatorText', () {
-    test('returns empty string when no one is typing', () {
+  group('ChatRoomState typing indicator data', () {
+    test('no one typing: firstTypingNickname null, count 0', () {
       const state = ChatRoomState(typingUsers: {});
-      expect(state.typingIndicatorText, '');
+      expect(state.firstTypingNickname, isNull);
+      expect(state.typingCount, 0);
     });
 
-    test('returns single user typing text', () {
+    test('single user typing exposes nickname and count 1', () {
       const state = ChatRoomState(typingUsers: {2: 'Alice'});
-      expect(state.typingIndicatorText, 'Alice님이 입력 중...');
+      expect(state.firstTypingNickname, 'Alice');
+      expect(state.typingCount, 1);
     });
 
-    test('returns multiple users typing text', () {
+    test('multiple users typing exposes count', () {
       const state = ChatRoomState(typingUsers: {2: 'Alice', 3: 'Bob'});
-      expect(state.typingIndicatorText, '2명이 입력 중...');
+      expect(state.firstTypingNickname, 'Alice');
+      expect(state.typingCount, 2);
     });
   });
 

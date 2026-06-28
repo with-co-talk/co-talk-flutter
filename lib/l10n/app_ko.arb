@@ -63,6 +63,23 @@
   "authConfirmNewPassword": "새 비밀번호 확인",
   "authChangePassword": "비밀번호 변경",
   "chatTitle": "채팅",
+  "chatSelfChatTitle": "나와의 채팅",
+  "chatTypingSingle": "{nickname}님이 입력 중...",
+  "@chatTypingSingle": {
+    "placeholders": {
+      "nickname": {
+        "type": "String"
+      }
+    }
+  },
+  "chatTypingMultiple": "{count}명이 입력 중...",
+  "@chatTypingMultiple": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatSearchHint": "채팅방 검색",
   "chatListLoadFailed": "채팅방을 불러오는데 실패했습니다",
   "chatListEmpty": "채팅방이 없습니다\n친구를 추가하고 대화를 시작해보세요",
