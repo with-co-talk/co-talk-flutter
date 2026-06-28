@@ -29,11 +29,12 @@ class ChangePasswordBloc extends Bloc<ChangePasswordEvent, ChangePasswordState> 
       );
       emit(const ChangePasswordState.success());
     } catch (e) {
-      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
-      if (message.contains('알 수 없는 오류')) {
+      // 인식되지 않은(알 수 없는) 에러면 도메인 특화 안내로 대체한다.
+      // 사용자 표시 메시지의 부분 문자열 매칭 대신 타입 기반으로 판별한다.
+      if (ErrorMessageMapper.isUnknownError(e)) {
         emit(ChangePasswordState.error('비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해주세요.'));
       } else {
-        emit(ChangePasswordState.error(message));
+        emit(ChangePasswordState.error(ErrorMessageMapper.toUserFriendlyMessage(e)));
       }
     }
   }

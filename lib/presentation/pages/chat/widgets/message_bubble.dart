@@ -710,8 +710,14 @@ class MessageBubble extends StatelessWidget {
     // Text message (default)
     final textColor = isMe ? Colors.white : context.textPrimaryColor;
 
+    // 삭제된 메시지는 본문 대신 l10n 플레이스홀더를 렌더링한다.
+    // (도메인 엔티티의 displayContent 폴백을 거치지 않고 직접 현지화한다.)
+    final displayText = message.isDeleted
+        ? AppLocalizations.of(context)!.chatDeletedMessageBubble
+        : message.displayContent;
+
     // URL detection (show preview for first URL only)
-    final urlMatches = urlPattern.allMatches(message.displayContent);
+    final urlMatches = urlPattern.allMatches(displayText);
     final firstUrlRaw = urlMatches.isNotEmpty ? urlMatches.first.group(0) : null;
     final firstUrl = firstUrlRaw != null ? normalizeUrl(firstUrlRaw) : null;
 
@@ -752,7 +758,7 @@ class MessageBubble extends StatelessWidget {
           ReplyPreview(message: message, isMe: isMe),
           RichText(
             text: TextSpan(
-              children: _buildTextSpans(context, message.displayContent, textColor),
+              children: _buildTextSpans(context, displayText, textColor),
             ),
           ),
           // Link preview

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/errors/exceptions.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
@@ -65,8 +66,7 @@ class _LoginPageState extends State<LoginPage> {
           if (state.status == AuthStatus.authenticated) {
             context.go(AppRoutes.friends);
           } else if (state.status == AuthStatus.failure) {
-            if (state.errorMessage != null &&
-                state.errorMessage!.contains('이메일 인증')) {
+            if (state.authErrorType == AuthErrorType.emailNotVerified) {
               // 이메일 인증 페이지로 이동
               context.go(
                 '${AppRoutes.emailVerification}?email=${Uri.encodeComponent(_emailController.text.trim())}',

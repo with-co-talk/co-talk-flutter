@@ -250,6 +250,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get chatDeletedMessage => '삭제된 메시지';
 
   @override
+  String get chatDeletedMessageBubble => '삭제된 메시지입니다';
+
+  @override
   String get chatOriginalMessageNotFound => '원본 메시지를 찾을 수 없습니다';
 
   @override

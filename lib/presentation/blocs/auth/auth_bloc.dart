@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
+import '../../../core/errors/exceptions.dart';
 import '../../../core/network/websocket_service.dart';
 import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../core/utils/error_message_mapper.dart';
@@ -109,7 +110,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         debugPrint('[AuthBloc] Stack trace: $stackTrace');
       }
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
-      emit(AuthState.failure(message));
+      // 이메일 미인증 등 후속 분기를 위해 구조적 에러 타입을 함께 전달한다.
+      emit(AuthState.failure(
+        message,
+        errorType: e is AuthException ? e.type : null,
+      ));
     }
   }
 
