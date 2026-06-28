@@ -42,7 +42,9 @@ class SecuritySettingsPage extends StatelessWidget {
                 onChanged: state.isSupported
                     ? (_) {
                         AppHaptics.selection();
-                        context.read<BiometricSettingsCubit>().toggle();
+                        context.read<BiometricSettingsCubit>().toggle(
+                          reason: AppLocalizations.of(context)!.settingsBiometricAuthReason,
+                        );
                       }
                     : null,
               ),

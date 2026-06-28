@@ -93,7 +93,7 @@ void main() {
       );
 
       blocTest<FindEmailBloc, FindEmailState>(
-        'found가 false이고 message가 없을 때 기본 메시지 사용',
+        'found가 false이고 message가 없을 때 null 메시지 (위젯에서 authAccountNotFound로 폴백)',
         build: () {
           when(() => mockAuthRepository.findEmail(
                 nickname: testNickname,
@@ -111,7 +111,7 @@ void main() {
           const FindEmailState(status: FindEmailStatus.loading),
           const FindEmailState(
             status: FindEmailStatus.notFound,
-            message: '일치하는 계정을 찾을 수 없습니다.',
+            message: null,
           ),
         ],
       );

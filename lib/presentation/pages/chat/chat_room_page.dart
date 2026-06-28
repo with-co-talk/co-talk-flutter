@@ -668,17 +668,25 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 }
               },
             ),
-            // Forward success feedback
+            // Forward success/failure feedback
             BlocListener<ChatRoomBloc, ChatRoomState>(
               listenWhen: (previous, current) {
                 return previous.isForwarding && !current.isForwarding;
               },
               listener: (context, state) {
+                final l10n = AppLocalizations.of(context)!;
                 if (state.forwardSuccess) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(AppLocalizations.of(context)!.chatMessageForwarded),
+                      content: Text(l10n.chatMessageForwarded),
                       backgroundColor: Colors.green,
+                    ),
+                  );
+                } else if (state.isForwardFailed) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.chatForwardFailed(state.forwardErrorDetail ?? '')),
+                      backgroundColor: Colors.red,
                     ),
                   );
                 }

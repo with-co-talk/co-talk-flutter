@@ -134,6 +134,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authVerifyCode => '인증 코드 확인';
 
   @override
+  String get authInvalidCode => '인증 코드가 유효하지 않습니다. 다시 확인해주세요.';
+
+  @override
   String get authResendCode => '인증 코드 재발송';
 
   @override
@@ -228,6 +231,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get chatMessageForwarded => '메시지가 전달되었습니다';
+
+  @override
+  String chatForwardFailed(Object error) {
+    return '메시지 전달에 실패했습니다: $error';
+  }
 
   @override
   String get chatOtherUser => '상대방';
@@ -1276,6 +1284,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get settingsBiometricUnavailable => '이 기기에서 사용할 수 없습니다';
+
+  @override
+  String get settingsBiometricAuthReason => '생체 인증을 활성화하려면 인증해주세요';
 
   @override
   String get settingsBiometricBackgroundNotice =>

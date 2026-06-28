@@ -40,6 +40,7 @@
   "authCodeRequired": "Please enter the verification code",
   "authCodeLengthInvalid": "Please enter a 6-digit code",
   "authVerifyCode": "Verify Code",
+  "authInvalidCode": "The verification code is invalid. Please check again.",
   "authResendCode": "Resend Code",
   "authNewPasswordGuide": "Please enter a new password.",
   "authNewPassword": "New Password",
@@ -82,6 +83,14 @@
   "chatReinviteSuccess": "Re-invited {nickname}",
   "chatReinviteFailed": "Re-invite failed: {error}",
   "chatMessageForwarded": "Message forwarded",
+  "chatForwardFailed": "Failed to forward message: {error}",
+  "@chatForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
   "chatOtherUser": "The other user",
   "chatMediaTabPhotos": "Photos",
   "chatMediaTabFiles": "Files",
@@ -414,6 +423,7 @@
   "settingsBiometricNotSupported": "This device does not support biometric authentication.",
   "settingsBiometricEnabledDesc": "Use biometrics to unlock the app",
   "settingsBiometricUnavailable": "Not available on this device",
+  "settingsBiometricAuthReason": "Please authenticate to enable biometrics",
   "settingsBiometricBackgroundNotice": "Biometric authentication is required when you return after the app has been in the background for over 30 seconds.",
   "settingsBiometricLoadFailed": "Failed to load biometric settings.",
   "settingsAccountDeletionComplete": "Your account has been deleted",

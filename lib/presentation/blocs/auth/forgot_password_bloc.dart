@@ -53,6 +53,7 @@ class ForgotPasswordState extends Equatable {
   final String? email;
   final String? code;
   final String? errorMessage;
+  final bool isInvalidCode; // 인증 코드 무효 시 true → 위젯에서 authInvalidCode ARB 키로 해석
 
   const ForgotPasswordState({
     this.step = ForgotPasswordStep.email,
@@ -60,6 +61,7 @@ class ForgotPasswordState extends Equatable {
     this.email,
     this.code,
     this.errorMessage,
+    this.isInvalidCode = false,
   });
 
   ForgotPasswordState copyWith({
@@ -69,6 +71,7 @@ class ForgotPasswordState extends Equatable {
     String? code,
     String? errorMessage,
     bool clearError = false,
+    bool? isInvalidCode,
   }) {
     return ForgotPasswordState(
       step: step ?? this.step,
@@ -78,11 +81,12 @@ class ForgotPasswordState extends Equatable {
       // FindEmailState와 동일하게 기본은 보존하고,
       // 새 시도 시작 등 에러 클리어 의도는 clearError로 명시한다.
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      isInvalidCode: clearError ? false : (isInvalidCode ?? this.isInvalidCode),
     );
   }
 
   @override
-  List<Object?> get props => [step, status, email, code, errorMessage];
+  List<Object?> get props => [step, status, email, code, errorMessage, isInvalidCode];
 }
 
 // BLoC
@@ -135,7 +139,7 @@ class ForgotPasswordBloc extends Bloc<ForgotPasswordEvent, ForgotPasswordState> 
       } else {
         emit(state.copyWith(
           status: ForgotPasswordStatus.failure,
-          errorMessage: '인증 코드가 유효하지 않습니다. 다시 확인해주세요.',
+          isInvalidCode: true,
         ));
       }
     } catch (e) {

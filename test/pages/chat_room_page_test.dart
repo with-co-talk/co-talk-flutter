@@ -1064,7 +1064,7 @@ void main() {
         errorMessage: 'Error',
       );
 
-      expect(state.props.length, 30);
+      expect(state.props.length, 32);
     });
 
     test('equality works', () {

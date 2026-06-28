@@ -138,6 +138,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authVerifyCode => 'Verify Code';
 
   @override
+  String get authInvalidCode =>
+      'The verification code is invalid. Please check again.';
+
+  @override
   String get authResendCode => 'Resend Code';
 
   @override
@@ -234,6 +238,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatMessageForwarded => 'Message forwarded';
+
+  @override
+  String chatForwardFailed(Object error) {
+    return 'Failed to forward message: $error';
+  }
 
   @override
   String get chatOtherUser => 'The other user';
@@ -1310,6 +1319,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsBiometricUnavailable => 'Not available on this device';
+
+  @override
+  String get settingsBiometricAuthReason =>
+      'Please authenticate to enable biometrics';
 
   @override
   String get settingsBiometricBackgroundNotice =>

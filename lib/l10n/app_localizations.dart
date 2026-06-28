@@ -338,6 +338,12 @@ abstract class AppLocalizations {
   /// **'인증 코드 확인'**
   String get authVerifyCode;
 
+  /// No description provided for @authInvalidCode.
+  ///
+  /// In ko, this message translates to:
+  /// **'인증 코드가 유효하지 않습니다. 다시 확인해주세요.'**
+  String get authInvalidCode;
+
   /// No description provided for @authResendCode.
   ///
   /// In ko, this message translates to:
@@ -505,6 +511,12 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'메시지가 전달되었습니다'**
   String get chatMessageForwarded;
+
+  /// No description provided for @chatForwardFailed.
+  ///
+  /// In ko, this message translates to:
+  /// **'메시지 전달에 실패했습니다: {error}'**
+  String chatForwardFailed(Object error);
 
   /// No description provided for @chatOtherUser.
   ///
@@ -2497,6 +2509,12 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'이 기기에서 사용할 수 없습니다'**
   String get settingsBiometricUnavailable;
+
+  /// No description provided for @settingsBiometricAuthReason.
+  ///
+  /// In ko, this message translates to:
+  /// **'생체 인증을 활성화하려면 인증해주세요'**
+  String get settingsBiometricAuthReason;
 
   /// No description provided for @settingsBiometricBackgroundNotice.
   ///

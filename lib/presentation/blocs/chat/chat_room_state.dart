@@ -34,6 +34,8 @@ class ChatRoomState extends Equatable {
   final Message? replyToMessage; // 답장 대상 메시지
   final bool isForwarding; // 메시지 전달 진행 중 여부
   final bool forwardSuccess; // 메시지 전달 성공 여부
+  final bool isForwardFailed; // 메시지 전달 실패 여부 (지역화용)
+  final String? forwardErrorDetail; // 전달 실패 오류 상세 (위젯에서 chatForwardFailed key로 해석)
   final bool showTypingIndicator; // 입력중 표시 설정
 
   const ChatRoomState({
@@ -66,6 +68,8 @@ class ChatRoomState extends Equatable {
     this.replyToMessage,
     this.isForwarding = false,
     this.forwardSuccess = false,
+    this.isForwardFailed = false,
+    this.forwardErrorDetail,
     this.showTypingIndicator = false,
   });
 
@@ -128,6 +132,9 @@ class ChatRoomState extends Equatable {
     bool clearReplyToMessage = false,
     bool? isForwarding,
     bool? forwardSuccess,
+    bool? isForwardFailed,
+    String? forwardErrorDetail,
+    bool clearForwardError = false,
     bool? showTypingIndicator,
   }) {
     return ChatRoomState(
@@ -160,6 +167,8 @@ class ChatRoomState extends Equatable {
       replyToMessage: clearReplyToMessage ? null : (replyToMessage ?? this.replyToMessage),
       isForwarding: isForwarding ?? this.isForwarding,
       forwardSuccess: forwardSuccess ?? this.forwardSuccess,
+      isForwardFailed: isForwardFailed ?? this.isForwardFailed,
+      forwardErrorDetail: clearForwardError ? null : (forwardErrorDetail ?? this.forwardErrorDetail),
       showTypingIndicator: showTypingIndicator ?? this.showTypingIndicator,
     );
   }
@@ -195,6 +204,8 @@ class ChatRoomState extends Equatable {
         replyToMessage,
         isForwarding,
         forwardSuccess,
+        isForwardFailed,
+        forwardErrorDetail,
         showTypingIndicator,
       ];
 }
