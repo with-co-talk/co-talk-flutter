@@ -89,11 +89,11 @@ void main() {
     testWidgets('renders all icons', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // The actual implementation has these 4 icons (not person_add):
-      expect(find.byIcon(Icons.inbox), findsOneWidget);
-      expect(find.byIcon(Icons.send), findsOneWidget);
-      expect(find.byIcon(Icons.visibility_off), findsOneWidget);
-      expect(find.byIcon(Icons.block), findsOneWidget);
+      // Warm Sand 리뉴얼: 아이콘 칩에 rounded 변형 아이콘 사용
+      expect(find.byIcon(Icons.inbox_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.send_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_off_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.block_rounded), findsOneWidget);
     });
 
     testWidgets('navigates to received requests page when 받은 친구 요청 is tapped', (tester) async {
@@ -149,8 +149,8 @@ void main() {
     testWidgets('renders chevron icons for all menu items', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // All 4 menu items should have chevron_right icon (not 5)
-      expect(find.byIcon(Icons.chevron_right), findsNWidgets(4));
+      // All 4 menu items should have chevron icon (Warm Sand: chevron_right_rounded)
+      expect(find.byIcon(Icons.chevron_right_rounded), findsNWidgets(4));
     });
 
     testWidgets('hidden friends navigation should use push (not go)', (tester) async {

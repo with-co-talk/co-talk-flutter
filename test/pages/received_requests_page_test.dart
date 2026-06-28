@@ -7,6 +7,7 @@ import 'package:co_talk_flutter/presentation/blocs/friend/friend_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/friend/friend_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/friend/friend_state.dart';
 import 'package:co_talk_flutter/presentation/pages/friends/received_requests_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/gradient_button.dart';
 import 'package:co_talk_flutter/di/injection.dart';
 import '../mocks/fake_entities.dart';
 
@@ -39,8 +40,10 @@ void main() {
     );
   }
 
-  ElevatedButton acceptButton(WidgetTester tester) =>
-      tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+  // Warm Sand 리뉴얼: 수락 버튼이 ElevatedButton -> GradientButton 으로 변경됐다.
+  // 거절은 그대로 OutlinedButton. 처리 중 비활성화/스피너 동작은 유지된다.
+  GradientButton acceptButton(WidgetTester tester) =>
+      tester.widget<GradientButton>(find.byType(GradientButton));
   OutlinedButton rejectButton(WidgetTester tester) =>
       tester.widget<OutlinedButton>(find.byType(OutlinedButton));
 
@@ -79,7 +82,7 @@ void main() {
     // Accept button shows an in-flight spinner instead of the label.
     expect(
       find.descendant(
-        of: find.byType(ElevatedButton),
+        of: find.byType(GradientButton),
         matching: find.byType(CircularProgressIndicator),
       ),
       findsOneWidget,

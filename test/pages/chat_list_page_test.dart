@@ -11,6 +11,7 @@ import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/chat_list_state.dart';
 import 'package:co_talk_flutter/presentation/pages/chat/chat_list_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/empty_state_view.dart';
 import 'package:co_talk_flutter/presentation/widgets/skeletons/list_skeleton.dart';
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
@@ -76,6 +77,7 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
+      // Warm Sand 리뉴얼: 로딩 상태가 CircularProgressIndicator -> ListSkeleton(시머)로 변경됨
       expect(find.byType(ListSkeleton), findsOneWidget);
     });
 
@@ -86,7 +88,12 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.text('채팅방이 없습니다\n친구를 추가하고 대화를 시작해보세요'), findsOneWidget);
+      // Warm Sand 리뉴얼(EmptyStateView) + main i18n: 빈 상태 카피는
+      // 로컬라이즈된 chatListEmpty(title) + 하드코딩된 subtitle 로 렌더된다.
+      expect(find.byType(EmptyStateView), findsOneWidget);
+      expect(find.text('채팅방이 없습니다\n친구를 추가하고 대화를 시작해보세요'),
+          findsOneWidget);
+      expect(find.text('친구와 첫 대화를 시작해보세요'), findsOneWidget);
     });
 
     testWidgets('shows error message on failure', (tester) async {
@@ -99,6 +106,9 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
+      // Warm Sand 리뉴얼(EmptyStateView + '다시 시도' 액션) + main i18n:
+      // 에러 타이틀은 로컬라이즈된 chatListLoadFailed 로 렌더된다.
+      expect(find.byType(EmptyStateView), findsOneWidget);
       expect(find.text('채팅방을 불러오는데 실패했습니다'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });

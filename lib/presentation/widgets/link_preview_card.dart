@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../domain/entities/link_preview.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -37,21 +38,32 @@ class LinkPreviewCard extends StatelessWidget {
         margin: const EdgeInsets.only(top: 8),
         decoration: BoxDecoration(
           color: isMe
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.grey.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
+              ? Colors.white.withValues(alpha: 0.12)
+              : context.surfaceColor,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isMe
-                ? Colors.white.withValues(alpha: 0.2)
-                : Colors.grey.withValues(alpha: 0.2),
+                ? Colors.white.withValues(alpha: 0.22)
+                : context.dividerColor,
           ),
+          boxShadow: isMe
+              ? null
+              : [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(
+                      alpha: context.isDarkMode ? 0.0 : 0.06,
+                    ),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 이미지 (있는 경우)
-            if (preview.imageUrl != null) _buildImage(),
+            if (preview.imageUrl != null) _buildImage(context),
 
             // 텍스트 정보
             Padding(
@@ -79,11 +91,12 @@ class LinkPreviewCard extends StatelessWidget {
   }
 
   /// 이미지를 빌드한다.
-  Widget _buildImage() {
+  Widget _buildImage(BuildContext context) {
+    final placeholderColor = AppColors.primary.withValues(alpha: 0.08);
     return Container(
       height: 120,
       width: double.infinity,
-      color: Colors.grey[200],
+      color: placeholderColor,
       child: Image.network(
         preview.imageUrl!,
         fit: BoxFit.cover,
@@ -96,13 +109,18 @@ class LinkPreviewCard extends StatelessWidget {
                       loadingProgress.expectedTotalBytes!
                   : null,
               strokeWidth: 2,
+              color: AppColors.primary,
             ),
           );
         },
         errorBuilder: (context, error, stackTrace) => Container(
-          color: Colors.grey[300],
-          child: const Center(
-            child: Icon(Icons.broken_image, color: Colors.grey, size: 32),
+          color: placeholderColor,
+          child: Center(
+            child: Icon(
+              Icons.broken_image_outlined,
+              color: AppColors.primary.withValues(alpha: 0.5),
+              size: 32,
+            ),
           ),
         ),
       ),
@@ -111,6 +129,7 @@ class LinkPreviewCard extends StatelessWidget {
 
   /// 도메인 정보를 빌드한다.
   Widget _buildDomain(BuildContext context) {
+    final domainColor = isMe ? Colors.white70 : context.textSecondaryColor;
     return Row(
       children: [
         // 파비콘
@@ -124,7 +143,7 @@ class LinkPreviewCard extends StatelessWidget {
               errorBuilder: (_, __, ___) => Icon(
                 Icons.language,
                 size: 16,
-                color: isMe ? Colors.white70 : Colors.grey[600],
+                color: domainColor,
               ),
             ),
           ),
@@ -133,7 +152,7 @@ class LinkPreviewCard extends StatelessWidget {
           Icon(
             Icons.language,
             size: 16,
-            color: isMe ? Colors.white70 : Colors.grey[600],
+            color: domainColor,
           ),
           const SizedBox(width: 6),
         ],
@@ -143,7 +162,8 @@ class LinkPreviewCard extends StatelessWidget {
             preview.siteName ?? preview.domain ?? '',
             style: TextStyle(
               fontSize: 12,
-              color: isMe ? Colors.white70 : Colors.grey[600],
+              color: domainColor,
+              letterSpacing: -0.1,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -159,9 +179,10 @@ class LinkPreviewCard extends StatelessWidget {
       preview.title!,
       style: TextStyle(
         fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: isMe ? Colors.white : Colors.black87,
+        fontWeight: FontWeight.w700,
+        color: isMe ? Colors.white : context.textPrimaryColor,
         height: 1.3,
+        letterSpacing: -0.2,
       ),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
@@ -174,7 +195,9 @@ class LinkPreviewCard extends StatelessWidget {
       preview.description!,
       style: TextStyle(
         fontSize: 12,
-        color: isMe ? Colors.white.withValues(alpha: 0.8) : Colors.grey[700],
+        color: isMe
+            ? Colors.white.withValues(alpha: 0.8)
+            : context.textSecondaryColor,
         height: 1.4,
       ),
       maxLines: 2,

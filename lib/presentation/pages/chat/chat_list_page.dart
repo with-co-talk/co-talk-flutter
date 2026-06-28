@@ -12,6 +12,7 @@ import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
 import '../../blocs/chat/chat_list_event.dart';
 import '../../blocs/chat/chat_list_state.dart';
+import '../../widgets/empty_state_view.dart';
 import '../../widgets/skeletons/list_skeleton.dart';
 
 class ChatListPage extends StatefulWidget {
@@ -90,20 +91,22 @@ class _ChatListPageState extends State<ChatListPage> {
   /// 일반 AppBar
   AppBar _buildNormalAppBar() {
     return AppBar(
+      backgroundColor: context.surfaceColor,
       title: Text(
         AppLocalizations.of(context)!.chatTitle,
         style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          fontSize: 22,
+          letterSpacing: -0.5,
         ),
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.search),
+          icon: const Icon(Icons.search_rounded),
           onPressed: _toggleSearch,
         ),
         IconButton(
-          icon: const Icon(Icons.settings),
+          icon: const Icon(Icons.settings_outlined),
           onPressed: () => context.push(AppRoutes.settings),
         ),
       ],
@@ -115,8 +118,9 @@ class _ChatListPageState extends State<ChatListPage> {
   /// 검색 모드 AppBar
   AppBar _buildSearchAppBar() {
     return AppBar(
+      backgroundColor: context.surfaceColor,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
         onPressed: _toggleSearch,
       ),
       title: TextField(
@@ -183,31 +187,26 @@ class _ChatListPageState extends State<ChatListPage> {
           }
 
           if (state.status == ChatListStatus.failure) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    AppLocalizations.of(context)!.chatListLoadFailed,
-                    style: TextStyle(color: context.textSecondaryColor),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      context
-                          .read<ChatListBloc>()
-                          .add(const ChatListLoadRequested());
-                    },
-                    child: Text(AppLocalizations.of(context)!.commonRetry),
-                  ),
-                ],
+            return EmptyStateView(
+              icon: Icons.cloud_off_rounded,
+              title: AppLocalizations.of(context)!.chatListLoadFailed,
+              subtitle: '잠시 후 다시 시도해주세요',
+              action: ElevatedButton(
+                onPressed: () {
+                  context
+                      .read<ChatListBloc>()
+                      .add(const ChatListLoadRequested());
+                },
+                child: Text(AppLocalizations.of(context)!.commonRetry),
               ),
             );
           }
 
           if (state.chatRooms.isEmpty) {
-            return Center(
-              child: Text(AppLocalizations.of(context)!.chatListEmpty),
+            return EmptyStateView(
+              icon: Icons.forum_outlined,
+              title: AppLocalizations.of(context)!.chatListEmpty,
+              subtitle: '친구와 첫 대화를 시작해보세요',
             );
           }
 
@@ -216,25 +215,10 @@ class _ChatListPageState extends State<ChatListPage> {
 
           // 검색 결과 없음
           if (_isSearching && filteredChatRooms.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.search_off,
-                    size: 64,
-                    color: context.textSecondaryColor,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    AppLocalizations.of(context)!.chatSearchNoResults(_searchQuery),
-                    style: TextStyle(
-                      color: context.textSecondaryColor,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
+            return EmptyStateView(
+              icon: Icons.search_off_rounded,
+              title: '검색 결과가 없어요',
+              subtitle: AppLocalizations.of(context)!.chatSearchNoResults(_searchQuery),
             );
           }
 
@@ -244,13 +228,9 @@ class _ChatListPageState extends State<ChatListPage> {
                   .read<ChatListBloc>()
                   .add(const ChatListRefreshRequested());
             },
-            child: ListView.separated(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 6),
               itemCount: filteredChatRooms.length,
-              separatorBuilder: (_, __) => Divider(
-                height: 1,
-                thickness: 1,
-                color: context.dividerColor,
-              ),
               itemBuilder: (context, index) {
                 final chatRoom = filteredChatRooms[index];
                 final displayName = _roomDisplayName(context, chatRoom);
@@ -315,127 +295,138 @@ class _ChatRoomTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.push('/chat/room/${chatRoom.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            // 아바타
-            Stack(
+    final hasUnread = chatRoom.unreadCount > 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: () => context.push('/chat/room/${chatRoom.id}'),
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            child: Row(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.primaryLight,
-                  backgroundImage: _getAvatarImage(chatRoom),
-                  child: _getAvatarChild(chatRoom, displayName),
-                ),
-                // 온라인 상태 표시 (1:1 채팅방만)
-                if (chatRoom.type == ChatRoomType.direct && chatRoom.isOtherUserOnline)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 2,
+                // 아바타
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 27,
+                      backgroundColor: AppColors.primaryLight,
+                      backgroundImage: _getAvatarImage(chatRoom),
+                      child: _getAvatarChild(chatRoom, displayName),
+                    ),
+                    // 온라인 상태 표시 (1:1 채팅방만)
+                    if (chatRoom.type == ChatRoomType.direct && chatRoom.isOtherUserOnline)
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: AppColors.online,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: context.surfaceColor,
+                              width: 2.5,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                // 메시지 정보
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.2,
+                                color: context.textPrimaryColor,
+                              ),
+                            ),
+                          ),
+                          if (chatRoom.lastMessageAt != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Text(
+                                AppDateUtils.formatChatListTime(chatRoom.lastMessageAt!),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: hasUnread
+                                      ? AppColors.primary
+                                      : context.textSecondaryColor,
+                                  fontWeight: hasUnread
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              chatRoom.lastMessagePreview,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                height: 1.3,
+                                color: hasUnread
+                                    ? context.textPrimaryColor
+                                    : context.textSecondaryColor,
+                                fontWeight: hasUnread
+                                    ? FontWeight.w500
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                          if (hasUnread) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              constraints: const BoxConstraints(minWidth: 20),
+                              height: 20,
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                chatRoom.unreadCount > 99
+                                    ? '99+'
+                                    : '${chatRoom.unreadCount}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
+                ),
               ],
             ),
-            const SizedBox(width: 16),
-            // 메시지 정보
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: chatRoom.unreadCount > 0
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: context.textPrimaryColor,
-                          ),
-                        ),
-                      ),
-                      if (chatRoom.lastMessageAt != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Text(
-                            AppDateUtils.formatChatListTime(chatRoom.lastMessageAt!),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: context.textSecondaryColor,
-                              fontWeight: chatRoom.unreadCount > 0
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          chatRoom.lastMessagePreview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: chatRoom.unreadCount > 0
-                                ? context.textPrimaryColor
-                                : context.textSecondaryColor,
-                            fontWeight: chatRoom.unreadCount > 0
-                                ? FontWeight.w500
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ),
-                      if (chatRoom.unreadCount > 0) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            chatRoom.unreadCount > 99
-                                ? '99+'
-                                : '${chatRoom.unreadCount}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

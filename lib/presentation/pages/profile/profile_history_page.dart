@@ -9,6 +9,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../blocs/profile/profile_bloc.dart';
 import '../../blocs/profile/profile_event.dart';
 import '../../blocs/profile/profile_state.dart';
+import '../../widgets/empty_state_view.dart';
+import '../../widgets/gradient_button.dart';
 import 'edit_profile_page.dart';
 import 'widgets/history_item_options_sheet.dart';
 
@@ -99,49 +101,34 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
 
         if (histories.isEmpty) {
           return Scaffold(
-            backgroundColor: Colors.black,
+            backgroundColor: context.backgroundColor,
             appBar: AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
               leading: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
+                icon: const Icon(Icons.close),
                 onPressed: () => Navigator.pop(context),
               ),
+              title: Text(_getTypeLabel(context)),
+              centerTitle: true,
             ),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    _getEmptyIcon(),
-                    color: Colors.white54,
-                    size: 64,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    AppLocalizations.of(context)!.profileHistoryEmpty(_getTypeLabel(context)),
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 16,
-                    ),
-                  ),
-                  if (widget.isMyProfile) ...[
-                    const SizedBox(height: 24),
-                    TextButton.icon(
-                      onPressed: () => _navigateToEditProfile(context),
-                      icon: const Icon(Icons.add_photo_alternate, color: Colors.white),
-                      label: Text(
-                        _getAddButtonLabel(context),
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+            body: EmptyStateView(
+              icon: _getEmptyIcon(),
+              title: AppLocalizations.of(context)!
+                  .profileHistoryEmpty(_getTypeLabel(context)),
+              subtitle: widget.isMyProfile
+                  ? '새 ${_getTypeLabel(context)}을(를) 추가해 보세요.'
+                  : null,
+              action: widget.isMyProfile
+                  ? SizedBox(
+                      width: 220,
+                      child: GradientButton(
+                        onPressed: () => _navigateToEditProfile(context),
+                        label: _getAddButtonLabel(context),
+                        icon: Icons.add_photo_alternate_rounded,
                       ),
-                      style: TextButton.styleFrom(
-                        backgroundColor: Colors.white24,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                    )
+                  : null,
             ),
           );
         }
@@ -241,8 +228,17 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
                   right: 16,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
+                      gradient: const LinearGradient(
+                        colors: AppColors.brandGradient,
+                      ),
                       borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: Material(
                       color: Colors.transparent,
@@ -261,7 +257,7 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
@@ -434,7 +430,13 @@ class _ImageViewState extends State<_ImageView> {
   Widget build(BuildContext context) {
     if (widget.url == null || widget.url!.isEmpty) {
       return Container(
-        color: AppColors.primaryDark,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.primaryDark, AppColors.primary],
+          ),
+        ),
         child: const Center(
           child: Icon(
             Icons.image_not_supported,
@@ -484,8 +486,8 @@ class _StatusMessageView extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
             AppColors.primaryDark,
             AppColors.primary,
@@ -500,8 +502,9 @@ class _StatusMessageView extends StatelessWidget {
             style: const TextStyle(
               color: Colors.white,
               fontSize: 24,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               height: 1.5,
+              letterSpacing: -0.3,
             ),
             textAlign: TextAlign.center,
           ),
@@ -572,22 +575,23 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
+        color: color.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: color, size: 14),
-          const SizedBox(width: 4),
+          const SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
               color: color,
               fontSize: 12,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

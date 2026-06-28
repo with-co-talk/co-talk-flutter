@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../widgets/gradient_button.dart';
 
 class ErrorPage extends StatelessWidget {
   final String? message;
@@ -14,32 +16,63 @@ class ErrorPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: context.backgroundColor,
       appBar: AppBar(
         title: Text(AppLocalizations.of(context)!.errorTitle),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── 친근한 에러 아이콘 (보라 틴트 원) ──
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.error.withValues(alpha: 0.10),
+                    ),
+                    child: Icon(
+                      Icons.cloud_off_rounded,
+                      size: 44,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    '문제가 발생했어요',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3,
+                      color: context.textPrimaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message ?? AppLocalizations.of(context)!.errorPageLoadFailed,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.45,
+                      color: context.textSecondaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  GradientButton(
+                    onPressed: () => context.go(AppRoutes.friends),
+                    label: AppLocalizations.of(context)!.errorGoHome,
+                    icon: Icons.home_rounded,
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                message ?? AppLocalizations.of(context)!.errorPageLoadFailed,
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: () => context.go(AppRoutes.friends),
-                child: Text(AppLocalizations.of(context)!.errorGoHome),
-              ),
-            ],
+            ),
           ),
         ),
       ),

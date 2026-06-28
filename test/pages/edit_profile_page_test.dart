@@ -12,6 +12,7 @@ import 'package:co_talk_flutter/presentation/blocs/profile/profile_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/profile/profile_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/profile/profile_state.dart';
 import 'package:co_talk_flutter/presentation/pages/profile/edit_profile_page.dart';
+import 'package:co_talk_flutter/presentation/widgets/gradient_button.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
@@ -265,10 +266,12 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
-        final saveButton = find.widgetWithText(ElevatedButton, '변경사항 없음');
+        // Warm Sand 리뉴얼: 저장 버튼이 ElevatedButton -> GradientButton 으로 변경.
+        // 동작(변경 없음일 때 비활성/onPressed null)은 그대로 유지됨.
+        final saveButton = find.widgetWithText(GradientButton, '변경사항 없음');
         expect(saveButton, findsOneWidget);
 
-        final button = tester.widget<ElevatedButton>(saveButton);
+        final button = tester.widget<GradientButton>(saveButton);
         expect(button.onPressed, isNull);
       });
 
@@ -288,10 +291,11 @@ void main() {
         await tester.enterText(nicknameField, 'NewNickname');
         await tester.pump();
 
-        final saveButton = find.widgetWithText(ElevatedButton, '저장하기');
+        // Warm Sand 리뉴얼: 저장 버튼 GradientButton. 변경 시 라벨 '저장하기' + onPressed 활성.
+        final saveButton = find.widgetWithText(GradientButton, '저장하기');
         expect(saveButton, findsOneWidget);
 
-        final button = tester.widget<ElevatedButton>(saveButton);
+        final button = tester.widget<GradientButton>(saveButton);
         expect(button.onPressed, isNotNull);
       });
 
@@ -310,7 +314,8 @@ void main() {
         await tester.enterText(statusField, 'New Status');
         await tester.pump();
 
-        final saveButton = find.widgetWithText(ElevatedButton, '저장하기');
+        // Warm Sand 리뉴얼: 저장 버튼 GradientButton.
+        final saveButton = find.widgetWithText(GradientButton, '저장하기');
         expect(saveButton, findsOneWidget);
       });
 
@@ -331,8 +336,8 @@ void main() {
         await tester.enterText(nicknameField, 'NewNickname');
         await tester.pump();
 
-        // Tap save button
-        final saveButton = find.widgetWithText(ElevatedButton, '저장하기');
+        // Tap save button (Warm Sand 리뉴얼: GradientButton, GestureDetector onTap 으로 동작)
+        final saveButton = find.widgetWithText(GradientButton, '저장하기');
         await tester.tap(saveButton);
         await tester.pump();
 
@@ -448,7 +453,8 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
-        expect(find.byIcon(Icons.camera_alt), findsOneWidget);
+        // Warm Sand 리뉴얼: 카메라 아이콘이 camera_alt -> camera_alt_rounded 로 변경.
+        expect(find.byIcon(Icons.camera_alt_rounded), findsOneWidget);
       });
     });
 

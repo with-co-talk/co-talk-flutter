@@ -15,6 +15,8 @@ import '../../blocs/auth/auth_state.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
+import '../../widgets/empty_state_view.dart';
+import '../../widgets/gradient_button.dart';
 import '../../widgets/skeletons/list_skeleton.dart';
 
 class FriendListPage extends StatefulWidget {
@@ -62,8 +64,12 @@ class _FriendListPageState extends State<FriendListPage> {
             if (state.errorMessage != null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   content: Text(ErrorMessageMapper.toUserFriendlyMessage(state.errorMessage!)),
-                  backgroundColor: Colors.red,
+                  backgroundColor: AppColors.error,
                 ),
               );
             }
@@ -81,12 +87,14 @@ class _FriendListPageState extends State<FriendListPage> {
         ),
       ],
       child: Scaffold(
+        backgroundColor: context.backgroundColor,
         appBar: AppBar(
           title: Text(
             AppLocalizations.of(context)!.friendsTitle,
             style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
+              letterSpacing: -0.4,
             ),
           ),
           actions: [
@@ -119,24 +127,22 @@ class _FriendListPageState extends State<FriendListPage> {
             }
 
             if (state.status == FriendStatus.failure) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      AppLocalizations.of(context)!.friendsListLoadError,
-                      style: TextStyle(color: context.textSecondaryColor),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        context
-                            .read<FriendBloc>()
-                            .add(const FriendListLoadRequested());
-                      },
-                      child: Text(AppLocalizations.of(context)!.commonRetry),
-                    ),
-                  ],
+              return EmptyStateView(
+                icon: Icons.cloud_off_rounded,
+                title: AppLocalizations.of(context)!.friendsListLoadError,
+                subtitle: '네트워크 상태를 확인하고 다시 시도해 주세요.',
+                action: SizedBox(
+                  width: 160,
+                  child: GradientButton(
+                    height: 48,
+                    label: AppLocalizations.of(context)!.commonRetry,
+                    icon: Icons.refresh_rounded,
+                    onPressed: () {
+                      context
+                          .read<FriendBloc>()
+                          .add(const FriendListLoadRequested());
+                    },
+                  ),
                 ),
               );
             }
@@ -159,26 +165,17 @@ class _FriendListPageState extends State<FriendListPage> {
                     ),
                   ),
 
-                  // Divider
-                  SliverToBoxAdapter(
-                    child: Container(
-                      height: 8,
-                      color: context.isDarkMode
-                          ? AppColors.backgroundDark
-                          : const Color(0xFFF5F5F5),
-                    ),
-                  ),
-
                   // Friend List Header
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
                       child: Text(
                         AppLocalizations.of(context)!
                             .friendsCount(state.friends.length),
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
                           color: context.textSecondaryColor,
                         ),
                       ),
@@ -188,52 +185,30 @@ class _FriendListPageState extends State<FriendListPage> {
                   // Friend List
                   if (state.friends.isEmpty)
                     SliverFillRemaining(
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.people_outline,
-                              size: 64,
-                              color: context.textSecondaryColor.withValues(alpha: 0.5),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              AppLocalizations.of(context)!.friendsEmptyTitle,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: context.textSecondaryColor,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              AppLocalizations.of(context)!.friendsEmptyDesc,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: context.textSecondaryColor.withValues(alpha: 0.7),
-                                  ),
-                            ),
-                            const SizedBox(height: 24),
-                            ElevatedButton.icon(
-                              onPressed: () => _showAddFriendDialog(context),
-                              icon: const Icon(Icons.person_add),
-                              label: Text(AppLocalizations.of(context)!.friendsAdd),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ],
+                      hasScrollBody: false,
+                      child: EmptyStateView(
+                        icon: Icons.people_outline_rounded,
+                        title: AppLocalizations.of(context)!.friendsEmptyTitle,
+                        subtitle: AppLocalizations.of(context)!.friendsEmptyDesc,
+                        action: SizedBox(
+                          width: 180,
+                          child: GradientButton(
+                            height: 48,
+                            label: AppLocalizations.of(context)!.friendsAdd,
+                            icon: Icons.person_add_alt_1_rounded,
+                            onPressed: () => _showAddFriendDialog(context),
+                          ),
                         ),
                       ),
                     )
                   else
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _FriendTile(friend: state.friends[index]),
-                        childCount: state.friends.length,
+                    SliverPadding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _FriendTile(friend: state.friends[index]),
+                          childCount: state.friends.length,
+                        ),
                       ),
                     ),
                 ],
@@ -271,60 +246,101 @@ class _MyProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.push(AppRoutes.profileViewPath(user.id)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 35,
-              backgroundColor: AppColors.primaryLight,
-              backgroundImage: user.avatarUrl != null
-                  ? CachedNetworkImageProvider(user.avatarUrl!, maxWidth: 200)
-                  : null,
-              child: user.avatarUrl == null
-                  ? Text(
-                      user.nickname.isNotEmpty
-                          ? user.nickname[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+    final hasStatus =
+        user.statusMessage != null && user.statusMessage!.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: () => context.push(AppRoutes.profileViewPath(user.id)),
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: AppColors.brandGradient,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.30),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+              child: Row(
                 children: [
-                  Text(
-                    user.nickname,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: context.textPrimaryColor,
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        width: 2.5,
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 34,
+                      backgroundColor: Colors.white.withValues(alpha: 0.22),
+                      backgroundImage: user.avatarUrl != null
+                          ? NetworkImage(user.avatarUrl!)
+                          : null,
+                      child: user.avatarUrl == null
+                          ? Text(
+                              user.nickname.isNotEmpty
+                                  ? user.nickname[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            )
+                          : null,
                     ),
                   ),
-                  if (user.statusMessage != null && user.statusMessage!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      user.statusMessage!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: context.textSecondaryColor,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.nickname,
+                          style: const TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
+                            color: Colors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          hasStatus ? user.statusMessage! : '내 프로필 보기',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white.withValues(alpha: 0.85),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -370,51 +386,16 @@ class _FriendTile extends StatelessWidget {
       child: InkWell(
         onTap: () => _navigateToProfile(context, friend.user.id),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           child: Row(
             children: [
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primaryLight,
-                    backgroundImage: friend.user.avatarUrl != null
-                        ? CachedNetworkImageProvider(
-                            friend.user.avatarUrl!,
-                            maxWidth: 200,
-                          )
-                        : null,
-                    child: friend.user.avatarUrl == null
-                        ? Text(
-                            friend.user.nickname.isNotEmpty
-                                ? friend.user.nickname[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
-                  ),
-                  // Online status indicator
-                  if (friend.user.onlineStatus.toString() == 'OnlineStatus.online')
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: AppColors.online,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: context.surfaceColor, width: 2.5),
-                        ),
-                      ),
-                    ),
-                ],
+              _FriendAvatar(
+                nickname: friend.user.nickname,
+                avatarUrl: friend.user.avatarUrl,
+                isOnline: friend.user.onlineStatus.toString() ==
+                    'OnlineStatus.online',
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -424,17 +405,19 @@ class _FriendTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
                         color: context.textPrimaryColor,
                       ),
                     ),
                     if (friend.user.statusMessage != null &&
                         friend.user.statusMessage!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         friend.user.statusMessage!,
                         style: TextStyle(
                           color: context.textSecondaryColor,
                           fontSize: 13,
+                          height: 1.3,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -545,6 +528,58 @@ class _FriendTile extends StatelessWidget {
   }
 }
 
+/// 공용 원형 아바타. primaryLight 배경 + 흰 이니셜, 온라인 점은 surface 링과 함께.
+class _FriendAvatar extends StatelessWidget {
+  final String nickname;
+  final String? avatarUrl;
+  final bool isOnline;
+
+  const _FriendAvatar({
+    required this.nickname,
+    required this.avatarUrl,
+    this.isOnline = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 27,
+          backgroundColor: AppColors.primaryLight,
+          backgroundImage: avatarUrl != null
+              ? CachedNetworkImageProvider(avatarUrl!, maxWidth: 200)
+              : null,
+          child: avatarUrl == null
+              ? Text(
+                  nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                )
+              : null,
+        ),
+        if (isOnline)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: AppColors.online,
+                shape: BoxShape.circle,
+                border: Border.all(color: context.surfaceColor, width: 2.5),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _AddFriendBottomSheet extends StatefulWidget {
   final Timer? debounceTimer;
   final void Function(Timer?) onDebounceTimerChanged;
@@ -592,9 +627,12 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 decoration: BoxDecoration(
                   color: context.surfaceColor,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(18),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -603,7 +641,19 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                     ),
                   ],
                 ),
-                child: TextField(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: context.dividerColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    TextField(
                   controller: _searchController,
                   autofocus: true,
                   keyboardType: TextInputType.text,
@@ -676,6 +726,8 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                         .read<FriendBloc>()
                         .add(UserSearchRequested(query));
                   },
+                    ),
+                  ],
                 ),
               ),
               Expanded(
@@ -800,29 +852,11 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                           ),
                           child: Row(
                             children: [
-                              CircleAvatar(
-                                radius: 28,
-                                backgroundColor: AppColors.primaryLight,
-                                backgroundImage: user.avatarUrl != null
-                                    ? CachedNetworkImageProvider(
-                                        user.avatarUrl!,
-                                        maxWidth: 200,
-                                      )
-                                    : null,
-                                child: user.avatarUrl == null
-                                    ? Text(
-                                        user.nickname.isNotEmpty
-                                            ? user.nickname[0].toUpperCase()
-                                            : '?',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      )
-                                    : null,
+                              _FriendAvatar(
+                                nickname: user.nickname,
+                                avatarUrl: user.avatarUrl,
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -832,10 +866,11 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
+                                        letterSpacing: -0.2,
                                         color: context.textPrimaryColor,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 3),
                                     Text(
                                       user.email,
                                       style: TextStyle(
@@ -861,19 +896,25 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                                       backgroundColor: AppColors.primary,
                                       behavior: SnackBarBehavior.floating,
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
                                   );
                                 },
-                                icon: const Icon(Icons.person_add, size: 18),
-                                label: Text(AppLocalizations.of(context)!.friendsAddShort),
+                                icon: const Icon(Icons.person_add_alt_1_rounded,
+                                    size: 18),
+                                label: Text(
+                                    AppLocalizations.of(context)!.friendsAddShort),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primary,
                                   foregroundColor: Colors.white,
+                                  elevation: 0,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
                                     vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
                                   ),
                                 ),
                               ),

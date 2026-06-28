@@ -8,8 +8,8 @@ void main() {
   group('AppTheme.lightTheme AppBar', () {
     final appBar = AppTheme.lightTheme.appBarTheme;
 
-    test('uses surface background (not solid primary) — M3 modern look', () {
-      expect(appBar.backgroundColor, AppColors.surface);
+    test('uses background (not solid primary) — Warm Sand seamless look', () {
+      expect(appBar.backgroundColor, AppColors.background);
       expect(appBar.backgroundColor, isNot(AppColors.primary));
     });
 
@@ -17,15 +17,16 @@ void main() {
       expect(appBar.foregroundColor, AppColors.textPrimary);
     });
 
-    test('has no scroll-under elevation tint', () {
+    test('has flat base elevation with subtle scroll-under hairline', () {
       expect(appBar.elevation, 0);
-      expect(appBar.scrolledUnderElevation, 0);
+      expect(appBar.scrolledUnderElevation, 0.5);
       expect(appBar.surfaceTintColor, Colors.transparent);
     });
 
-    test('title style is w600 / 18sp in textPrimary', () {
-      expect(appBar.titleTextStyle?.fontWeight, FontWeight.w600);
+    test('title style is w700 / 18sp / tight letterSpacing in textPrimary', () {
+      expect(appBar.titleTextStyle?.fontWeight, FontWeight.w700);
       expect(appBar.titleTextStyle?.fontSize, 18);
+      expect(appBar.titleTextStyle?.letterSpacing, -0.3);
       expect(appBar.titleTextStyle?.color, AppColors.textPrimary);
     });
 
@@ -62,16 +63,16 @@ void main() {
   group('AppTheme.darkTheme AppBar', () {
     final appBar = AppTheme.darkTheme.appBarTheme;
 
-    test('uses dark surface background', () {
-      expect(appBar.backgroundColor, AppColors.surfaceDark);
+    test('uses dark background', () {
+      expect(appBar.backgroundColor, AppColors.backgroundDark);
     });
 
     test('uses dark primary text color as foreground', () {
       expect(appBar.foregroundColor, AppColors.textPrimaryDark);
     });
 
-    test('has no scroll-under elevation tint', () {
-      expect(appBar.scrolledUnderElevation, 0);
+    test('has subtle scroll-under hairline elevation, no tint', () {
+      expect(appBar.scrolledUnderElevation, 0.5);
       expect(appBar.surfaceTintColor, Colors.transparent);
     });
 

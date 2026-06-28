@@ -10,6 +10,7 @@ class FriendSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: context.backgroundColor,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -24,26 +25,28 @@ class FriendSettingsPage extends StatelessWidget {
         title: Text(
           AppLocalizations.of(context)!.friendSettingsTitle,
           style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            fontSize: 19,
+            letterSpacing: -0.4,
           ),
         ),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           _FriendSettingsSection(
             title: AppLocalizations.of(context)!.friendSettingsRequestSection,
             children: [
               _FriendSettingsTile(
-                icon: Icons.inbox,
+                icon: Icons.inbox_rounded,
                 title: AppLocalizations.of(context)!.friendSettingsReceivedRequests,
                 subtitle: AppLocalizations.of(context)!.friendSettingsReceivedRequestsDesc,
                 onTap: () => context.push(AppRoutes.receivedRequests),
               ),
               _FriendSettingsTile(
-                icon: Icons.send,
+                icon: Icons.send_rounded,
                 title: AppLocalizations.of(context)!.friendSettingsSentRequests,
                 subtitle: AppLocalizations.of(context)!.friendSettingsSentRequestsDesc,
                 onTap: () => context.push(AppRoutes.sentRequests),
@@ -54,13 +57,13 @@ class FriendSettingsPage extends StatelessWidget {
             title: AppLocalizations.of(context)!.friendSettingsManageSection,
             children: [
               _FriendSettingsTile(
-                icon: Icons.visibility_off,
+                icon: Icons.visibility_off_rounded,
                 title: AppLocalizations.of(context)!.friendSettingsHiddenFriends,
                 subtitle: AppLocalizations.of(context)!.friendSettingsHiddenFriendsDesc,
                 onTap: () => context.push(AppRoutes.hiddenFriends),
               ),
               _FriendSettingsTile(
-                icon: Icons.block,
+                icon: Icons.block_rounded,
                 title: AppLocalizations.of(context)!.friendSettingsBlockedUsers,
                 subtitle: AppLocalizations.of(context)!.friendSettingsBlockedUsersDesc,
                 onTap: () => context.push(AppRoutes.blockedUsers),
@@ -88,16 +91,47 @@ class _FriendSettingsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+          padding: const EdgeInsets.fromLTRB(8, 20, 8, 10),
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.1,
+              color: context.textSecondaryColor,
+            ),
           ),
         ),
-        ...children,
+        Container(
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: context.dividerColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              for (int i = 0; i < children.length; i++) ...[
+                if (i > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 68),
+                    child: Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: context.dividerColor,
+                    ),
+                  ),
+                children[i],
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -119,12 +153,14 @@ class _FriendSettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: Container(
-        width: 40,
-        height: 40,
+        width: 42,
+        height: 42,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: AppColors.primaryLight.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(10),
+          color: AppColors.primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
           icon,
@@ -135,21 +171,26 @@ class _FriendSettingsTile extends StatelessWidget {
       title: Text(
         title,
         style: TextStyle(
-          fontWeight: FontWeight.w500,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
           color: context.textPrimaryColor,
         ),
       ),
       subtitle: subtitle != null
-          ? Text(
-              subtitle!,
-              style: TextStyle(
-                fontSize: 13,
-                color: context.textSecondaryColor,
+          ? Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                subtitle!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: context.textSecondaryColor,
+                ),
               ),
             )
           : null,
       trailing: Icon(
-        Icons.chevron_right,
+        Icons.chevron_right_rounded,
         color: context.textSecondaryColor,
       ),
       onTap: onTap,

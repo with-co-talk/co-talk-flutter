@@ -9,6 +9,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
+import '../../widgets/gradient_button.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -60,6 +61,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return Scaffold(
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
@@ -74,7 +76,12 @@ class _LoginPageState extends State<LoginPage> {
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(state.errorMessage ?? AppLocalizations.of(context)!.authLoginFailed),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  content: Text(state.errorMessage ??
+                      AppLocalizations.of(context)!.authLoginFailed),
                   backgroundColor: AppColors.error,
                 ),
               );
@@ -82,54 +89,92 @@ class _LoginPageState extends State<LoginPage> {
           }
         },
         builder: (context, state) {
+          final isLoading = state.status == AuthStatus.loading;
           return SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
+                  constraints: const BoxConstraints(maxWidth: 420),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Icon(
-                          Icons.chat_bubble_rounded,
-                          size: 64,
-                          color: AppColors.primary,
+                        // ── 브랜드 로고 (그라데이션 스퀴클) ──
+                        Center(
+                          child: Container(
+                            width: 84,
+                            height: 84,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: AppColors.brandGradient,
+                              ),
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.35),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.chat_bubble_rounded,
+                              size: 40,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 28),
                         Text(
                           'Co-Talk',
                           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.8,
+                                color: context.textPrimaryColor,
                               ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 48),
+                        const SizedBox(height: 8),
+                        Text(
+                          '대화가 머무는 곳, 코톡',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: context.textSecondaryColor,
+                                letterSpacing: -0.2,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 44),
+                        // ── 이메일 ──
                         TextFormField(
                           controller: _emailController,
                           decoration: InputDecoration(
                             labelText: AppLocalizations.of(context)!.authEmail,
-                            prefixIcon: const Icon(Icons.email_outlined),
+                            hintText: 'name@example.com',
+                            prefixIcon:
+                                const Icon(Icons.alternate_email_rounded),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
                           validator: Validators.email,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
+                        // ── 비밀번호 ──
                         TextFormField(
                           controller: _passwordController,
                           decoration: InputDecoration(
-                            labelText: AppLocalizations.of(context)!.authPassword,
-                            prefixIcon: const Icon(Icons.lock_outlined),
+                            labelText:
+                                AppLocalizations.of(context)!.authPassword,
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscurePassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -145,61 +190,69 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         if (_showKoreanWarning)
                           Padding(
-                            padding: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.only(top: 10, left: 4),
                             child: Row(
                               children: [
                                 Icon(
                                   Icons.warning_amber_rounded,
                                   size: 16,
-                                  color: Colors.orange[700],
+                                  color: AppColors.warning,
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 6),
                                 Text(
                                   AppLocalizations.of(context)!.authKoreanInputWarning,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.orange[700],
+                                    color: isDark
+                                        ? AppColors.warning
+                                        : const Color(0xFFB45309),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: state.status == AuthStatus.loading
-                                ? null
-                                : _onLogin,
-                            child: state.status == AuthStatus.loading
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Text(AppLocalizations.of(context)!.authLogin),
-                          ),
+                        const SizedBox(height: 28),
+                        // ── 그라데이션 로그인 버튼 ──
+                        GradientButton(
+                          onPressed: isLoading ? null : _onLogin,
+                          isLoading: isLoading,
+                          label: AppLocalizations.of(context)!.authLogin,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         TextButton(
                           onPressed: () => context.go(AppRoutes.signUp),
-                          child: Text(AppLocalizations.of(context)!.authNoAccountSignUp),
+                          child: Text(
+                            AppLocalizations.of(context)!.authNoAccountSignUp,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
+                        // ── 이메일/비밀번호 찾기 (main 추가 동선) ──
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             TextButton(
                               onPressed: () => context.go(AppRoutes.findEmail),
-                              child: Text(AppLocalizations.of(context)!.authForgotEmail),
+                              style: TextButton.styleFrom(
+                                foregroundColor: context.textSecondaryColor,
+                              ),
+                              child: Text(
+                                AppLocalizations.of(context)!.authForgotEmail,
+                              ),
                             ),
-                            const Text('|', style: TextStyle(color: Colors.grey)),
+                            Text(
+                              '|',
+                              style: TextStyle(color: context.dividerColor),
+                            ),
                             TextButton(
-                              onPressed: () => context.go(AppRoutes.forgotPassword),
-                              child: Text(AppLocalizations.of(context)!.authForgotPassword),
+                              onPressed: () =>
+                                  context.go(AppRoutes.forgotPassword),
+                              style: TextButton.styleFrom(
+                                foregroundColor: context.textSecondaryColor,
+                              ),
+                              child: Text(
+                                AppLocalizations.of(context)!.authForgotPassword,
+                              ),
                             ),
                           ],
                         ),
@@ -215,3 +268,4 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+

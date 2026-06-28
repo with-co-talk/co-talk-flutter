@@ -102,6 +102,7 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
+      // Warm Sand 리뉴얼: 공용 EmptyStateView + i18n 카피(friendsBlockedEmpty*)로 변경
       expect(find.byIcon(Icons.block_outlined), findsOneWidget);
       expect(find.text('차단한 사용자가 없습니다'), findsOneWidget);
       expect(find.text('차단한 사용자가 여기에 표시됩니다'), findsOneWidget);
@@ -117,7 +118,8 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      // Warm Sand 리뉴얼: 공용 EmptyStateView 에러 스타일(cloud_off_rounded + i18n friendsBlockedLoadError)
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
       expect(find.text('차단 목록을 불러오는데 실패했습니다'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });

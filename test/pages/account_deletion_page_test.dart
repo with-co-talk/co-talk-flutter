@@ -158,11 +158,12 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
-        final visibilityButton = find.byIcon(Icons.visibility_off);
+        // Warm Sand 리뉴얼: outlined 아이콘 사용(visibility_off_outlined / visibility_outlined).
+        final visibilityButton = find.byIcon(Icons.visibility_off_outlined);
         await tester.tap(visibilityButton);
         await tester.pump();
 
-        expect(find.byIcon(Icons.visibility), findsOneWidget);
+        expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
       });
 
       testWidgets('dispatches password entered event on input',
@@ -191,8 +192,14 @@ void main() {
         await tester.pumpWidget(createWidgetUnderTest());
 
         expect(find.text('2. 탈퇴 확인'), findsOneWidget);
+        // Warm Sand 리뉴얼: 안내 문구가 RichText(TextSpan 3분할)로 바뀌어
+        // 키워드 "삭제합니다"가 강조된다. plain Text 대신 RichText의 합성 텍스트로 단언.
         expect(
-          find.text('탈퇴를 확인하려면 아래에 "삭제합니다"를 입력하세요.'),
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is RichText &&
+                widget.text.toPlainText() == '탈퇴를 확인하려면 아래에 "삭제합니다"를 입력하세요.',
+          ),
           findsOneWidget,
         );
       });

@@ -6,6 +6,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_state.dart';
+import '../../../widgets/empty_state_view.dart';
 import '../../../widgets/entry_animation.dart';
 import 'animated_typing_dots.dart';
 import 'date_separator.dart';
@@ -111,32 +112,14 @@ class _MessageListViewState extends State<_MessageListView> {
   Widget build(BuildContext context) {
     final messages = widget.messages;
 
+    // 빈/비어있지 않음 전환과 무관하게 이 뷰의 마운트를 유지하기 위해
+    // 빈 상태 플레이스홀더도 여기서 렌더링한다(origin/main 라이프사이클 수정).
+    // 시각은 표준 EmptyStateView, 문자열은 i18n 사용.
     if (messages.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 64,
-              color: context.textSecondaryColor.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              AppLocalizations.of(context)!.chatNoMessages,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: context.textSecondaryColor,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              AppLocalizations.of(context)!.chatStartConversation,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: context.textSecondaryColor.withValues(alpha: 0.7),
-                  ),
-            ),
-          ],
-        ),
+      return EmptyStateView(
+        icon: Icons.chat_bubble_outline,
+        title: AppLocalizations.of(context)!.chatNoMessages,
+        subtitle: AppLocalizations.of(context)!.chatStartConversation,
       );
     }
 

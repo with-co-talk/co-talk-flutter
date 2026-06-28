@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -162,27 +163,10 @@ class _MainPageState extends State<MainPage> {
 
         return Scaffold(
           body: widget.child,
-          bottomNavigationBar: NavigationBar(
+          bottomNavigationBar: _AuroraBottomNav(
             selectedIndex: _selectedIndex,
+            totalUnread: totalUnread,
             onDestinationSelected: _onDestinationSelected,
-            destinations: [
-              NavigationDestination(
-                icon: const Icon(Icons.people_outlined),
-                selectedIcon: const Icon(Icons.people),
-                label: AppLocalizations.of(context)!.mainTabFriends,
-              ),
-              NavigationDestination(
-                icon: _buildBadgeIcon(
-                  icon: const Icon(Icons.chat_outlined),
-                  count: totalUnread,
-                ),
-                selectedIcon: _buildBadgeIcon(
-                  icon: const Icon(Icons.chat),
-                  count: totalUnread,
-                ),
-                label: AppLocalizations.of(context)!.mainTabChat,
-              ),
-            ],
           ),
         );
         },
@@ -205,6 +189,164 @@ class _MainPageState extends State<MainPage> {
         ),
       ),
       child: icon,
+    );
+  }
+}
+
+/// Aurora Violet 하단 네비게이션 셸.
+/// 활성 탭은 브랜드 보라 알약(pill) 배경으로 강조, 비활성은 textSecondary.
+class _AuroraBottomNav extends StatelessWidget {
+  final int selectedIndex;
+  final int totalUnread;
+  final ValueChanged<int> onDestinationSelected;
+
+  const _AuroraBottomNav({
+    required this.selectedIndex,
+    required this.totalUnread,
+    required this.onDestinationSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        border: Border(
+          top: BorderSide(color: context.dividerColor, width: 0.5),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(
+              alpha: context.isDarkMode ? 0.0 : 0.05,
+            ),
+            blurRadius: 20,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: _NavItem(
+                  icon: Icons.people_outlined,
+                  activeIcon: Icons.people,
+                  label: '친구',
+                  isActive: selectedIndex == 0,
+                  onTap: () => onDestinationSelected(0),
+                ),
+              ),
+              Expanded(
+                child: _NavItem(
+                  icon: Icons.chat_outlined,
+                  activeIcon: Icons.chat,
+                  label: '채팅',
+                  isActive: selectedIndex == 1,
+                  badgeCount: totalUnread,
+                  onTap: () => onDestinationSelected(1),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 단일 네비 항목. 활성 시 보라 알약 배경 + 흰 콘텐츠, 비활성 시 secondary 톤.
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool isActive;
+  final int badgeCount;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final inactiveColor = context.textSecondaryColor;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: AppMotion.normal,
+          curve: AppMotion.standard,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            gradient: isActive
+                ? const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: AppColors.brandGradient,
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.28),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildBadged(
+                Icon(
+                  isActive ? activeIcon : icon,
+                  size: 22,
+                  color: isActive ? Colors.white : inactiveColor,
+                ),
+                isActive,
+              ),
+              if (isActive) ...[
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadged(Widget child, bool isActive) {
+    if (badgeCount <= 0) return child;
+    return Badge(
+      backgroundColor: isActive ? Colors.white : AppColors.error,
+      textColor: isActive ? AppColors.primary : Colors.white,
+      label: Text(
+        badgeCount > 99 ? '99+' : badgeCount.toString(),
+        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+      child: child,
     );
   }
 }

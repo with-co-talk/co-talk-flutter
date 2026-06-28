@@ -1,6 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- Background: Violet rounded square -->
-  <rect width="1024" height="1024" rx="180" ry="180" fill="#8B5CF6"/>
+  <!-- Background: Warm Sand terracotta rounded square -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#EC8B63"/>
+      <stop offset="1" stop-color="#E3744D"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="180" ry="180" fill="url(#bg)"/>
 
   <!-- Main chat bubble -->
   <path d="M512 220
@@ -12,10 +18,10 @@
            C704 758 844 638 844 478
            C844 340 704 220 512 220Z"
         fill="white"
-        opacity="0.95"/>
+        opacity="0.97"/>
 
   <!-- Three dots indicating typing/conversation -->
-  <circle cx="380" cy="490" r="36" fill="#8B5CF6" opacity="0.7"/>
-  <circle cx="512" cy="490" r="36" fill="#8B5CF6" opacity="0.7"/>
-  <circle cx="644" cy="490" r="36" fill="#8B5CF6" opacity="0.7"/>
+  <circle cx="380" cy="490" r="36" fill="#E3744D" opacity="0.85"/>
+  <circle cx="512" cy="490" r="36" fill="#E3744D" opacity="0.85"/>
+  <circle cx="644" cy="490" r="36" fill="#E3744D" opacity="0.85"/>
 </svg>

@@ -87,6 +87,7 @@ void main() {
         friendState: const FriendState(status: FriendStatus.loading),
       ));
 
+      // Warm Sand 리뉴얼: 로딩 상태가 시머 스켈레톤(ListSkeleton)으로 변경
       expect(find.byType(ListSkeleton), findsOneWidget);
       // 친구 화면 스켈레톤은 친구 아바타 지름(70)에 맞춰야 한다(화면별 회귀 방지).
       expect(
@@ -100,7 +101,8 @@ void main() {
         friendState: const FriendState(status: FriendStatus.success),
       ));
 
-      // 실제 구현은 두 개의 별도 Text 위젯으로 되어 있음
+      // Warm Sand 리뉴얼(EmptyStateView) + main i18n: 빈 상태 카피는
+      // 로컬라이즈된 friendsEmptyTitle/friendsEmptyDesc 로 렌더된다.
       expect(find.text('친구가 없습니다'), findsOneWidget);
       expect(find.text('친구를 추가하고 대화를 시작해보세요'), findsOneWidget);
     });
@@ -113,6 +115,8 @@ void main() {
         ),
       ));
 
+      // Warm Sand 리뉴얼(EmptyStateView + GradientButton) + main i18n:
+      // 에러 타이틀은 로컬라이즈된 friendsListLoadError 로 렌더된다.
       expect(find.text('친구 목록을 불러오는데 실패했습니다'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });

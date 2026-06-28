@@ -30,7 +30,7 @@ class BackgroundImageSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: AspectRatio(
               aspectRatio: 16 / 9,
               child: _buildBackgroundImage(),
@@ -110,16 +110,17 @@ class BackgroundImageSection extends StatelessWidget {
     required String label,
     required Widget child,
   }) {
+    final isDark = context.isDarkMode;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -129,7 +130,9 @@ class BackgroundImageSection extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -139,10 +142,11 @@ class BackgroundImageSection extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                  color: context.textPrimaryColor,
                 ),
               ),
             ],

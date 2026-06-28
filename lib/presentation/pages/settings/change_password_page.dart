@@ -7,6 +7,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../blocs/settings/change_password_bloc.dart';
 import '../../blocs/settings/change_password_event.dart';
 import '../../blocs/settings/change_password_state.dart';
+import '../../widgets/gradient_button.dart';
 
 /// 비밀번호 변경 페이지
 class ChangePasswordPage extends StatefulWidget {
@@ -50,13 +51,18 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         ),
         title: Text(AppLocalizations.of(context)!.settingsChangePassword),
       ),
+      backgroundColor: context.backgroundColor,
       body: BlocConsumer<ChangePasswordBloc, ChangePasswordState>(
         listener: (context, state) {
           if (state.status == ChangePasswordStatus.success) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 content: Text(AppLocalizations.of(context)!.settingsPasswordChangeSuccess),
-                backgroundColor: Colors.green,
+                backgroundColor: AppColors.success,
               ),
             );
             if (context.canPop()) {
@@ -74,7 +80,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         builder: (context, state) {
           final isLoading = state.status == ChangePasswordStatus.loading;
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             child: Form(
               key: _formKey,
               child: Column(
@@ -140,26 +146,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   _buildPasswordRequirements(),
                   const SizedBox(height: 32),
-                  ElevatedButton(
+                  GradientButton(
                     onPressed: isLoading ? null : _handleChangePassword,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(AppLocalizations.of(context)!.settingsChangePassword),
+                    isLoading: isLoading,
+                    label: AppLocalizations.of(context)!.settingsChangePassword,
                   ),
                 ],
               ),
@@ -182,9 +175,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       obscureText: obscure,
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.lock_outline_rounded),
         suffixIcon: IconButton(
-          icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+          icon: Icon(
+            obscure
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+          ),
           onPressed: onToggleObscure,
         ),
       ),
@@ -194,46 +191,80 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   Widget _buildPasswordRequirements() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.14),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             AppLocalizations.of(context)!.settingsPasswordRequirements,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: context.textPrimaryColor,
+            ),
           ),
-          const SizedBox(height: 8),
-          _buildRequirement(AppLocalizations.of(context)!.settingsPasswordReqMinLength),
-          _buildRequirement(AppLocalizations.of(context)!.settingsPasswordReqLetters),
-          _buildRequirement(AppLocalizations.of(context)!.settingsPasswordReqNumbers),
-          _buildRequirement(AppLocalizations.of(context)!.settingsPasswordReqSpecial),
+          const SizedBox(height: 10),
+          // 입력값에 따라 실시간으로 충족 여부 표시 (회색 → 보라 체크)
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _newPasswordController,
+            builder: (context, value, _) {
+              final pw = value.text;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildRequirement(
+                    AppLocalizations.of(context)!.settingsPasswordReqMinLength,
+                    pw.length >= 8,
+                  ),
+                  _buildRequirement(
+                    AppLocalizations.of(context)!.settingsPasswordReqLetters,
+                    RegExp(r'[A-Z]').hasMatch(pw) &&
+                        RegExp(r'[a-z]').hasMatch(pw),
+                  ),
+                  _buildRequirement(
+                    AppLocalizations.of(context)!.settingsPasswordReqNumbers,
+                    RegExp(r'\d').hasMatch(pw),
+                  ),
+                  _buildRequirement(
+                    AppLocalizations.of(context)!.settingsPasswordReqSpecial,
+                    RegExp(r'[^A-Za-z0-9]').hasMatch(pw),
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildRequirement(String text) {
+  Widget _buildRequirement(String text, bool met) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
           Icon(
-            Icons.check_circle_outline,
+            met ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
             size: 16,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            color: met
+                ? AppColors.primary
+                : context.textSecondaryColor.withValues(alpha: 0.4),
           ),
           const SizedBox(width: 8),
           Text(
             text,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: met ? FontWeight.w600 : FontWeight.w400,
+              color: met ? context.textPrimaryColor : context.textSecondaryColor,
+            ),
           ),
         ],
       ),

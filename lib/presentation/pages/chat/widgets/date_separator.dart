@@ -14,15 +14,28 @@ class DateSeparator extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: context.dividerColor,
-            borderRadius: BorderRadius.circular(12),
+            color: context.surfaceColor,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: context.dividerColor,
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Text(
             AppDateUtils.formatFullDate(date),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: context.textSecondaryColor,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
             ),
           ),
         ),

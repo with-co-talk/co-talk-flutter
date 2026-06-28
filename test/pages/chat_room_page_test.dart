@@ -239,7 +239,8 @@ void main() {
     testWidgets('shows attachment button', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
+      // Warm Sand 리뉴얼: 첨부 버튼 아이콘 톤 변경 add_circle_outline -> add_rounded
+      expect(find.byIcon(Icons.add_rounded), findsOneWidget);
     });
 
     testWidgets('dispatches ChatRoomOpened on init', (tester) async {
@@ -637,7 +638,8 @@ void main() {
     testWidgets('tap attachment button', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest());
 
-      await tester.tap(find.byIcon(Icons.add_circle_outline));
+      // Warm Sand 리뉴얼: 첨부 버튼 아이콘 톤 변경 add_circle_outline -> add_rounded
+      await tester.tap(find.byIcon(Icons.add_rounded));
       await tester.pump();
     });
 

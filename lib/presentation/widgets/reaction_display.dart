@@ -55,19 +55,21 @@ class ReactionDisplay extends StatelessWidget {
                 AppHaptics.selection();
                 onReactionTap(emoji);
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: AnimatedContainer(
+                duration: AppMotion.fast,
+                curve: AppMotion.standard,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
                   color: hasMyReaction
-                      ? AppColors.primary.withValues(alpha: 0.2)
-                      : Colors.grey.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: hasMyReaction
-                      ? Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.5),
-                          width: 1,
-                        )
-                      : null,
+                      ? AppColors.primary.withValues(alpha: 0.14)
+                      : context.surfaceColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: hasMyReaction
+                        ? AppColors.primary.withValues(alpha: 0.55)
+                        : context.dividerColor,
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -79,10 +81,10 @@ class ReactionDisplay extends StatelessWidget {
                         '$count',
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           color: hasMyReaction
                               ? AppColors.primary
-                              : Colors.grey[700],
+                              : context.textSecondaryColor,
                         ),
                       ),
                     ],

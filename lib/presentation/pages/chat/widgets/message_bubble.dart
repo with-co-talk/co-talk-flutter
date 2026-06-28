@@ -727,7 +727,15 @@ class MessageBubble extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isMe ? context.myMessageBubbleColor : context.otherMessageBubbleColor,
+        // 내 말풍선은 Warm Sand 브랜드 그라데이션, 상대 말풍선은 단색.
+        color: isMe ? null : context.otherMessageBubbleColor,
+        gradient: isMe
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: context.myMessageBubbleGradient,
+              )
+            : null,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(18),
           topRight: const Radius.circular(18),
@@ -737,16 +745,16 @@ class MessageBubble extends StatelessWidget {
         boxShadow: isMe
             ? [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.15),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+                  color: AppColors.primary.withValues(alpha: 0.28),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
               ]
             : [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
               ],
       ),

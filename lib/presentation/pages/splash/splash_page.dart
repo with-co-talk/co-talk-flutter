@@ -33,29 +33,67 @@ class _SplashPageState extends State<SplashPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.chat_bubble_rounded,
-                size: 80,
-                color: AppColors.primary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Co-Talk',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
+        backgroundColor: context.backgroundColor,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // ── 브랜드 로고 (그라데이션 스퀴클) — 로그인과 동일한 트리트먼트 ──
+                Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: AppColors.brandGradient,
                     ),
-              ),
-              const SizedBox(height: 32),
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              ),
-            ],
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.35),
+                        blurRadius: 28,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.chat_bubble_rounded,
+                    size: 46,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Text(
+                  'Co-Talk',
+                  style:
+                      Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.8,
+                            color: context.textPrimaryColor,
+                          ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '대화가 머무는 곳, 코톡',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: context.textSecondaryColor,
+                        letterSpacing: -0.2,
+                      ),
+                ),
+                const SizedBox(height: 40),
+                SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

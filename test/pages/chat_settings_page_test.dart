@@ -89,9 +89,12 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
+        // Warm Sand 리뉴얼로 섹션이 길어져 '저장 공간'은 기본 뷰포트 아래에 있다.
+        // 지연 빌드되는 ListView이므로 스크롤로 빌드시킨 뒤 단언한다.
         expect(find.text('글꼴 크기'), findsOneWidget);
         expect(find.text('미디어 자동 다운로드'), findsOneWidget);
         expect(find.text('입력 표시'), findsOneWidget);
+        await tester.scrollUntilVisible(find.text('저장 공간'), 200);
         expect(find.text('저장 공간'), findsOneWidget);
       });
 
@@ -136,6 +139,8 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
+        // 저장 공간 섹션은 뷰포트 아래에 지연 빌드되므로 스크롤 후 단언.
+        await tester.scrollUntilVisible(find.text('캐시 삭제'), 200);
         expect(find.text('캐시 삭제'), findsOneWidget);
         expect(find.text('임시 저장된 데이터를 삭제합니다'), findsOneWidget);
       });
@@ -281,8 +286,9 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
-        // Scroll to and tap on the icon
-        await tester.ensureVisible(find.byIcon(Icons.cleaning_services_outlined));
+        // 저장 공간 섹션은 지연 빌드되므로 scrollUntilVisible로 먼저 빌드/노출시킨다.
+        await tester.scrollUntilVisible(
+            find.byIcon(Icons.cleaning_services_outlined), 200);
         await tester.pumpAndSettle();
         await tester.tap(find.byIcon(Icons.cleaning_services_outlined), warnIfMissed: false);
         await tester.pumpAndSettle();
@@ -306,8 +312,9 @@ void main() {
 
         await tester.pumpWidget(createWidgetUnderTest());
 
-        // Scroll to the cache button and tap it
-        await tester.ensureVisible(find.byIcon(Icons.cleaning_services_outlined));
+        // 저장 공간 섹션은 지연 빌드되므로 scrollUntilVisible로 먼저 빌드/노출시킨다.
+        await tester.scrollUntilVisible(
+            find.byIcon(Icons.cleaning_services_outlined), 200);
         await tester.pumpAndSettle();
         await tester.tap(find.byIcon(Icons.cleaning_services_outlined), warnIfMissed: false);
         await tester.pumpAndSettle();
@@ -326,6 +333,9 @@ void main() {
         );
 
         await tester.pumpWidget(createWidgetUnderTest());
+
+        // 저장 공간 섹션은 지연 빌드되므로 스크롤로 빌드/노출시킨 뒤 단언.
+        await tester.scrollUntilVisible(find.text('캐시 삭제'), 200);
 
         final cacheTile = find.widgetWithText(ListTile, '캐시 삭제');
         expect(cacheTile, findsOneWidget);

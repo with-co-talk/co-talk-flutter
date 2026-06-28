@@ -17,28 +17,23 @@ class ProfileDialogs {
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SizedBox(height: 12),
+              const _SheetHandle(),
               const SizedBox(height: 20),
               Text(
                 AppLocalizations.of(context)!.profileAvatar,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                  color: context.textPrimaryColor,
                 ),
               ),
               const SizedBox(height: 20),
@@ -91,19 +86,26 @@ class ProfileDialogs {
                 },
               ),
               if (hasAvatar) ...[
-                const Divider(height: 1),
+                Divider(
+                  height: 1,
+                  color: context.dividerColor.withValues(alpha: 0.6),
+                ),
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: AppColors.error.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.delete_outline, color: Colors.red),
+                    child: const Icon(Icons.delete_outline,
+                        color: AppColors.error),
                   ),
                   title: Text(
                     AppLocalizations.of(context)!.profileResetToDefault,
-                    style: const TextStyle(color: Colors.red),
+                    style: const TextStyle(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   subtitle: Text(AppLocalizations.of(context)!.profileResetToDefaultSubtitle),
                   onTap: () {
@@ -130,22 +132,15 @@ class ProfileDialogs {
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SizedBox(height: 12),
+              const _SheetHandle(),
               const SizedBox(height: 20),
               ListTile(
                 leading: Container(
@@ -182,26 +177,24 @@ class ProfileDialogs {
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SizedBox(height: 12),
+              const _SheetHandle(),
               const SizedBox(height: 20),
               Text(
                 AppLocalizations.of(context)!.profileBackground,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                  color: context.textPrimaryColor,
+                ),
               ),
               const SizedBox(height: 16),
               ListTile(
@@ -223,10 +216,10 @@ class ProfileDialogs {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.history, color: Colors.grey),
+                  child: const Icon(Icons.history, color: AppColors.primary),
                 ),
                 title: Text(AppLocalizations.of(context)!.profileSelectFromBackgroundHistory),
                 onTap: () {
@@ -252,22 +245,15 @@ class ProfileDialogs {
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SizedBox(height: 12),
+              const _SheetHandle(),
               const SizedBox(height: 20),
               ListTile(
                 leading: Container(
@@ -298,6 +284,9 @@ class ProfileDialogs {
     return showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
         title: Text(AppLocalizations.of(context)!.profileAvatarDeleteTitle),
         content: Text(AppLocalizations.of(context)!.profileAvatarDeleteConfirm),
         actions: [
@@ -307,10 +296,27 @@ class ProfileDialogs {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: Text(AppLocalizations.of(context)!.commonDelete),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 바텀시트 상단 드래그 핸들.
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 4,
+      decoration: BoxDecoration(
+        color: context.dividerColor,
+        borderRadius: BorderRadius.circular(2),
       ),
     );
   }
