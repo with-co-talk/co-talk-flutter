@@ -60,7 +60,7 @@ void main() {
           const ChangePasswordState.loading(),
           isA<ChangePasswordState>()
               .having((s) => s.status, 'status', ChangePasswordStatus.error)
-              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+              .having((s) => s.isUnknownError, 'isUnknownError', isTrue),
         ],
       );
 
@@ -77,14 +77,12 @@ void main() {
         )),
         expect: () => [
           const ChangePasswordState.loading(),
-          const ChangePasswordState.error(
-            '비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해주세요.',
-          ),
+          const ChangePasswordState.unknownError(),
         ],
       );
 
       blocTest<ChangePasswordBloc, ChangePasswordState>(
-        'preserves specific error messages from ErrorMessageMapper',
+        'marks unknown errors so the widget shows the domain-specific message',
         build: () {
           when(() => mockSettingsRepository.changePassword(any(), any()))
               .thenThrow(Exception('비밀번호가 일치하지 않습니다'));
@@ -98,7 +96,7 @@ void main() {
           const ChangePasswordState.loading(),
           isA<ChangePasswordState>()
               .having((s) => s.status, 'status', ChangePasswordStatus.error)
-              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+              .having((s) => s.isUnknownError, 'isUnknownError', isTrue),
         ],
       );
 
@@ -178,7 +176,7 @@ void main() {
           const ChangePasswordState.loading(),
           isA<ChangePasswordState>()
               .having((s) => s.status, 'status', ChangePasswordStatus.error)
-              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+              .having((s) => s.isUnknownError, 'isUnknownError', isTrue),
         ],
       );
     });

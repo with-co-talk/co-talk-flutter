@@ -4,6 +4,9 @@ import '../../../domain/entities/user.dart';
 
 enum FriendStatus { initial, loading, success, failure }
 
+/// 친구 관련 성공 알림 종류. 표시 문자열은 위젯 레이어에서 [AppLocalizations]로 해석한다.
+enum FriendSuccess { deleted }
+
 class FriendState extends Equatable {
   final FriendStatus status;
   final List<Friend> friends;
@@ -18,7 +21,7 @@ class FriendState extends Equatable {
   final List<User> blockedUsers;
   final bool isHiddenFriendsLoading;
   final bool isBlockedUsersLoading;
-  final String? successMessage;
+  final FriendSuccess? successType;
 
   /// 처리 중인 친구요청 ID 집합. 수락/거절이 in-flight 인 동안 해당 ID 가 들어
   /// 있어, 같은 요청에 대한 더블탭 중복 호출(→ 409/400 거짓 에러)을 막고
@@ -39,7 +42,7 @@ class FriendState extends Equatable {
     this.blockedUsers = const [],
     this.isHiddenFriendsLoading = false,
     this.isBlockedUsersLoading = false,
-    this.successMessage,
+    this.successType,
     this.processingRequestIds = const {},
   });
 
@@ -59,8 +62,8 @@ class FriendState extends Equatable {
     List<User>? blockedUsers,
     bool? isHiddenFriendsLoading,
     bool? isBlockedUsersLoading,
-    String? successMessage,
-    bool clearSuccessMessage = false,
+    FriendSuccess? successType,
+    bool clearSuccessType = false,
     Set<int>? processingRequestIds,
   }) {
     return FriendState(
@@ -77,7 +80,7 @@ class FriendState extends Equatable {
       blockedUsers: blockedUsers ?? this.blockedUsers,
       isHiddenFriendsLoading: isHiddenFriendsLoading ?? this.isHiddenFriendsLoading,
       isBlockedUsersLoading: isBlockedUsersLoading ?? this.isBlockedUsersLoading,
-      successMessage: clearSuccessMessage ? null : (successMessage ?? this.successMessage),
+      successType: clearSuccessType ? null : (successType ?? this.successType),
       processingRequestIds: processingRequestIds ?? this.processingRequestIds,
     );
   }
@@ -97,7 +100,7 @@ class FriendState extends Equatable {
         blockedUsers,
         isHiddenFriendsLoading,
         isBlockedUsersLoading,
-        successMessage,
+        successType,
         processingRequestIds,
       ];
 }

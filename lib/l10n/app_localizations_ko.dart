@@ -504,6 +504,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get friendsDeleteTitle => '친구 삭제';
 
   @override
+  String get friendsDeleteSuccess => '친구를 삭제했습니다';
+
+  @override
   String friendsDeleteConfirm(Object name) {
     return '$name님을 친구에서 삭제하시겠습니까?';
   }
@@ -864,6 +867,21 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get profileUpdateFailed => '프로필 수정에 실패했습니다';
+
+  @override
+  String get profileUpdateSuccess => '프로필이 업데이트되었습니다.';
+
+  @override
+  String get profileSetPrivateSuccess => '나만보기로 설정되었습니다.';
+
+  @override
+  String get profileSetPublicSuccess => '공개로 설정되었습니다.';
+
+  @override
+  String get profileHistoryDeleteSuccess => '프로필 이력이 삭제되었습니다.';
+
+  @override
+  String get profileSetCurrentSuccess => '현재 프로필로 설정되었습니다.';
 
   @override
   String get profileBackgroundChanged => '배경이 변경되었습니다';
@@ -1264,7 +1282,23 @@ class AppLocalizationsKo extends AppLocalizations {
       '앱을 30초 이상 백그라운드에 둔 후 복귀하면 생체 인증을 요청합니다.';
 
   @override
+  String get settingsBiometricLoadFailed => '생체 인증 설정을 불러오는데 실패했습니다.';
+
+  @override
   String get settingsAccountDeletionComplete => '회원 탈퇴가 완료되었습니다';
+
+  @override
+  String get settingsAccountDeletionInvalidConfirmation => '올바른 확인 텍스트를 입력해주세요';
+
+  @override
+  String get settingsAccountDeletionEmptyPassword => '비밀번호를 입력해주세요';
+
+  @override
+  String get settingsAccountDeletionUserNotFound => '사용자 정보를 찾을 수 없습니다';
+
+  @override
+  String get settingsAccountDeletionUnknownError =>
+      '회원 탈퇴 처리 중 오류가 발생했습니다. 비밀번호를 확인해주세요.';
 
   @override
   String get settingsAccountDeletionProcessing => '탈퇴 처리 중...';
@@ -1344,6 +1378,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get settingsCacheCleared => '캐시가 삭제되었습니다';
 
   @override
+  String get settingsCacheClearFailed => '캐시 삭제에 실패했습니다';
+
+  @override
   String get settingsFontSize => '글꼴 크기';
 
   @override
@@ -1420,6 +1457,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get settingsPasswordChangeSuccess => '비밀번호가 성공적으로 변경되었습니다.';
+
+  @override
+  String get settingsPasswordChangeFailed =>
+      '비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해주세요.';
 
   @override
   String get settingsNewPassword => '새 비밀번호';

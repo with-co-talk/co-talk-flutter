@@ -513,6 +513,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get friendsDeleteTitle => 'Delete Friend';
 
   @override
+  String get friendsDeleteSuccess => 'Friend deleted';
+
+  @override
   String friendsDeleteConfirm(Object name) {
     return 'Remove $name from your friends?';
   }
@@ -878,6 +881,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileUpdateFailed => 'Failed to update profile';
+
+  @override
+  String get profileUpdateSuccess => 'Profile updated.';
+
+  @override
+  String get profileSetPrivateSuccess => 'Set to private.';
+
+  @override
+  String get profileSetPublicSuccess => 'Set to public.';
+
+  @override
+  String get profileHistoryDeleteSuccess => 'Profile history deleted.';
+
+  @override
+  String get profileSetCurrentSuccess => 'Set as current profile.';
 
   @override
   String get profileBackgroundChanged => 'Background changed';
@@ -1298,7 +1316,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'Biometric authentication is required when you return after the app has been in the background for over 30 seconds.';
 
   @override
+  String get settingsBiometricLoadFailed =>
+      'Failed to load biometric settings.';
+
+  @override
   String get settingsAccountDeletionComplete => 'Your account has been deleted';
+
+  @override
+  String get settingsAccountDeletionInvalidConfirmation =>
+      'Please enter the correct confirmation text';
+
+  @override
+  String get settingsAccountDeletionEmptyPassword =>
+      'Please enter your password';
+
+  @override
+  String get settingsAccountDeletionUserNotFound =>
+      'User information not found';
+
+  @override
+  String get settingsAccountDeletionUnknownError =>
+      'An error occurred while deleting your account. Please check your password.';
 
   @override
   String get settingsAccountDeletionProcessing => 'Processing deletion...';
@@ -1379,6 +1417,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsCacheCleared => 'Cache cleared';
 
   @override
+  String get settingsCacheClearFailed => 'Failed to clear cache';
+
+  @override
   String get settingsFontSize => 'Font Size';
 
   @override
@@ -1456,6 +1497,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsPasswordChangeSuccess =>
       'Your password has been changed successfully.';
+
+  @override
+  String get settingsPasswordChangeFailed =>
+      'Failed to change password. Please check your current password.';
 
   @override
   String get settingsNewPassword => 'New Password';

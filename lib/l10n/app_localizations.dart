@@ -1004,6 +1004,12 @@ abstract class AppLocalizations {
   /// **'친구 삭제'**
   String get friendsDeleteTitle;
 
+  /// No description provided for @friendsDeleteSuccess.
+  ///
+  /// In ko, this message translates to:
+  /// **'친구를 삭제했습니다'**
+  String get friendsDeleteSuccess;
+
   /// No description provided for @friendsDeleteConfirm.
   ///
   /// In ko, this message translates to:
@@ -1687,6 +1693,36 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'프로필 수정에 실패했습니다'**
   String get profileUpdateFailed;
+
+  /// No description provided for @profileUpdateSuccess.
+  ///
+  /// In ko, this message translates to:
+  /// **'프로필이 업데이트되었습니다.'**
+  String get profileUpdateSuccess;
+
+  /// No description provided for @profileSetPrivateSuccess.
+  ///
+  /// In ko, this message translates to:
+  /// **'나만보기로 설정되었습니다.'**
+  String get profileSetPrivateSuccess;
+
+  /// No description provided for @profileSetPublicSuccess.
+  ///
+  /// In ko, this message translates to:
+  /// **'공개로 설정되었습니다.'**
+  String get profileSetPublicSuccess;
+
+  /// No description provided for @profileHistoryDeleteSuccess.
+  ///
+  /// In ko, this message translates to:
+  /// **'프로필 이력이 삭제되었습니다.'**
+  String get profileHistoryDeleteSuccess;
+
+  /// No description provided for @profileSetCurrentSuccess.
+  ///
+  /// In ko, this message translates to:
+  /// **'현재 프로필로 설정되었습니다.'**
+  String get profileSetCurrentSuccess;
 
   /// No description provided for @profileBackgroundChanged.
   ///
@@ -2468,11 +2504,41 @@ abstract class AppLocalizations {
   /// **'앱을 30초 이상 백그라운드에 둔 후 복귀하면 생체 인증을 요청합니다.'**
   String get settingsBiometricBackgroundNotice;
 
+  /// No description provided for @settingsBiometricLoadFailed.
+  ///
+  /// In ko, this message translates to:
+  /// **'생체 인증 설정을 불러오는데 실패했습니다.'**
+  String get settingsBiometricLoadFailed;
+
   /// No description provided for @settingsAccountDeletionComplete.
   ///
   /// In ko, this message translates to:
   /// **'회원 탈퇴가 완료되었습니다'**
   String get settingsAccountDeletionComplete;
+
+  /// No description provided for @settingsAccountDeletionInvalidConfirmation.
+  ///
+  /// In ko, this message translates to:
+  /// **'올바른 확인 텍스트를 입력해주세요'**
+  String get settingsAccountDeletionInvalidConfirmation;
+
+  /// No description provided for @settingsAccountDeletionEmptyPassword.
+  ///
+  /// In ko, this message translates to:
+  /// **'비밀번호를 입력해주세요'**
+  String get settingsAccountDeletionEmptyPassword;
+
+  /// No description provided for @settingsAccountDeletionUserNotFound.
+  ///
+  /// In ko, this message translates to:
+  /// **'사용자 정보를 찾을 수 없습니다'**
+  String get settingsAccountDeletionUserNotFound;
+
+  /// No description provided for @settingsAccountDeletionUnknownError.
+  ///
+  /// In ko, this message translates to:
+  /// **'회원 탈퇴 처리 중 오류가 발생했습니다. 비밀번호를 확인해주세요.'**
+  String get settingsAccountDeletionUnknownError;
 
   /// No description provided for @settingsAccountDeletionProcessing.
   ///
@@ -2611,6 +2677,12 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'캐시가 삭제되었습니다'**
   String get settingsCacheCleared;
+
+  /// No description provided for @settingsCacheClearFailed.
+  ///
+  /// In ko, this message translates to:
+  /// **'캐시 삭제에 실패했습니다'**
+  String get settingsCacheClearFailed;
 
   /// No description provided for @settingsFontSize.
   ///
@@ -2761,6 +2833,12 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'비밀번호가 성공적으로 변경되었습니다.'**
   String get settingsPasswordChangeSuccess;
+
+  /// No description provided for @settingsPasswordChangeFailed.
+  ///
+  /// In ko, this message translates to:
+  /// **'비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해주세요.'**
+  String get settingsPasswordChangeFailed;
 
   /// No description provided for @settingsNewPassword.
   ///

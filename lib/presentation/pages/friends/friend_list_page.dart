@@ -71,11 +71,15 @@ class _FriendListPageState extends State<FriendListPage> {
         ),
         BlocListener<FriendBloc, FriendState>(
           listenWhen: (previous, current) =>
-              previous.successMessage != current.successMessage &&
-              current.successMessage != null,
+              previous.successType != current.successType &&
+              current.successType != null,
           listener: (context, state) {
+            final l10n = AppLocalizations.of(context)!;
+            final message = switch (state.successType!) {
+              FriendSuccess.deleted => l10n.friendsDeleteSuccess,
+            };
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.successMessage!)),
+              SnackBar(content: Text(message)),
             );
           },
         ),

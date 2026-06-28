@@ -30,7 +30,6 @@ class GroupImageCubit extends Cubit<GroupImageState> {
     } catch (e) {
       emit(state.copyWith(
         status: GroupImageStatus.error,
-        errorMessage: '이미지 변경에 실패했습니다.',
       ));
     }
   }

@@ -29,7 +29,6 @@ class BiometricSettingsCubit extends Cubit<BiometricSettingsState> {
     } catch (e) {
       emit(state.copyWith(
         status: BiometricSettingsStatus.error,
-        errorMessage: '생체 인증 설정을 불러오는데 실패했습니다.',
       ));
     }
   }

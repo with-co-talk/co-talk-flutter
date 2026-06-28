@@ -52,14 +52,16 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
     Emitter<AccountDeletionState> emit,
   ) async {
     if (!state.canDelete) {
-      emit(AccountDeletionState.error('올바른 확인 텍스트를 입력해주세요'));
+      emit(const AccountDeletionState.failure(
+          AccountDeletionError.invalidConfirmation));
       return;
     }
 
     // 빈 비밀번호로는 탈퇴를 진행하지 않는다(null뿐 아니라 빈 문자열도 차단).
     final password = state.password;
     if (password == null || password.isEmpty) {
-      emit(AccountDeletionState.error('비밀번호를 입력해주세요'));
+      emit(const AccountDeletionState.failure(
+          AccountDeletionError.emptyPassword));
       return;
     }
 
@@ -69,7 +71,8 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
       // 현재 사용자 ID 가져오기
       final userId = await _authRepository.getCurrentUserId();
       if (userId == null) {
-        emit(AccountDeletionState.error('사용자 정보를 찾을 수 없습니다'));
+        emit(const AccountDeletionState.failure(
+            AccountDeletionError.userNotFound));
         return;
       }
 
@@ -90,7 +93,7 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
       // 인식되지 않은(알 수 없는) 에러면 더 구체적인 안내로 대체한다.
       // 사용자 표시 메시지의 부분 문자열 매칭 대신 타입 기반으로 판별한다.
       if (ErrorMessageMapper.isUnknownError(e)) {
-        emit(AccountDeletionState.error('회원 탈퇴 처리 중 오류가 발생했습니다. 비밀번호를 확인해주세요.'));
+        emit(const AccountDeletionState.failure(AccountDeletionError.unknown));
       } else {
         emit(AccountDeletionState.error(ErrorMessageMapper.toUserFriendlyMessage(e)));
       }
