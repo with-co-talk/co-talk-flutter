@@ -134,6 +134,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authVerifyCode => '인증 코드 확인';
 
   @override
+  String get authInvalidCode => '인증 코드가 유효하지 않습니다. 다시 확인해주세요.';
+
+  @override
   String get authResendCode => '인증 코드 재발송';
 
   @override
@@ -150,6 +153,19 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get chatTitle => '채팅';
+
+  @override
+  String get chatSelfChatTitle => '나와의 채팅';
+
+  @override
+  String chatTypingSingle(String nickname) {
+    return '$nickname님이 입력 중...';
+  }
+
+  @override
+  String chatTypingMultiple(int count) {
+    return '$count명이 입력 중...';
+  }
 
   @override
   String get chatSearchHint => '채팅방 검색';
@@ -215,6 +231,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get chatMessageForwarded => '메시지가 전달되었습니다';
+
+  @override
+  String chatForwardFailed(Object error) {
+    return '메시지 전달에 실패했습니다: $error';
+  }
 
   @override
   String get chatOtherUser => '상대방';
@@ -489,6 +510,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get friendsDeleteTitle => '친구 삭제';
+
+  @override
+  String get friendsDeleteSuccess => '친구를 삭제했습니다';
 
   @override
   String friendsDeleteConfirm(Object name) {
@@ -851,6 +875,21 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get profileUpdateFailed => '프로필 수정에 실패했습니다';
+
+  @override
+  String get profileUpdateSuccess => '프로필이 업데이트되었습니다.';
+
+  @override
+  String get profileSetPrivateSuccess => '나만보기로 설정되었습니다.';
+
+  @override
+  String get profileSetPublicSuccess => '공개로 설정되었습니다.';
+
+  @override
+  String get profileHistoryDeleteSuccess => '프로필 이력이 삭제되었습니다.';
+
+  @override
+  String get profileSetCurrentSuccess => '현재 프로필로 설정되었습니다.';
 
   @override
   String get profileBackgroundChanged => '배경이 변경되었습니다';
@@ -1247,11 +1286,30 @@ class AppLocalizationsKo extends AppLocalizations {
   String get settingsBiometricUnavailable => '이 기기에서 사용할 수 없습니다';
 
   @override
+  String get settingsBiometricAuthReason => '생체 인증을 활성화하려면 인증해주세요';
+
+  @override
   String get settingsBiometricBackgroundNotice =>
       '앱을 30초 이상 백그라운드에 둔 후 복귀하면 생체 인증을 요청합니다.';
 
   @override
+  String get settingsBiometricLoadFailed => '생체 인증 설정을 불러오는데 실패했습니다.';
+
+  @override
   String get settingsAccountDeletionComplete => '회원 탈퇴가 완료되었습니다';
+
+  @override
+  String get settingsAccountDeletionInvalidConfirmation => '올바른 확인 텍스트를 입력해주세요';
+
+  @override
+  String get settingsAccountDeletionEmptyPassword => '비밀번호를 입력해주세요';
+
+  @override
+  String get settingsAccountDeletionUserNotFound => '사용자 정보를 찾을 수 없습니다';
+
+  @override
+  String get settingsAccountDeletionUnknownError =>
+      '회원 탈퇴 처리 중 오류가 발생했습니다. 비밀번호를 확인해주세요.';
 
   @override
   String get settingsAccountDeletionProcessing => '탈퇴 처리 중...';
@@ -1331,6 +1389,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get settingsCacheCleared => '캐시가 삭제되었습니다';
 
   @override
+  String get settingsCacheClearFailed => '캐시 삭제에 실패했습니다';
+
+  @override
   String get settingsFontSize => '글꼴 크기';
 
   @override
@@ -1407,6 +1468,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get settingsPasswordChangeSuccess => '비밀번호가 성공적으로 변경되었습니다.';
+
+  @override
+  String get settingsPasswordChangeFailed =>
+      '비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해주세요.';
 
   @override
   String get settingsNewPassword => '새 비밀번호';

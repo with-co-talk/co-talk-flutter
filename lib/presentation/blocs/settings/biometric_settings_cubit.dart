@@ -29,13 +29,14 @@ class BiometricSettingsCubit extends Cubit<BiometricSettingsState> {
     } catch (e) {
       emit(state.copyWith(
         status: BiometricSettingsStatus.error,
-        errorMessage: '생체 인증 설정을 불러오는데 실패했습니다.',
       ));
     }
   }
 
   /// 생체 인증 토글
-  Future<void> toggle() async {
+  /// [reason]: OS 생체 인증 다이얼로그에 표시할 지역화된 안내 문자열
+  /// (호출 위젯에서 AppLocalizations.of(context)!.settingsBiometricAuthReason 을 전달)
+  Future<void> toggle({required String reason}) async {
     if (!state.isSupported) return;
 
     if (state.isEnabled) {
@@ -45,7 +46,7 @@ class BiometricSettingsCubit extends Cubit<BiometricSettingsState> {
     } else {
       // 활성화 전 인증 확인
       final authenticated = await _biometricService.authenticate(
-        reason: '생체 인증을 활성화하려면 인증해주세요',
+        reason: reason,
       );
       if (authenticated) {
         await _securitySettings.setBiometricEnabled(true);

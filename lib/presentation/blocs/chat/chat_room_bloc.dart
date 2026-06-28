@@ -783,7 +783,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       emit(state.copyWith(
         isForwarding: false,
         forwardSuccess: false,
-        errorMessage: '메시지 전달에 실패했습니다: ${e.toString()}',
+        isForwardFailed: true,
+        forwardErrorDetail: e.toString(),
       ));
     }
   }

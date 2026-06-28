@@ -534,8 +534,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 previous.roomName != current.roomName ||
                 previous.roomType != current.roomType,
             builder: (context, state) {
+              final l10n = AppLocalizations.of(context)!;
+              final title = state.isSelfChat
+                  ? l10n.chatSelfChatTitle
+                  : (state.displayTitleOrNull ?? l10n.chatTitle);
               return Text(
-                state.displayTitle,
+                title,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 18,
@@ -664,17 +668,25 @@ class _ChatRoomPageState extends State<ChatRoomPage> with WidgetsBindingObserver
                 }
               },
             ),
-            // Forward success feedback
+            // Forward success/failure feedback
             BlocListener<ChatRoomBloc, ChatRoomState>(
               listenWhen: (previous, current) {
                 return previous.isForwarding && !current.isForwarding;
               },
               listener: (context, state) {
+                final l10n = AppLocalizations.of(context)!;
                 if (state.forwardSuccess) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(AppLocalizations.of(context)!.chatMessageForwarded),
+                      content: Text(l10n.chatMessageForwarded),
                       backgroundColor: Colors.green,
+                    ),
+                  );
+                } else if (state.isForwardFailed) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.chatForwardFailed(state.forwardErrorDetail ?? '')),
+                      backgroundColor: Colors.red,
                     ),
                   );
                 }

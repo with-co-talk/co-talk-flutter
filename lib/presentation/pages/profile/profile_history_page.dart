@@ -63,9 +63,17 @@ class _ProfileHistoryPageState extends State<ProfileHistoryPage> {
   Widget build(BuildContext context) {
     return BlocConsumer<ProfileBloc, ProfileState>(
       listener: (context, state) {
-        if (state.status == ProfileStatus.success && state.successMessage != null) {
+        if (state.status == ProfileStatus.success && state.successType != null) {
+          final l10n = AppLocalizations.of(context)!;
+          final message = switch (state.successType!) {
+            ProfileSuccess.updated => l10n.profileUpdateSuccess,
+            ProfileSuccess.setPrivate => l10n.profileSetPrivateSuccess,
+            ProfileSuccess.setPublic => l10n.profileSetPublicSuccess,
+            ProfileSuccess.historyDeleted => l10n.profileHistoryDeleteSuccess,
+            ProfileSuccess.setCurrent => l10n.profileSetCurrentSuccess,
+          };
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.successMessage!)),
+            SnackBar(content: Text(message)),
           );
         } else if (state.status == ProfileStatus.failure && state.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(

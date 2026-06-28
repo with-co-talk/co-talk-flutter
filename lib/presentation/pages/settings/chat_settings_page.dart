@@ -70,7 +70,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
-                  content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsErrorOccurred),
+                  content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsCacheClearFailed),
                   backgroundColor: AppColors.error,
                 ),
               );

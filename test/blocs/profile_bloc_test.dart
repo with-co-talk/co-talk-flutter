@@ -170,7 +170,7 @@ void main() {
           ProfileState(
             status: ProfileStatus.success,
             histories: [testHistory1],
-            successMessage: '프로필이 업데이트되었습니다.',
+            successType: ProfileSuccess.updated,
           ),
         ],
       );
@@ -200,7 +200,7 @@ void main() {
           ProfileState(
             status: ProfileStatus.success,
             histories: [testHistory1],
-            successMessage: '프로필이 업데이트되었습니다.',
+            successType: ProfileSuccess.updated,
           ),
         ],
         verify: (_) {
@@ -262,7 +262,7 @@ void main() {
           ProfileState(
             status: ProfileStatus.success,
             histories: [testHistory1, testHistory2],
-            successMessage: '프로필이 업데이트되었습니다.',
+            successType: ProfileSuccess.updated,
           ),
         ],
       );
@@ -300,7 +300,7 @@ void main() {
               testHistory1,
               testHistory3.copyWith(isCurrent: false),
             ],
-            successMessage: '프로필이 업데이트되었습니다.',
+            successType: ProfileSuccess.updated,
           ),
         ],
       );
@@ -334,7 +334,7 @@ void main() {
           ProfileState(
             status: ProfileStatus.success,
             histories: [testHistory1.copyWith(isPrivate: true)],
-            successMessage: '나만보기로 설정되었습니다.',
+            successType: ProfileSuccess.setPrivate,
           ),
         ],
       );
@@ -369,7 +369,7 @@ void main() {
               testHistory1.copyWith(isPrivate: true),
               testHistory2,
             ],
-            successMessage: '나만보기로 설정되었습니다.',
+            successType: ProfileSuccess.setPrivate,
           ),
         ],
       );
@@ -429,7 +429,7 @@ void main() {
           const ProfileState(
             status: ProfileStatus.success,
             histories: [],
-            successMessage: '프로필 이력이 삭제되었습니다.',
+            successType: ProfileSuccess.historyDeleted,
           ),
         ],
       );
@@ -457,7 +457,7 @@ void main() {
           ProfileState(
             status: ProfileStatus.success,
             histories: [testHistory2],
-            successMessage: '프로필 이력이 삭제되었습니다.',
+            successType: ProfileSuccess.historyDeleted,
           ),
         ],
       );
@@ -485,7 +485,7 @@ void main() {
           ProfileState(
             status: ProfileStatus.success,
             histories: [testHistory3.copyWith(isCurrent: true)],
-            successMessage: '프로필 이력이 삭제되었습니다.',
+            successType: ProfileSuccess.historyDeleted,
           ),
         ],
       );
@@ -544,7 +544,7 @@ void main() {
               testHistory1.copyWith(isCurrent: false),
               testHistory3.copyWith(isCurrent: true),
             ],
-            successMessage: '현재 프로필로 설정되었습니다.',
+            successType: ProfileSuccess.setCurrent,
           ),
         ],
       );
@@ -576,7 +576,7 @@ void main() {
               testHistory2,
               testHistory3.copyWith(isCurrent: true),
             ],
-            successMessage: '현재 프로필로 설정되었습니다.',
+            successType: ProfileSuccess.setCurrent,
           ),
         ],
       );

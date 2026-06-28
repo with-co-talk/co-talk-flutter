@@ -31,7 +31,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(state.copyWith(
       status: ProfileStatus.loading,
       clearErrorMessage: true,
-      clearSuccessMessage: true,
+      clearSuccessType: true,
     ));
 
     try {
@@ -62,7 +62,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       status: ProfileStatus.loading,
       filterType: event.type,
       clearErrorMessage: true,
-      clearSuccessMessage: true,
+      clearSuccessType: true,
     ));
 
     try {
@@ -102,7 +102,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(state.copyWith(
       status: ProfileStatus.creating,
       clearErrorMessage: true,
-      clearSuccessMessage: true,
+      clearSuccessType: true,
     ));
 
     try {
@@ -162,7 +162,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         status: ProfileStatus.success,
         histories: finalHistories,
         viewingUser: updatedUser,
-        successMessage: '프로필이 업데이트되었습니다.',
+        successType: ProfileSuccess.updated,
       ));
     } catch (e) {
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
@@ -180,7 +180,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(state.copyWith(
       status: ProfileStatus.updating,
       clearErrorMessage: true,
-      clearSuccessMessage: true,
+      clearSuccessType: true,
     ));
 
     try {
@@ -201,7 +201,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       emit(state.copyWith(
         status: ProfileStatus.success,
         histories: updatedHistories,
-        successMessage: event.isPrivate ? '나만보기로 설정되었습니다.' : '공개로 설정되었습니다.',
+        successType: event.isPrivate
+            ? ProfileSuccess.setPrivate
+            : ProfileSuccess.setPublic,
       ));
     } catch (e) {
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
@@ -219,7 +221,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(state.copyWith(
       status: ProfileStatus.deleting,
       clearErrorMessage: true,
-      clearSuccessMessage: true,
+      clearSuccessType: true,
     ));
 
     try {
@@ -239,7 +241,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       emit(state.copyWith(
         status: ProfileStatus.success,
         histories: finalHistories,
-        successMessage: '프로필 이력이 삭제되었습니다.',
+        successType: ProfileSuccess.historyDeleted,
       ));
     } catch (e) {
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);
@@ -257,7 +259,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(state.copyWith(
       status: ProfileStatus.updating,
       clearErrorMessage: true,
-      clearSuccessMessage: true,
+      clearSuccessType: true,
     ));
 
     try {
@@ -276,7 +278,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       emit(state.copyWith(
         status: ProfileStatus.success,
         histories: updatedHistories,
-        successMessage: '현재 프로필로 설정되었습니다.',
+        successType: ProfileSuccess.setCurrent,
       ));
     } catch (e) {
       final message = ErrorMessageMapper.toUserFriendlyMessage(e);

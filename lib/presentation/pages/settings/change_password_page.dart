@@ -63,9 +63,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               context.pop();
             }
           } else if (state.status == ChangePasswordStatus.error) {
+            final l10n = AppLocalizations.of(context)!;
+            final message = state.isUnknownError
+                ? l10n.settingsPasswordChangeFailed
+                : (state.errorMessage ?? l10n.settingsErrorOccurred);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsErrorOccurred),
+                content: Text(message),
                 backgroundColor: AppColors.error,
               ),
             );

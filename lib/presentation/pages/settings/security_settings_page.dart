@@ -42,7 +42,9 @@ class SecuritySettingsPage extends StatelessWidget {
                 onChanged: state.isSupported
                     ? (_) {
                         AppHaptics.selection();
-                        context.read<BiometricSettingsCubit>().toggle();
+                        context.read<BiometricSettingsCubit>().toggle(
+                          reason: AppLocalizations.of(context)!.settingsBiometricAuthReason,
+                        );
                       }
                     : null,
               ),
@@ -54,12 +56,11 @@ class SecuritySettingsPage extends StatelessWidget {
                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ),
-              if (state.status == BiometricSettingsStatus.error &&
-                  state.errorMessage != null)
+              if (state.status == BiometricSettingsStatus.error)
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    state.errorMessage!,
+                    AppLocalizations.of(context)!.settingsBiometricLoadFailed,
                     style: const TextStyle(color: Colors.red),
                   ),
                 ),
