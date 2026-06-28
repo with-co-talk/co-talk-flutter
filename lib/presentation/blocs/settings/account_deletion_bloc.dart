@@ -87,12 +87,12 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
         return true;
       }());
 
-      final message = ErrorMessageMapper.toUserFriendlyMessage(e);
-      // 에러 메시지가 너무 일반적인 경우 더 구체적인 메시지 제공
-      if (message.contains('알 수 없는 오류')) {
+      // 인식되지 않은(알 수 없는) 에러면 더 구체적인 안내로 대체한다.
+      // 사용자 표시 메시지의 부분 문자열 매칭 대신 타입 기반으로 판별한다.
+      if (ErrorMessageMapper.isUnknownError(e)) {
         emit(AccountDeletionState.error('회원 탈퇴 처리 중 오류가 발생했습니다. 비밀번호를 확인해주세요.'));
       } else {
-        emit(AccountDeletionState.error(message));
+        emit(AccountDeletionState.error(ErrorMessageMapper.toUserFriendlyMessage(e)));
       }
     }
   }
