@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/settings/change_password_bloc.dart';
 import '../../blocs/settings/change_password_event.dart';
 import '../../blocs/settings/change_password_state.dart';
@@ -48,7 +49,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             }
           },
         ),
-        title: const Text('비밀번호 변경'),
+        title: Text(AppLocalizations.of(context)!.settingsChangePassword),
       ),
       backgroundColor: context.backgroundColor,
       body: BlocConsumer<ChangePasswordBloc, ChangePasswordState>(
@@ -60,7 +61,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                content: const Text('비밀번호가 성공적으로 변경되었습니다.'),
+                content: Text(AppLocalizations.of(context)!.settingsPasswordChangeSuccess),
                 backgroundColor: AppColors.success,
               ),
             );
@@ -70,7 +71,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           } else if (state.status == ChangePasswordStatus.error) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage ?? '오류가 발생했습니다'),
+                content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsErrorOccurred),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -88,7 +89,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   const SizedBox(height: 16),
                   _buildPasswordField(
                     controller: _currentPasswordController,
-                    label: '현재 비밀번호',
+                    label: AppLocalizations.of(context)!.settingsCurrentPassword,
                     obscure: _obscureCurrentPassword,
                     onToggleObscure: () {
                       setState(() {
@@ -97,7 +98,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return '현재 비밀번호를 입력해주세요';
+                        return AppLocalizations.of(context)!.settingsCurrentPasswordRequired;
                       }
                       return null;
                     },
@@ -105,7 +106,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   const SizedBox(height: 24),
                   _buildPasswordField(
                     controller: _newPasswordController,
-                    label: '새 비밀번호',
+                    label: AppLocalizations.of(context)!.settingsNewPassword,
                     obscure: _obscureNewPassword,
                     onToggleObscure: () {
                       setState(() {
@@ -114,13 +115,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return '새 비밀번호를 입력해주세요';
+                        return AppLocalizations.of(context)!.settingsNewPasswordRequired;
                       }
                       if (value.length < 8) {
-                        return '비밀번호는 8자 이상이어야 합니다';
+                        return AppLocalizations.of(context)!.settingsPasswordMinLength;
                       }
                       if (!RegExp(r'^(?=.*[A-Za-z])(?=.*\d)').hasMatch(value)) {
-                        return '영문과 숫자를 포함해야 합니다';
+                        return AppLocalizations.of(context)!.settingsPasswordAlphanumeric;
                       }
                       return null;
                     },
@@ -128,7 +129,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   const SizedBox(height: 16),
                   _buildPasswordField(
                     controller: _confirmPasswordController,
-                    label: '새 비밀번호 확인',
+                    label: AppLocalizations.of(context)!.settingsConfirmNewPassword,
                     obscure: _obscureConfirmPassword,
                     onToggleObscure: () {
                       setState(() {
@@ -137,10 +138,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return '새 비밀번호를 다시 입력해주세요';
+                        return AppLocalizations.of(context)!.settingsConfirmPasswordRequired;
                       }
                       if (value != _newPasswordController.text) {
-                        return '비밀번호가 일치하지 않습니다';
+                        return AppLocalizations.of(context)!.settingsPasswordMismatch;
                       }
                       return null;
                     },
@@ -151,7 +152,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   GradientButton(
                     onPressed: isLoading ? null : _handleChangePassword,
                     isLoading: isLoading,
-                    label: '비밀번호 변경',
+                    label: AppLocalizations.of(context)!.settingsChangePassword,
                   ),
                 ],
               ),
@@ -202,7 +203,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '비밀번호 요구 사항',
+            AppLocalizations.of(context)!.settingsPasswordRequirements,
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 13,
@@ -218,15 +219,21 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildRequirement('최소 8자 이상', pw.length >= 8),
                   _buildRequirement(
-                    '영문 대/소문자 포함',
+                    AppLocalizations.of(context)!.settingsPasswordReqMinLength,
+                    pw.length >= 8,
+                  ),
+                  _buildRequirement(
+                    AppLocalizations.of(context)!.settingsPasswordReqLetters,
                     RegExp(r'[A-Z]').hasMatch(pw) &&
                         RegExp(r'[a-z]').hasMatch(pw),
                   ),
-                  _buildRequirement('숫자 포함', RegExp(r'\d').hasMatch(pw)),
                   _buildRequirement(
-                    '특수문자 포함',
+                    AppLocalizations.of(context)!.settingsPasswordReqNumbers,
+                    RegExp(r'\d').hasMatch(pw),
+                  ),
+                  _buildRequirement(
+                    AppLocalizations.of(context)!.settingsPasswordReqSpecial,
                     RegExp(r'[^A-Za-z0-9]').hasMatch(pw),
                   ),
                 ],

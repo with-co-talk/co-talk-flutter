@@ -113,7 +113,12 @@ class DesktopNotificationBridge {
       previewMode = settings.notificationPreviewMode;
       soundEnabled = settings.soundEnabled;
       vibrationEnabled = settings.vibrationEnabled;
-    } catch (_) {}
+    } catch (e) {
+      // best-effort: 설정 조회 실패 시 기본값 유지하되 debug에서는 가시화.
+      if (kDebugMode) {
+        debugPrint('[DesktopNotificationBridge] Failed to load notification settings, using defaults: $e');
+      }
+    }
 
     // Apply preview mode
     String title;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../di/injection.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import '../../blocs/auth/auth_bloc.dart';
@@ -30,7 +31,7 @@ class _DirectChatPageState extends State<DirectChatPage> {
 
   String _selfChatTitle(BuildContext context) {
     final nickname = (context.read<AuthBloc>().state.user?.nickname ?? '').trim();
-    return nickname.isNotEmpty ? nickname : '나';
+    return nickname.isNotEmpty ? nickname : AppLocalizations.of(context)!.chatSelfName;
   }
 
   @override
@@ -50,9 +51,10 @@ class _DirectChatPageState extends State<DirectChatPage> {
       }
     } catch (e) {
       if (mounted) {
+        final message = AppLocalizations.of(context)!.chatRoomLoadFailed(e.toString());
         setState(() {
           _isLoading = false;
-          _errorMessage = '채팅방을 불러올 수 없습니다: ${e.toString()}';
+          _errorMessage = message;
         });
       }
     }
@@ -67,7 +69,7 @@ class _DirectChatPageState extends State<DirectChatPage> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          widget.isSelfChat ? _selfChatTitle(context) : '1:1 채팅',
+          widget.isSelfChat ? _selfChatTitle(context) : AppLocalizations.of(context)!.chatDirectTitle,
           style: TextStyle(
             color: context.textPrimaryColor,
             fontWeight: FontWeight.w700,
@@ -105,7 +107,7 @@ class _DirectChatPageState extends State<DirectChatPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    '채팅방을 준비 중...',
+                    AppLocalizations.of(context)!.chatRoomPreparing,
                     style: TextStyle(
                       color: context.textSecondaryColor,
                       fontSize: 14,
@@ -116,11 +118,11 @@ class _DirectChatPageState extends State<DirectChatPage> {
             : EmptyStateView(
                 icon: Icons.error_outline_rounded,
                 title: '채팅방을 열 수 없어요',
-                subtitle: _errorMessage ?? '알 수 없는 오류가 발생했습니다',
+                subtitle: _errorMessage ?? AppLocalizations.of(context)!.chatUnknownError,
                 action: SizedBox(
                   width: 200,
                   child: GradientButton(
-                    label: '다시 시도',
+                    label: AppLocalizations.of(context)!.commonRetry,
                     icon: Icons.refresh_rounded,
                     onPressed: () {
                       setState(() {

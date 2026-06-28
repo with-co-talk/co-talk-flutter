@@ -143,5 +143,105 @@ void main() {
         const AppLockState.locked(),
       ],
     );
+
+    group('checkLockOnLaunch', () {
+      blocTest<AppLockCubit, AppLockState>(
+        'should lock on launch when biometric is enabled (bypasses grace period)',
+        build: () {
+          when(() => mockSecuritySettings.isBiometricEnabled())
+              .thenAnswer((_) async => true);
+          when(() => mockAuthLocalDataSource.getAccessToken())
+              .thenAnswer((_) async => 'access-token');
+          when(() => mockBiometricService.authenticate())
+              .thenAnswer((_) async => true);
+          return buildCubit();
+        },
+        act: (cubit) async {
+          // 먼저 인증으로 잠금을 해제한 뒤,
+          await cubit.authenticate();
+          // 곧바로 checkLockOnLaunch를 호출하면 유예와 무관하게 잠겨야 한다.
+          await cubit.checkLockOnLaunch();
+        },
+        expect: () => [
+          const AppLockState.authenticating(),
+          const AppLockState.unlocked(),
+          const AppLockState.locked(),
+        ],
+      );
+
+      blocTest<AppLockCubit, AppLockState>(
+        'should not lock on launch when biometric is disabled',
+        build: () {
+          when(() => mockSecuritySettings.isBiometricEnabled())
+              .thenAnswer((_) async => false);
+          return buildCubit();
+        },
+        act: (cubit) => cubit.checkLockOnLaunch(),
+        expect: () => [],
+      );
+
+      blocTest<AppLockCubit, AppLockState>(
+        'should lock on launch even without prior authentication',
+        build: () {
+          when(() => mockSecuritySettings.isBiometricEnabled())
+              .thenAnswer((_) async => true);
+          when(() => mockAuthLocalDataSource.getAccessToken())
+              .thenAnswer((_) async => 'access-token');
+          return buildCubit();
+        },
+        act: (cubit) => cubit.checkLockOnLaunch(),
+        expect: () => [const AppLockState.locked()],
+      );
+
+      blocTest<AppLockCubit, AppLockState>(
+        '미로그인 상태(access token 없음)에서는 실행 시 잠그지 않는다',
+        build: () {
+          when(() => mockSecuritySettings.isBiometricEnabled())
+              .thenAnswer((_) async => true);
+          when(() => mockAuthLocalDataSource.getAccessToken())
+              .thenAnswer((_) async => null);
+          return buildCubit();
+        },
+        act: (cubit) => cubit.checkLockOnLaunch(),
+        expect: () => [],
+      );
+
+      blocTest<AppLockCubit, AppLockState>(
+        '빈 access token이면 실행 시 잠그지 않는다',
+        build: () {
+          when(() => mockSecuritySettings.isBiometricEnabled())
+              .thenAnswer((_) async => true);
+          when(() => mockAuthLocalDataSource.getAccessToken())
+              .thenAnswer((_) async => '');
+          return buildCubit();
+        },
+        act: (cubit) => cubit.checkLockOnLaunch(),
+        expect: () => [],
+      );
+    });
+
+    group('checkLockOnResume grace period', () {
+      blocTest<AppLockCubit, AppLockState>(
+        'should NOT lock on resume when within grace period after authentication',
+        build: () {
+          when(() => mockSecuritySettings.isBiometricEnabled())
+              .thenAnswer((_) async => true);
+          when(() => mockBiometricService.authenticate())
+              .thenAnswer((_) async => true);
+          return buildCubit();
+        },
+        act: (cubit) async {
+          // 인증 직후 곧바로 resume을 확인한다(백그라운드를 거치지 않음).
+          await cubit.authenticate();
+          await cubit.checkLockOnResume();
+        },
+        expect: () => [
+          // authenticate() emits authenticating + unlocked
+          const AppLockState.authenticating(),
+          const AppLockState.unlocked(),
+          // 백그라운드를 거치지 않은 resume은 추가 emit이 없다.
+        ],
+      );
+    });
   });
 }

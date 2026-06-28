@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../domain/entities/link_preview.dart';
+import '../../l10n/app_localizations.dart';
 
 /// 링크 미리보기 카드 위젯.
 /// URL의 OG 메타데이터(제목, 설명, 이미지)를 카드 형태로 표시한다.
@@ -213,14 +214,22 @@ class LinkPreviewCard extends StatelessWidget {
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('URL을 열 수 없습니다: ${preview.url}')),
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)!.widgetCannotOpenUrl(preview.url),
+              ),
+            ),
           );
         }
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('URL을 열 수 없습니다: $e')),
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.widgetCannotOpenUrl('$e'),
+            ),
+          ),
         );
       }
     }

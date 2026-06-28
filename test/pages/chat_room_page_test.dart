@@ -23,6 +23,7 @@ import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:co_talk_flutter/core/window/window_focus_tracker.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import '../mocks/mock_repositories.dart';
 
 class MockChatRoomBloc extends MockBloc<ChatRoomEvent, ChatRoomState>
@@ -176,6 +177,9 @@ void main() {
           .thenAnswer((_) => const Stream<AuthState>.empty());
 
       return MaterialApp(
+        locale: const Locale('ko'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: MultiBlocProvider(
           providers: [
             BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),
@@ -1062,7 +1066,7 @@ void main() {
         errorMessage: 'Error',
       );
 
-      expect(state.props.length, 27);
+      expect(state.props.length, 30);
     });
 
     test('equality works', () {
@@ -1225,6 +1229,9 @@ void main() {
       when(() => mockMessageSearchBloc.add(any())).thenReturn(null);
 
       return MaterialApp(
+        locale: const Locale('ko'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: MultiBlocProvider(
           providers: [
             BlocProvider<ChatRoomBloc>.value(value: mockChatRoomBloc),

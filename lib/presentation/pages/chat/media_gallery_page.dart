@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../data/models/media_gallery_model.dart';
 import '../../../di/injection.dart';
 import '../../blocs/chat/media_gallery_bloc.dart';
@@ -45,7 +46,7 @@ class _MediaGalleryPageState extends State<MediaGalleryPage>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          '미디어 모아보기',
+          AppLocalizations.of(context)!.chatMediaGallery,
           style: TextStyle(
             color: context.textPrimaryColor,
             fontWeight: FontWeight.w700,
@@ -55,10 +56,10 @@ class _MediaGalleryPageState extends State<MediaGalleryPage>
         iconTheme: IconThemeData(color: context.textPrimaryColor),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: '사진'),
-            Tab(text: '파일'),
-            Tab(text: '링크'),
+          tabs: [
+            Tab(text: AppLocalizations.of(context)!.chatMediaTabPhotos),
+            Tab(text: AppLocalizations.of(context)!.chatMediaTabFiles),
+            Tab(text: AppLocalizations.of(context)!.chatMediaTabLinks),
           ],
           labelColor: AppColors.primary,
           unselectedLabelColor: context.textSecondaryColor,
@@ -121,7 +122,7 @@ class _MediaTabContent extends StatelessWidget {
         if (state.status == MediaGalleryStatus.failure) {
           return EmptyStateView(
             icon: Icons.error_outline_rounded,
-            title: '미디어를 불러올 수 없어요',
+            title: AppLocalizations.of(context)!.chatMediaLoadFailed,
             subtitle: state.errorMessage ?? '잠시 후 다시 시도해 주세요',
             action: OutlinedButton.icon(
               onPressed: () {
@@ -132,7 +133,7 @@ class _MediaTabContent extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('다시 시도'),
+              label: Text(AppLocalizations.of(context)!.commonRetry),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primary,
                 side: BorderSide(
@@ -151,7 +152,7 @@ class _MediaTabContent extends StatelessWidget {
         if (state.items.isEmpty) {
           return EmptyStateView(
             icon: _getEmptyIcon(),
-            title: _getEmptyMessage(),
+            title: _getEmptyMessage(context),
           );
         }
 
@@ -185,58 +186,82 @@ class _MediaTabContent extends StatelessWidget {
     }
   }
 
-  String _getEmptyMessage() {
+  String _getEmptyMessage(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     switch (type) {
       case MediaType.photo:
-        return '사진이 없습니다';
+        return l10n.chatMediaEmptyPhotos;
       case MediaType.file:
-        return '파일이 없습니다';
+        return l10n.chatMediaEmptyFiles;
       case MediaType.link:
-        return '링크가 없습니다';
+        return l10n.chatMediaEmptyLinks;
     }
   }
 
   Widget _buildPhotoGrid(List<MediaGalleryItem> items) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(3),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 3,
-        mainAxisSpacing: 3,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return GestureDetector(
-          onTap: () => _showFullScreenImage(context, item),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: CachedNetworkImage(
-              imageUrl: item.thumbnailUrl ?? item.fileUrl ?? '',
-              fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
-                color: context.dividerColor,
-                child: const Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(AppColors.primary),
+    return Builder(
+      builder: (context) {
+        // 그리드 셀은 화면 너비를 3등분한 작은 영역만 차지한다. thumbnailUrl 이
+        // null 이면 원본(fileUrl)을 그대로 디코딩하게 되어 풀해상도 비트맵이
+        // 메모리에 상주(OOM 위험)하므로, 셀 크기 * devicePixelRatio 로
+        // memCacheWidth/Height 를 함께 지정해 다운샘플링한다.
+        // 셀은 정사각형(childAspectRatio 기본값 1.0)이고 BoxFit.cover 로 채우므로
+        // 높이 한계를 지정하지 않으면 세로가 긴 원본의 비트맵 높이가 원본
+        // 종횡비를 따라 커진다. → 폭/높이 모두 셀 한 변 기준으로 제한한다.
+        // (전체화면 뷰어는 풀해상도 유지)
+        const crossAxisCount = 3;
+        const spacing = 3.0;
+        final mq = MediaQuery.of(context);
+        final gridWidth = mq.size.width - 6; // padding(3) * 2
+        final cellWidth =
+            (gridWidth - spacing * (crossAxisCount - 1)) / crossAxisCount;
+        // 셀은 정사각형이므로 한 변(cellWidth)을 폭·높이 캐시 한계로 공용한다.
+        final cellCacheExtent = (cellWidth * mq.devicePixelRatio).round();
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(3),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return GestureDetector(
+              onTap: () => _showFullScreenImage(context, item),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: CachedNetworkImage(
+                  imageUrl: item.thumbnailUrl ?? item.fileUrl ?? '',
+                  fit: BoxFit.cover,
+                  memCacheWidth: cellCacheExtent,
+                  memCacheHeight: cellCacheExtent,
+                  placeholder: (_, __) => Container(
+                    color: context.dividerColor,
+                    child: const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        ),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    color: context.dividerColor,
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: context.textSecondaryColor,
                     ),
                   ),
                 ),
               ),
-              errorWidget: (_, __, ___) => Container(
-                color: context.dividerColor,
-                child: Icon(
-                  Icons.broken_image_rounded,
-                  color: context.textSecondaryColor,
-                ),
-              ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -346,7 +371,7 @@ class _MediaTabContent extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  item.fileName ?? '파일',
+                  item.fileName ?? AppLocalizations.of(context)!.chatFileFallback,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -420,7 +445,7 @@ class _MediaTabContent extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  item.linkPreviewTitle ?? item.linkPreviewUrl ?? '링크',
+                  item.linkPreviewTitle ?? item.linkPreviewUrl ?? AppLocalizations.of(context)!.chatLinkFallback,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

@@ -8,9 +8,11 @@ import '../../../core/network/websocket_service.dart';
 import '../../../core/services/active_room_tracker.dart';
 import '../../../core/services/desktop_notification_bridge.dart';
 import '../../../data/datasources/local/auth_local_datasource.dart';
+import '../../../domain/entities/chat_room.dart';
 import '../../../domain/entities/message.dart';
 import '../../../domain/repositories/chat_repository.dart';
 import '../../../domain/repositories/friend_repository.dart';
+import '../../../domain/repositories/settings_repository.dart';
 import 'chat_room_event.dart';
 import 'chat_room_state.dart';
 import 'managers/managers.dart';
@@ -25,12 +27,16 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   final DesktopNotificationBridge _desktopNotificationBridge;
   final ActiveRoomTracker _activeRoomTracker;
   final FriendRepository _friendRepository;
+  final SettingsRepository _settingsRepository;
 
   // Managers
   late final WebSocketSubscriptionManager _subscriptionManager;
   late final PresenceManager _presenceManager;
   late final MessageCacheManager _cacheManager;
   late final MessageHandler _messageHandler;
+  late final ReactionHandler _reactionHandler;
+  // 읽음(read-receipt) unreadCount 계산 전담(순수 계산기, 부수효과 없음).
+  final ReadReceiptCalculator _readReceiptCalculator = const ReadReceiptCalculator();
 
   // State tracking
   bool _roomInitialized = false;
@@ -38,6 +44,65 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
   // WebSocket reconnection subscription for gap recovery
   StreamSubscription<void>? _reconnectedSubscription;
+
+  // Gap-recovery dedup (timing-independent, identity-based).
+  //
+  // A single foreground return can trigger two gap-recovery paths:
+  // (1) _onForegrounded performs gap recovery DIRECTLY (always — this guarantees
+  //     at-least-once, even when no reconnect happens: already-connected mobile
+  //     or desktop, where the `reconnected` stream never fires), and
+  // (2) if _onForegrounded actually reconnected the WebSocket, _onConnected
+  //     emits a `reconnected` event — AFTER a ~100ms subscriptionDelay timer
+  //     (see websocket_service.dart) — that queues a ChatRoomRefreshRequested,
+  //     which would run gap recovery a SECOND time for the same foreground.
+  //
+  // The earlier "race latch" was timing-dependent: it assumed the direct call
+  // and the reconnect refresh raced for a single-use flag. Because `reconnected`
+  // fires ~100ms later, the direct call almost always finished first; the later
+  // reconnect refresh then saw the flag consumed and ran as a "standalone"
+  // SECOND recovery (2 executions). A purely time-window coalesce is also
+  // fragile: the window must be longer than the ~100ms reconnect delay yet
+  // shorter than the gap between separate foreground returns, and those ranges
+  // can overlap.
+  //
+  // Identity-based dedup (no timing assumption):
+  // - [_gapRecoveryInFlight] drops a call that arrives while one is running.
+  // - [_expectPairedReconnect] is armed by _onForegrounded ONLY when it actually
+  //   triggers a reconnect. The foreground's own direct recovery runs first; the
+  //   later reconnect-driven refresh (fromReconnect=true) then CONSUMES this flag
+  //   and skips. Because the flag is set synchronously before the reconnect is
+  //   awaited, it is always armed before the (event-queued, ~100ms-later)
+  //   reconnect refresh runs — independent of how long the direct recovery took.
+  //   A reconnect with the flag NOT armed is a genuine standalone reconnect
+  //   (network drop while viewing) and runs. Separate foreground returns each
+  //   arm/consume their own flag, so each gets exactly one recovery.
+  //
+  //   The flag is consumed ONLY by reconnect-sourced refreshes
+  //   (ChatRoomRefreshRequested.fromReconnect == true). A notification-tap /
+  //   manual refresh (fromReconnect == false) is NEVER deduped, so a legitimate
+  //   user-initiated refresh is never dropped just because a foreground armed
+  //   the flag.
+  //
+  //   Liveness: the paired reconnect refresh may never arrive — websocket_service
+  //   `_onConnected`'s subscriptionDelay timer early-returns (and does NOT emit
+  //   `reconnected`) if the socket re-drops during the delay. To prevent the flag
+  //   from lingering forever and silently skipping a later genuine reconnect's
+  //   gap recovery, [_expectPairedReconnectTimer] auto-disarms the flag after
+  //   [_pairedReconnectWindow] (subscriptionDelay + buffer). In the normal case
+  //   the reconnect refresh consumes the flag well before this fires.
+  bool _gapRecoveryInFlight = false;
+  bool _expectPairedReconnect = false;
+  Timer? _expectPairedReconnectTimer;
+
+  // Upper bound for how long [_expectPairedReconnect] may stay armed after a
+  // foreground-triggered reconnect. Must exceed websocket subscriptionDelay
+  // (~100ms) plus event-queue latency so the legitimate paired reconnect refresh
+  // consumes the flag first; the timeout is only a safety net for the re-drop
+  // case where `reconnected` never fires.
+  static const _pairedReconnectWindow = Duration(seconds: 2);
+
+  // Typing indicator auto-timeout timers (5s per user)
+  final Map<int, Timer> _typingTimeoutTimers = {};
 
   // Pending message timeout timer
   Timer? _pendingTimeoutTimer;
@@ -56,6 +121,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     this._desktopNotificationBridge,
     this._activeRoomTracker,
     this._friendRepository,
+    this._settingsRepository,
   ) : super(const ChatRoomState()) {
     // Initialize managers
     _subscriptionManager = WebSocketSubscriptionManager(_webSocketService);
@@ -66,6 +132,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _webSocketService,
       _authLocalDataSource,
     );
+    _reactionHandler = ReactionHandler(_cacheManager, _webSocketService);
 
     // Register event handlers
     on<ChatRoomOpened>(_onOpened);
@@ -108,6 +175,31 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     }
   }
 
+  /// Arms [_expectPairedReconnect] with a liveness timeout.
+  ///
+  /// If the paired reconnect refresh never arrives (websocket re-dropped during
+  /// subscriptionDelay → `reconnected` never fires), the flag is auto-disarmed
+  /// after [_pairedReconnectWindow] so a later genuine reconnect's gap recovery
+  /// is not silently skipped.
+  void _armExpectPairedReconnect() {
+    _expectPairedReconnect = true;
+    _expectPairedReconnectTimer?.cancel();
+    _expectPairedReconnectTimer = Timer(_pairedReconnectWindow, () {
+      if (_expectPairedReconnect) {
+        _log('_expectPairedReconnect timed out (paired reconnect never arrived), disarming');
+        _expectPairedReconnect = false;
+      }
+      _expectPairedReconnectTimer = null;
+    });
+  }
+
+  /// Disarms [_expectPairedReconnect] and cancels its liveness timeout.
+  void _disarmExpectPairedReconnect() {
+    _expectPairedReconnect = false;
+    _expectPairedReconnectTimer?.cancel();
+    _expectPairedReconnectTimer = null;
+  }
+
   Future<void> _onOpened(
     ChatRoomOpened event,
     Emitter<ChatRoomState> emit,
@@ -116,6 +208,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     _roomInitialized = false;
     _pendingForegrounded = false;
+    _gapRecoveryInFlight = false;
+    _disarmExpectPairedReconnect();
 
     // Clear stale cache from previously opened room to prevent old lastMessageId
     // from filtering new room's messages in shouldFilterMessage()
@@ -132,6 +226,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _log('Failed to fetch blocked users: $e');
     }
 
+    // Load typing indicator setting
+    bool showTypingIndicator = false;
+    try {
+      final chatSettings = await _settingsRepository.getChatSettings();
+      showTypingIndicator = chatSettings.showTypingIndicator;
+    } catch (e) {
+      _log('Failed to load chat settings: $e');
+    }
+
     // Set active room for notification suppression
     _desktopNotificationBridge.setActiveRoomId(event.roomId);
     _activeRoomTracker.activeRoomId = event.roomId;
@@ -143,10 +246,12 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       messages: [],
       isOfflineData: false,
       blockedUserIds: blockedUserIds,
+      showTypingIndicator: showTypingIndicator,
     ));
 
     // 1. Load cached messages first (fast initial display)
     final cachedMessages = await _cacheManager.loadCachedMessages(event.roomId);
+    if (isClosed) return;
     if (cachedMessages.isNotEmpty) {
       emit(state.copyWith(
         status: ChatRoomStatus.success,
@@ -161,11 +266,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       bool isOtherUserLeft = false;
       int? otherUserId;
       String? otherUserNickname;
+      String? roomName;
+      ChatRoomType? roomType;
       try {
         final chatRoom = await _chatRepository.getChatRoom(event.roomId);
         isOtherUserLeft = chatRoom.isOtherUserLeft;
         otherUserId = chatRoom.otherUserId;
         otherUserNickname = chatRoom.otherUserNickname;
+        roomName = chatRoom.name;
+        roomType = chatRoom.type;
       } catch (e) {
         _log('getChatRoom failed: $e');
       }
@@ -175,12 +284,14 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
       await _subscribeToWebSocket(event.roomId);
 
+      if (isClosed) return;
+
       // Subscribe to reconnection events for gap recovery
       _reconnectedSubscription?.cancel();
       _reconnectedSubscription = _webSocketService.reconnected.listen((_) {
         if (state.roomId != null && state.status == ChatRoomStatus.success) {
           _log('WebSocket reconnected, triggering gap recovery');
-          add(const ChatRoomRefreshRequested());
+          add(const ChatRoomRefreshRequested(fromReconnect: true));
         }
       });
 
@@ -192,6 +303,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         isOtherUserLeft: isOtherUserLeft,
         otherUserId: otherUserId,
         otherUserNickname: otherUserNickname,
+        roomName: roomName,
+        roomType: roomType,
         isOfflineData: false,
       ));
 
@@ -206,6 +319,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         if (state.currentUserId != null) {
           _presenceManager.sendPresenceActive(event.roomId, state.currentUserId!);
           await _messageHandler.markAsRead(event.roomId);
+          if (isClosed) return;
           emit(state.copyWith(isReadMarked: true));
         }
       } else if (state.currentUserId != null && !_presenceManager.isViewingRoom) {
@@ -215,6 +329,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       }
     } catch (e, stackTrace) {
       _log('Error in _onOpened: $e\n$stackTrace');
+
+      if (isClosed) return;
 
       // Offline mode: keep cached messages if available
       if (state.messages.isNotEmpty) {
@@ -347,19 +463,45 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomClosed event,
     Emitter<ChatRoomState> emit,
   ) {
+    _log('_onClosed: roomId=${state.roomId}, cleaning up resources');
+
     if (state.roomId != null) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
     _reconnectedSubscription?.cancel();
     _reconnectedSubscription = null;
+    // Send presenceInactive to server before disposing (so server stops suppressing push)
+    // Guard: only send if not already sent by _onBackgrounded
+    if (state.roomId != null && state.currentUserId != null && _presenceManager.isViewingRoom) {
+      _presenceManager.sendPresenceInactive(state.roomId!, state.currentUserId!);
+    }
     _presenceManager.dispose();
     _stopPendingTimeoutChecker();
+    // Clean up typing timeout timers
+    for (final timer in _typingTimeoutTimers.values) {
+      timer.cancel();
+    }
+    _typingTimeoutTimers.clear();
     _roomInitialized = false;
     _pendingForegrounded = false;
+    _gapRecoveryInFlight = false;
+    _disarmExpectPairedReconnect();
 
-    // Release notification suppression
-    _desktopNotificationBridge.setActiveRoomId(null);
-    _activeRoomTracker.activeRoomId = null;
+    // Release notification suppression.
+    // Ownership guard: only clear if the active room is still THIS room.
+    // On fast A->B room switches, B's ChatRoomOpened may have already set
+    // activeRoomId=B before A's _onClosed runs; clearing unconditionally would
+    // wipe B's active state and break notification suppression for B.
+    final closingRoomId = state.roomId;
+    if (closingRoomId != null) {
+      if (_desktopNotificationBridge.activeRoomId == closingRoomId) {
+        _desktopNotificationBridge.setActiveRoomId(null);
+      }
+      if (_activeRoomTracker.activeRoomId == closingRoomId) {
+        _activeRoomTracker.activeRoomId = null;
+      }
+    }
+    _log('_onClosed: activeRoomId cleared for notification suppression (room=$closingRoomId)');
 
     emit(const ChatRoomState());
   }
@@ -396,28 +538,78 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     ChatRoomRefreshRequested event,
     Emitter<ChatRoomState> emit,
   ) async {
-    if (state.roomId == null) return;
-    _log('_onRefreshRequested: performing gap recovery for room ${state.roomId}');
+    // Two sources dispatch ChatRoomRefreshRequested:
+    // - reconnect (fromReconnect=true): the `reconnected` stream (see _onOpened),
+    //   which fires ~100ms AFTER reconnect (subscriptionDelay).
+    // - notification tap / manual refresh (fromReconnect=false): chat_room_page's
+    //   onSameRoomRefresh.
+    //
+    // Dedup applies ONLY to reconnect-sourced refreshes. If _onForegrounded armed
+    // [_expectPairedReconnect] (it triggered this reconnect), the foreground's
+    // own direct recovery already ran for this burst → consume the flag and skip
+    // to avoid a duplicate. Otherwise this is a standalone reconnect (network drop
+    // while viewing) → run it. This is identity-based, not timing-based: the flag
+    // is armed synchronously before the reconnect is awaited, so it is reliably
+    // set before this handler runs.
+    //
+    // A notification/manual refresh is NEVER deduped here, even if the flag is
+    // armed — those are distinct user-initiated requests and must not be dropped.
+    if (event.fromReconnect && _expectPairedReconnect) {
+      _disarmExpectPairedReconnect();
+      _log('_onRefreshRequested: paired reconnect for a foreground return, skipping (already recovered)');
+      return;
+    }
+    await _performGapRecovery(emit, source: 'RefreshRequested');
+  }
 
-    final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
-    if (hasNewMessages) {
-      final latestId = _cacheManager.lastMessageId;
-      if (latestId != null) {
-        _subscriptionManager.updateLastKnownMessageId(latestId);
-      }
-      final newCursor = _cacheManager.nextCursor;
-      emit(state.copyWith(
-        messages: _cacheManager.messages,
-        nextCursor: newCursor,
-        clearNextCursor: newCursor == null,
-        hasMore: _cacheManager.hasMore,
-        isOfflineData: false,
-      ));
+  /// Performs gap recovery: merges the latest server page into the cache and
+  /// marks the room read (when viewing).
+  ///
+  /// Dedup: the foreground-direct call and a paired reconnect refresh are kept
+  /// to a single execution by [_expectPairedReconnect] (consumed in
+  /// [_onRefreshRequested]). [_gapRecoveryInFlight] is an additional safety net
+  /// that drops a call arriving while another is still running. Separate
+  /// foreground returns are NOT coalesced — each gets its own gap recovery.
+  Future<void> _performGapRecovery(
+    Emitter<ChatRoomState> emit, {
+    required String source,
+  }) async {
+    if (state.roomId == null) return;
+
+    if (_gapRecoveryInFlight) {
+      _log('_performGapRecovery: skipped (already in flight, source=$source)');
+      return;
     }
 
-    if (state.currentUserId != null && _presenceManager.isViewingRoom) {
-      await _messageHandler.markAsRead(state.roomId!);
-      emit(state.copyWith(isReadMarked: true));
+    _gapRecoveryInFlight = true;
+    _log('_performGapRecovery: performing gap recovery for room ${state.roomId} (source=$source)');
+
+    try {
+      final hasNewMessages =
+          await _cacheManager.refreshFromServer(state.roomId!);
+      if (isClosed) return;
+      if (hasNewMessages) {
+        final latestId = _cacheManager.lastMessageId;
+        if (latestId != null) {
+          _subscriptionManager.updateLastKnownMessageId(latestId);
+        }
+        final newCursor = _cacheManager.nextCursor;
+        emit(state.copyWith(
+          messages: _cacheManager.messages,
+          nextCursor: newCursor,
+          clearNextCursor: newCursor == null,
+          hasMore: _cacheManager.hasMore,
+          isOfflineData: false,
+        ));
+      }
+
+      if (state.currentUserId != null && _presenceManager.isViewingRoom) {
+        await _messageHandler.markAsRead(state.roomId!);
+        if (isClosed) return;
+        emit(state.copyWith(isReadMarked: true));
+      }
+    } finally {
+      _gapRecoveryInFlight = false;
     }
   }
 
@@ -505,7 +697,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         defaultTargetPlatform == TargetPlatform.iOS;
 
     if (isMobile && !_webSocketService.isConnected) {
-      // Mobile: full reconnect + gap recovery (WebSocket was actually disconnected)
+      // Mobile: full reconnect (WebSocket was actually disconnected).
       // 1. Reset reconnect attempts for a fresh reconnection sequence
       _webSocketService.resetReconnectAttempts();
 
@@ -517,25 +709,21 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
       if (connected) {
         _log('_onForegrounded: WebSocket reconnected, resubscribing to room');
+        // A successful reconnect means _onConnected will emit a `reconnected`
+        // event (~100ms later) that queues a ChatRoomRefreshRequested. Arm the
+        // flag so that paired reconnect refresh is recognized as belonging to
+        // THIS foreground return and skips (we run gap recovery directly below).
+        // Armed synchronously here, before the reconnect refresh can run.
+        // Armed WITH a liveness timeout: if the reconnect re-drops during the
+        // ~100ms subscriptionDelay, websocket_service never emits `reconnected`,
+        // so the paired refresh never arrives to consume the flag. The timeout
+        // auto-disarms it so a later genuine reconnect is not skipped forever.
+        _armExpectPairedReconnect();
         // 3. Resubscribe to ensure we receive messages
         await _subscribeToWebSocket(state.roomId!);
       } else {
         _log('_onForegrounded: Failed to reconnect WebSocket');
       }
-
-      // 4. Gap recovery: fetch latest messages from server and merge with cache
-      _log('_onForegrounded: performing gap recovery...');
-      final hasNewMessages = await _cacheManager.refreshFromServer(state.roomId!);
-      if (hasNewMessages) {
-        _log('_onForegrounded: new messages found during gap recovery');
-        final latestId = _cacheManager.lastMessageId;
-        if (latestId != null) {
-          _subscriptionManager.updateLastKnownMessageId(latestId);
-        }
-      }
-
-      // 5. Resolve pending messages that were actually sent to server
-      //    (gap recovery already fetched them, no need to retry)
     } else if (isMobile) {
       // Mobile but still connected (brief lifecycle event, debounced background didn't fire)
       _log('_onForegrounded: WebSocket still connected, skipping reconnect (mobile)');
@@ -544,20 +732,27 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       _log('_onForegrounded: resuming presence (desktop)');
     }
 
-    // Presence active + mark as read (both mobile and desktop)
-    _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
-    await _messageHandler.markAsRead(state.roomId!);
+    if (isClosed) return;
 
-    // Emit updated state
-    final newCursor = _cacheManager.nextCursor;
-    emit(state.copyWith(
-      messages: _cacheManager.messages,
-      nextCursor: newCursor,
-      clearNextCursor: newCursor == null,
-      hasMore: _cacheManager.hasMore,
-      isReadMarked: true,
-      isOfflineData: false,
-    ));
+    // Presence active first so that gap recovery's markAsRead (gated on
+    // isViewingRoom) fires for this foreground return.
+    _presenceManager.sendPresenceActive(state.roomId!, state.currentUserId!);
+
+    // Gap recovery: fetch latest server page, merge with cache, and markAsRead.
+    //
+    // Always call directly — this guarantees AT LEAST ONCE per foreground
+    // return even when no reconnect happens (already-connected mobile / desktop),
+    // in which case the `reconnected` stream never fires and nothing else would
+    // run gap recovery.
+    //
+    // If a reconnect DID happen above, [_expectPairedReconnect] was armed; the
+    // ~100ms-later reconnect-driven ChatRoomRefreshRequested will see it and
+    // skip (see _onRefreshRequested), so the net result is EXACTLY ONCE — no
+    // timing assumption about which path finishes first.
+    await _performGapRecovery(emit, source: 'Foregrounded');
+    // 가드 주의: _performGapRecovery 내부에서 isClosed를 확인하고 emit하므로
+    // 이 핸들러에는 추가 emit이 없다. 이 지점 이후 새 emit을 추가할 경우
+    // 반드시 `if (isClosed) return;` 가드를 먼저 넣어야 emit-after-close를 막는다.
   }
 
   void _onReplyToMessageSelected(
@@ -581,8 +776,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     emit(state.copyWith(isForwarding: true, forwardSuccess: false));
     try {
       await _chatRepository.forwardMessage(event.messageId, event.targetRoomId);
+      if (isClosed) return;
       emit(state.copyWith(isForwarding: false, forwardSuccess: true));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(
         isForwarding: false,
         forwardSuccess: false,
@@ -616,7 +813,12 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     _stopPendingTimeoutChecker();
     _markAsReadDebounceTimer?.cancel();
     _markAsReadRetryTimer?.cancel();
+    _expectPairedReconnectTimer?.cancel();
     _reconnectedSubscription?.cancel();
+    for (final timer in _typingTimeoutTimers.values) {
+      timer.cancel();
+    }
+    _typingTimeoutTimers.clear();
     if (state.roomId != null && _subscriptionManager.isRoomSubscribed) {
       _subscriptionManager.unsubscribeFromRoom(state.roomId!);
     }
@@ -653,6 +855,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     try {
       final messages = await _cacheManager.loadMoreMessages(state.roomId!);
+      if (isClosed) return;
       emit(state.copyWith(
         messages: messages,
         nextCursor: _cacheManager.nextCursor,
@@ -660,6 +863,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         isLoadingMore: false,
       ));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(
         errorMessage: e.toString(),
         isLoadingMore: false,
@@ -725,6 +929,9 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       roomId: roomId,
       content: content,
       userId: userId,
+      // localId를 clientMessageId로 함께 전송 → 서버가 echo에 되돌려주면
+      // content+시간이 아닌 정확한 ID로 pending 메시지를 매칭/교체한다 (H1).
+      clientMessageId: localId,
     ).then((_) {
       if (!isClosed) {
         add(MessageSendCompleted(localId: localId, success: true));
@@ -746,12 +953,15 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (event.success) {
-      _log('_onMessageSendCompleted: sent (localId=${event.localId})');
-      // 전송 성공 → 즉시 "sent" 상태로 변경 (에코를 기다리지 않음).
-      // 에코가 오면 _onMessageReceived에서 서버 메시지로 교체.
+      _log('_onMessageSendCompleted: sending (localId=${event.localId})');
+      // WS send()는 ack를 반환하지 않는다. send() 호출이 끝났다고 해서 서버가
+      // 메시지를 받았다는 보장은 없으므로 아직 "sent"로 표시하지 않는다.
+      // 서버 echo가 _onMessageReceived → replacePendingMessageWithReal에서
+      // 도착하면 그때 "sent"로 승격한다. echo가 끝내 오지 않으면 15초
+      // pending-timeout 체커가 "failed"로 전환한다.
       _cacheManager.updatePendingMessageStatus(
         event.localId,
-        MessageSendStatus.sent,
+        MessageSendStatus.sending,
       );
       emit(state.copyWith(messages: _cacheManager.messages));
     } else {
@@ -803,6 +1013,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       );
       if (replaced) {
         _log('_onMessageReceived: Replaced pending message with real message (id=${event.message.id})');
+        // Update lastKnownMessageId to prevent drift-based filtering
+        _subscriptionManager.updateLastKnownMessageId(event.message.id);
         emit(state.copyWith(
           messages: _cacheManager.messages,
           isOfflineData: false,
@@ -813,6 +1025,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     // 일반 메시지 추가
     _cacheManager.addMessage(event.message);
+    // Update lastKnownMessageId to prevent drift-based filtering
+    _subscriptionManager.updateLastKnownMessageId(event.message.id);
     _log('_onMessageReceived: Added message, total messages: ${_cacheManager.messages.length}');
 
     emit(state.copyWith(
@@ -857,10 +1071,12 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     try {
       await _messageHandler.deleteMessage(event.messageId);
+      if (isClosed) return;
       _cacheManager.markMessageAsDeleted(event.messageId);
 
       emit(state.copyWith(messages: _cacheManager.messages));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(errorMessage: e.toString()));
     }
   }
@@ -913,38 +1129,27 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // 내가 읽은 이벤트는 무시
     if (event.userId == state.currentUserId) return;
 
+    final currentUserId = state.currentUserId!;
+
     // 중복 읽음 이벤트 방지: (userId, lastReadMessageId) 또는 (userId, lastReadAt) 조합으로 체크
-    final eventKey = '${event.userId}_${event.lastReadMessageId ?? event.lastReadAt?.millisecondsSinceEpoch ?? 'all'}';
+    final eventKey = _readReceiptCalculator.dedupKey(
+      userId: event.userId,
+      lastReadMessageId: event.lastReadMessageId,
+      lastReadAt: event.lastReadAt,
+    );
     if (state.processedReadEvents.contains(eventKey)) {
       _log('_onMessagesReadUpdated: Duplicate read event ignored: $eventKey');
       return;
     }
 
-    // 메시지 업데이트 함수
+    // 메시지 업데이트 함수 (순수 계산은 ReadReceiptCalculator에 위임)
     Message updateMessageReadCount(Message message) {
-      // 내가 보낸 메시지만 업데이트
-      if (message.senderId != state.currentUserId) return message;
-      // 이미 0이면 더 감소하지 않음
-      if (message.unreadCount <= 0) return message;
-
-      // 1. lastReadMessageId가 있으면 해당 ID 이하 메시지만 업데이트
-      if (event.lastReadMessageId != null) {
-        if (message.id <= event.lastReadMessageId!) {
-          return message.copyWith(unreadCount: message.unreadCount - 1);
-        }
-        return message;
-      }
-
-      // 2. lastReadMessageId가 없고 lastReadAt이 있으면 해당 시간 이전 메시지만 업데이트
-      if (event.lastReadAt != null) {
-        if (!message.createdAt.isAfter(event.lastReadAt!)) {
-          return message.copyWith(unreadCount: message.unreadCount - 1);
-        }
-        return message;
-      }
-
-      // 3. 둘 다 없으면 모든 메시지를 읽음 처리
-      return message.copyWith(unreadCount: message.unreadCount - 1);
+      return _readReceiptCalculator.applyToMessage(
+        message,
+        currentUserId: currentUserId,
+        lastReadMessageId: event.lastReadMessageId,
+        lastReadAt: event.lastReadAt,
+      );
     }
 
     // Use state.messages directly to handle seed state in tests
@@ -968,13 +1173,11 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     // Also update cache manager for consistency
     _cacheManager.updateMessages(updateMessageReadCount);
 
-    // 처리된 이벤트 기록
-    var newProcessedEvents = Set<String>.from(state.processedReadEvents)..add(eventKey);
-    // Cap the set to prevent unbounded growth
-    if (newProcessedEvents.length > 500) {
-      // Keep only the most recent entries by taking the last 250
-      newProcessedEvents = newProcessedEvents.toList().sublist(newProcessedEvents.length - 250).toSet();
-    }
+    // 처리된 이벤트 기록 (삽입 순서 보장 + 무한 증가 방지 캡은 calculator에 위임)
+    final newProcessedEvents = _readReceiptCalculator.appendProcessedEvent(
+      state.processedReadEvents,
+      eventKey,
+    );
 
     emit(state.copyWith(
       messages: updatedMessages,
@@ -986,12 +1189,29 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     TypingStatusChanged event,
     Emitter<ChatRoomState> emit,
   ) {
+    // 입력중 표시 설정이 꺼져 있으면 무시
+    if (!state.showTypingIndicator) return;
+
     final updatedTypingUsers = Map<int, String>.from(state.typingUsers);
+
+    // 기존 타이머 취소
+    _typingTimeoutTimers[event.userId]?.cancel();
 
     if (event.isTyping) {
       updatedTypingUsers[event.userId] = event.userNickname ?? '상대방';
+      // 5초 자동 타임아웃: 서버 의존 없이 자동 해제
+      _typingTimeoutTimers[event.userId] = Timer(const Duration(seconds: 5), () {
+        if (!isClosed) {
+          add(TypingStatusChanged(
+            userId: event.userId,
+            userNickname: event.userNickname,
+            isTyping: false,
+          ));
+        }
+      });
     } else {
       updatedTypingUsers.remove(event.userId);
+      _typingTimeoutTimers.remove(event.userId);
     }
 
     emit(state.copyWith(typingUsers: updatedTypingUsers));
@@ -1002,6 +1222,8 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
+    // 입력중 표시 설정이 꺼져 있으면 타이핑 상태를 전송하지 않음
+    if (!state.showTypingIndicator) return;
 
     _presenceManager.handleUserStartedTyping(
       roomId: state.roomId!,
@@ -1017,6 +1239,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     Emitter<ChatRoomState> emit,
   ) {
     if (state.roomId == null || state.currentUserId == null) return;
+    if (!state.showTypingIndicator) return;
 
     _presenceManager.handleUserStoppedTyping(
       roomId: state.roomId!,
@@ -1038,6 +1261,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         messageId: event.messageId,
         content: event.content,
       );
+      if (isClosed) return;
 
       _cacheManager.updateMessage(
         event.messageId,
@@ -1046,6 +1270,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
       emit(state.copyWith(messages: _cacheManager.messages));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(errorMessage: e.toString()));
     }
   }
@@ -1059,8 +1284,10 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
 
     try {
       await _messageHandler.leaveChatRoom(roomId);
+      if (isClosed) return;
       emit(state.copyWith(hasLeft: true));
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(errorMessage: e.toString()));
     }
   }
@@ -1079,6 +1306,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         roomId: roomId,
         inviteeId: event.inviteeId,
       );
+      if (isClosed) return;
       emit(state.copyWith(
         isReinviting: false,
         reinviteSuccess: true,
@@ -1086,6 +1314,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       ));
       _log('User reinvited: inviteeId=${event.inviteeId}');
     } catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(
         isReinviting: false,
         reinviteSuccess: false,
@@ -1121,16 +1350,21 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         roomId: state.roomId!,
         filePath: event.filePath,
         onProgress: (progress) {
+          // Upload progress callbacks can fire after the user leaves the room
+          // (bloc closed mid-upload). Guard against emit-after-close crashes.
+          if (isClosed) return;
           emit(state.copyWith(uploadProgress: progress));
         },
       );
 
+      if (isClosed) return;
       emit(state.copyWith(
         isUploadingFile: false,
         uploadProgress: 1.0,
       ));
     } catch (e) {
       _log('File attachment failed: $e');
+      if (isClosed) return;
       final raw = e.toString().toLowerCase();
       final isSignatureError = raw.contains('signature') ||
           raw.contains('content type') ||
@@ -1183,87 +1417,52 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   // Reaction Handlers
   // ============================================================
 
-  /// 리액션 추가 요청 처리
+  /// 리액션 추가 요청 처리 (cache mutation/WS 전송은 ReactionHandler에 위임)
   void _onReactionAddRequested(
     ReactionAddRequested event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionAddRequested: messageId=${event.messageId}, emoji=${event.emoji}');
-
-    // Sync cache manager with state if out of sync (for tests with seeded state)
-    if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
-      _cacheManager.syncMessages(state.messages);
-    }
-
-    // Optimistic UI update - add reaction immediately
-    final currentUserId = state.currentUserId;
-    if (currentUserId != null) {
-      final optimisticReaction = MessageReaction(
-        id: 0, // temporary ID, will be replaced by server echo
-        messageId: event.messageId,
-        userId: currentUserId,
-        emoji: event.emoji,
-      );
-      _cacheManager.addReaction(event.messageId, optimisticReaction);
-      emit(state.copyWith(messages: _cacheManager.messages));
-    }
-
-    _webSocketService.addReaction(
+    final updated = _reactionHandler.addRequested(
       messageId: event.messageId,
       emoji: event.emoji,
+      currentUserId: state.currentUserId,
+      stateMessages: state.messages,
     );
+    if (updated != null) {
+      emit(state.copyWith(messages: updated));
+    }
   }
 
-  /// 리액션 제거 요청 처리
+  /// 리액션 제거 요청 처리 (cache mutation/WS 전송은 ReactionHandler에 위임)
   void _onReactionRemoveRequested(
     ReactionRemoveRequested event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionRemoveRequested: messageId=${event.messageId}, emoji=${event.emoji}');
-
-    // Sync cache manager with state if out of sync (for tests with seeded state)
-    if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
-      _cacheManager.syncMessages(state.messages);
-    }
-
-    // Optimistic UI update - remove reaction immediately
-    final currentUserId = state.currentUserId;
-    if (currentUserId != null) {
-      _cacheManager.removeReaction(event.messageId, currentUserId, event.emoji);
-      emit(state.copyWith(messages: _cacheManager.messages));
-    }
-
-    _webSocketService.removeReaction(
+    final updated = _reactionHandler.removeRequested(
       messageId: event.messageId,
       emoji: event.emoji,
+      currentUserId: state.currentUserId,
+      stateMessages: state.messages,
     );
+    if (updated != null) {
+      emit(state.copyWith(messages: updated));
+    }
   }
 
-  /// 리액션 이벤트 수신 처리 (WebSocket)
+  /// 리액션 이벤트 수신 처리 (WebSocket) — cache mutation은 ReactionHandler에 위임
   void _onReactionEventReceived(
     ReactionEventReceived event,
     Emitter<ChatRoomState> emit,
   ) {
-    _log('_onReactionEventReceived: messageId=${event.messageId}, userId=${event.userId}, emoji=${event.emoji}, isAdd=${event.isAdd}');
-
-    // Sync cache manager with state if out of sync (for tests with seeded state)
-    if (_cacheManager.messages.isEmpty && state.messages.isNotEmpty) {
-      _cacheManager.syncMessages(state.messages);
-    }
-
-    if (event.isAdd) {
-      final reaction = MessageReaction(
-        id: event.reactionId ?? 0,
-        messageId: event.messageId,
-        userId: event.userId,
-        userNickname: event.userNickname,
-        emoji: event.emoji,
-      );
-      _cacheManager.addReaction(event.messageId, reaction);
-    } else {
-      _cacheManager.removeReaction(event.messageId, event.userId, event.emoji);
-    }
-
-    emit(state.copyWith(messages: _cacheManager.messages));
+    final updated = _reactionHandler.eventReceived(
+      messageId: event.messageId,
+      userId: event.userId,
+      userNickname: event.userNickname,
+      emoji: event.emoji,
+      isAdd: event.isAdd,
+      reactionId: event.reactionId,
+      stateMessages: state.messages,
+    );
+    emit(state.copyWith(messages: updated));
   }
 }

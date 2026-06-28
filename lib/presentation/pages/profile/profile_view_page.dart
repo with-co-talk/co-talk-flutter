@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/profile_history.dart';
 import '../../../domain/entities/user.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/profile/profile_bloc.dart';
@@ -98,7 +99,8 @@ class _ProfileViewContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    profileState.errorMessage ?? '프로필을 불러올 수 없습니다',
+                    profileState.errorMessage ??
+                        AppLocalizations.of(context)!.profileLoadFailed,
                     style: TextStyle(color: context.textSecondaryColor),
                   ),
                 ],
@@ -260,21 +262,21 @@ class _ProfileViewContent extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('상태메시지'),
+        title: Text(AppLocalizations.of(context)!.profileStatusMessage),
         content: TextField(
           controller: controller,
           maxLength: 60,
           maxLines: 2,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '상태메시지를 입력하세요',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: AppLocalizations.of(context)!.profileStatusMessageHint,
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           FilledButton(
             onPressed: () {
@@ -289,7 +291,7 @@ class _ProfileViewContent extends StatelessWidget {
                   );
               Navigator.pop(dialogContext);
             },
-            child: const Text('저장'),
+            child: Text(AppLocalizations.of(context)!.commonSave),
           ),
         ],
       ),
@@ -322,9 +324,9 @@ class _ProfileViewContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                '배경화면',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              Text(
+                AppLocalizations.of(context)!.profileBackground,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
               // 전체화면 보기
@@ -338,7 +340,7 @@ class _ProfileViewContent extends StatelessWidget {
                     ),
                     child: const Icon(Icons.fullscreen, color: Colors.blue),
                   ),
-                  title: const Text('전체 화면 보기'),
+                  title: Text(AppLocalizations.of(context)!.profileViewFullScreen),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _showFullScreenImage(
@@ -356,8 +358,8 @@ class _ProfileViewContent extends StatelessWidget {
                   ),
                   child: const Icon(Icons.photo_library, color: AppColors.primary),
                 ),
-                title: const Text('배경화면 변경'),
-                subtitle: const Text('앨범에서 새 배경 선택'),
+                title: Text(AppLocalizations.of(context)!.profileBackgroundChange),
+                subtitle: Text(AppLocalizations.of(context)!.profileBackgroundChangeSubtitle),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _pickBackgroundImage(context);
@@ -372,8 +374,8 @@ class _ProfileViewContent extends StatelessWidget {
                   ),
                   child: const Icon(Icons.history, color: Colors.grey),
                 ),
-                title: const Text('배경화면 이력'),
-                subtitle: const Text('이전 배경화면 보기'),
+                title: Text(AppLocalizations.of(context)!.profileBackgroundHistory),
+                subtitle: Text(AppLocalizations.of(context)!.profileBackgroundHistorySubtitle),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _openHistoryPage(context, ProfileHistoryType.background, user);
@@ -393,8 +395,12 @@ class _ProfileViewContent extends StatelessWidget {
                       color: Colors.orange,
                     ),
                   ),
-                  title: Text(backgroundHistory.isPrivate ? '전체 공개로 변경' : '나만 보기'),
-                  subtitle: Text(backgroundHistory.isPrivate ? '다른 사람에게 공개됩니다' : '나만 볼 수 있습니다'),
+                  title: Text(backgroundHistory.isPrivate
+                      ? AppLocalizations.of(context)!.profileMakePublic
+                      : AppLocalizations.of(context)!.profileMakePrivate),
+                  subtitle: Text(backgroundHistory.isPrivate
+                      ? AppLocalizations.of(context)!.profilePublicDescription
+                      : AppLocalizations.of(context)!.profilePrivateDescription),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     profileBloc.add(ProfileHistoryPrivacyToggled(
@@ -415,12 +421,13 @@ class _ProfileViewContent extends StatelessWidget {
                     ),
                     child: const Icon(Icons.delete_outline, color: Colors.red),
                   ),
-                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  title: Text(AppLocalizations.of(context)!.commonDelete,
+                      style: const TextStyle(color: Colors.red)),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _showDeleteConfirmDialog(
                       context,
-                      '배경화면',
+                      AppLocalizations.of(context)!.profileBackground,
                       () => profileBloc.add(ProfileHistoryDeleteRequested(
                         userId: userId,
                         historyId: backgroundHistory.id,
@@ -462,9 +469,9 @@ class _ProfileViewContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                '프로필 사진',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              Text(
+                AppLocalizations.of(context)!.profileAvatar,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
               // 전체화면 보기
@@ -478,7 +485,7 @@ class _ProfileViewContent extends StatelessWidget {
                     ),
                     child: const Icon(Icons.fullscreen, color: Colors.blue),
                   ),
-                  title: const Text('전체 화면 보기'),
+                  title: Text(AppLocalizations.of(context)!.profileViewFullScreen),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _showFullScreenImage(
@@ -496,8 +503,8 @@ class _ProfileViewContent extends StatelessWidget {
                   ),
                   child: const Icon(Icons.photo_library, color: AppColors.primary),
                 ),
-                title: const Text('프로필 사진 변경'),
-                subtitle: const Text('앨범에서 새 사진 선택'),
+                title: Text(AppLocalizations.of(context)!.profileAvatarChange),
+                subtitle: Text(AppLocalizations.of(context)!.profileAvatarChangeSubtitle),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _pickAvatarImage(context);
@@ -512,8 +519,8 @@ class _ProfileViewContent extends StatelessWidget {
                   ),
                   child: const Icon(Icons.history, color: Colors.grey),
                 ),
-                title: const Text('프로필 사진 이력'),
-                subtitle: const Text('이전 프로필 사진 보기'),
+                title: Text(AppLocalizations.of(context)!.profileAvatarHistory),
+                subtitle: Text(AppLocalizations.of(context)!.profileAvatarHistorySubtitle),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _openHistoryPage(context, ProfileHistoryType.avatar, user);
@@ -533,8 +540,12 @@ class _ProfileViewContent extends StatelessWidget {
                       color: Colors.orange,
                     ),
                   ),
-                  title: Text(avatarHistory.isPrivate ? '전체 공개로 변경' : '나만 보기'),
-                  subtitle: Text(avatarHistory.isPrivate ? '다른 사람에게 공개됩니다' : '나만 볼 수 있습니다'),
+                  title: Text(avatarHistory.isPrivate
+                      ? AppLocalizations.of(context)!.profileMakePublic
+                      : AppLocalizations.of(context)!.profileMakePrivate),
+                  subtitle: Text(avatarHistory.isPrivate
+                      ? AppLocalizations.of(context)!.profilePublicDescription
+                      : AppLocalizations.of(context)!.profilePrivateDescription),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     profileBloc.add(ProfileHistoryPrivacyToggled(
@@ -555,12 +566,13 @@ class _ProfileViewContent extends StatelessWidget {
                     ),
                     child: const Icon(Icons.delete_outline, color: Colors.red),
                   ),
-                  title: const Text('삭제', style: TextStyle(color: Colors.red)),
+                  title: Text(AppLocalizations.of(context)!.commonDelete,
+                      style: const TextStyle(color: Colors.red)),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _showDeleteConfirmDialog(
                       context,
-                      '프로필 사진',
+                      AppLocalizations.of(context)!.profileAvatar,
                       () => profileBloc.add(ProfileHistoryDeleteRequested(
                         userId: userId,
                         historyId: avatarHistory.id,
@@ -595,12 +607,12 @@ class _ProfileViewContent extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('$itemName 삭제'),
-        content: Text('$itemName을(를) 삭제하시겠습니까?'),
+        title: Text(AppLocalizations.of(context)!.profileDeleteItemTitle(itemName)),
+        content: Text(AppLocalizations.of(context)!.profileDeleteItemConfirm(itemName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -608,7 +620,7 @@ class _ProfileViewContent extends StatelessWidget {
               onConfirm();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('삭제'),
+            child: Text(AppLocalizations.of(context)!.commonDelete),
           ),
         ],
       ),
@@ -637,7 +649,7 @@ class _ProfileViewContent extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지를 선택할 수 없습니다')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.profileImagePickFailed)),
         );
       }
     }
@@ -665,7 +677,7 @@ class _ProfileViewContent extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지를 선택할 수 없습니다')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.profileImagePickFailed)),
         );
       }
     }
@@ -704,7 +716,7 @@ class _BackgroundImage extends StatelessWidget {
   }
 }
 
-class _ProfileAvatar extends StatelessWidget {
+class _ProfileAvatar extends StatefulWidget {
   final String? url;
   final String nickname;
 
@@ -714,7 +726,28 @@ class _ProfileAvatar extends StatelessWidget {
   });
 
   @override
+  State<_ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends State<_ProfileAvatar> {
+  // 이미지 로드 실패를 추적해 이니셜 텍스트 fallback 으로 되돌린다.
+  // (ImageProvider 경로에는 errorWidget 이 없어 실패 시 빈 원이 남는 문제 방지)
+  bool _imageLoadFailed = false;
+
+  @override
+  void didUpdateWidget(covariant _ProfileAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // url 이 바뀌면 실패 플래그를 초기화해 새 이미지 로드를 다시 시도한다.
+    if (oldWidget.url != widget.url) {
+      _imageLoadFailed = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final url = widget.url;
+    final showImage = url != null && !_imageLoadFailed;
+
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -730,17 +763,26 @@ class _ProfileAvatar extends StatelessWidget {
       child: CircleAvatar(
         radius: 50,
         backgroundColor: AppColors.primaryLight,
-        backgroundImage: url != null ? CachedNetworkImageProvider(url!) : null,
-        child: url == null
-            ? Text(
-                nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
+        backgroundImage: showImage ? CachedNetworkImageProvider(url) : null,
+        onBackgroundImageError: showImage
+            ? (_, __) {
+                if (mounted) {
+                  setState(() => _imageLoadFailed = true);
+                }
+              }
+            : null,
+        child: showImage
+            ? null
+            : Text(
+                widget.nickname.isNotEmpty
+                    ? widget.nickname[0].toUpperCase()
+                    : '?',
                 style: const TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
-              )
-            : null,
+              ),
       ),
     );
   }
@@ -771,7 +813,7 @@ class _StatusMessage extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Text(
-                '상태메시지 추가',
+                AppLocalizations.of(context)!.profileAddStatusMessage,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 14,
@@ -812,13 +854,13 @@ class _ProfileActions extends StatelessWidget {
       children: [
         _ActionButton(
           icon: Icons.chat_bubble_outline,
-          label: '1:1 채팅',
+          label: AppLocalizations.of(context)!.profileDirectChat,
           onTap: () => _startDirectChat(context, userId),
         ),
         const SizedBox(width: 40),
         _ActionButton(
           icon: Icons.report_outlined,
-          label: '신고',
+          label: AppLocalizations.of(context)!.profileReport,
           onTap: () => context.push('/report?type=USER&targetId=$userId'),
         ),
       ],
@@ -843,13 +885,13 @@ class _MyProfileActions extends StatelessWidget {
       children: [
         _ActionButton(
           icon: Icons.chat_bubble_outline,
-          label: '나와의 채팅',
+          label: AppLocalizations.of(context)!.profileSelfChat,
           onTap: () => _startSelfChat(context),
         ),
         const SizedBox(width: 40),
         _ActionButton(
           icon: Icons.edit_outlined,
-          label: '프로필 편집',
+          label: AppLocalizations.of(context)!.profileEditAction,
           onTap: () async {
             await context.push('/profile/edit');
             if (context.mounted) {
@@ -870,7 +912,7 @@ class _MyProfileActions extends StatelessWidget {
     final currentUserId = authState.user?.id;
     if (currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인 정보를 찾을 수 없습니다')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.profileLoginInfoNotFound)),
       );
       return;
     }

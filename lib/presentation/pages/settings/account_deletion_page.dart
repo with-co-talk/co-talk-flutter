@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/settings/account_deletion_bloc.dart';
 import '../../blocs/settings/account_deletion_event.dart';
 import '../../blocs/settings/account_deletion_state.dart';
@@ -84,7 +85,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
             }
           },
         ),
-        title: const Text('회원 탈퇴'),
+        title: Text(AppLocalizations.of(context)!.settingsAccountDeletion),
       ),
       body: BlocConsumer<AccountDeletionBloc, AccountDeletionState>(
         listener: (context, state) {
@@ -97,7 +98,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                content: const Text('회원 탈퇴가 완료되었습니다'),
+                content: Text(AppLocalizations.of(context)!.settingsAccountDeletionComplete),
               ),
             );
             context.go(AppRoutes.login);
@@ -108,7 +109,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                content: Text(state.errorMessage ?? '오류가 발생했습니다'),
+                content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsErrorOccurred),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -134,7 +135,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    '탈퇴 처리 중...',
+                    AppLocalizations.of(context)!.settingsAccountDeletionProcessing,
                     style: TextStyle(
                       fontSize: 14,
                       color: context.textSecondaryColor,
@@ -197,7 +198,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
               ),
               const SizedBox(width: 12),
               Text(
-                '주의',
+                AppLocalizations.of(context)!.settingsWarning,
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
@@ -209,7 +210,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            '회원 탈퇴 시 다음 데이터가 영구적으로 삭제됩니다',
+            AppLocalizations.of(context)!.settingsDeletionWarningTitle,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -218,10 +219,10 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
             ),
           ),
           const SizedBox(height: 12),
-          _buildWarningItem('모든 채팅 내역'),
-          _buildWarningItem('친구 목록'),
-          _buildWarningItem('프로필 정보'),
-          _buildWarningItem('알림 설정'),
+          _buildWarningItem(AppLocalizations.of(context)!.settingsDeletionItemChats),
+          _buildWarningItem(AppLocalizations.of(context)!.settingsDeletionItemFriends),
+          _buildWarningItem(AppLocalizations.of(context)!.settingsDeletionItemProfile),
+          _buildWarningItem(AppLocalizations.of(context)!.settingsDeletionItemNotifications),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -239,7 +240,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '이 작업은 되돌릴 수 없습니다.',
+                    AppLocalizations.of(context)!.settingsDeletionIrreversible,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -290,12 +291,12 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
   Widget _buildPasswordSection(AccountDeletionState state) {
     return _StepCard(
       step: '1',
-      title: '비밀번호 확인',
+      title: AppLocalizations.of(context)!.settingsDeletionStep1,
       child: TextFormField(
         controller: _passwordController,
         obscureText: _obscurePassword,
         decoration: InputDecoration(
-          labelText: '현재 비밀번호',
+          labelText: AppLocalizations.of(context)!.settingsCurrentPassword,
           prefixIcon: const Icon(Icons.lock_outline_rounded),
           suffixIcon: IconButton(
             icon: Icon(
@@ -327,7 +328,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
       duration: const Duration(milliseconds: 200),
       child: _StepCard(
         step: '2',
-        title: '탈퇴 확인',
+        title: AppLocalizations.of(context)!.settingsDeletionStep2,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -355,10 +356,10 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
             TextFormField(
               controller: _confirmationController,
               enabled: isEnabled,
-              decoration: const InputDecoration(
-                labelText: '삭제합니다',
-                prefixIcon: Icon(Icons.edit_outlined),
-                hintText: '삭제합니다',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.settingsDeletionConfirmKeyword,
+                prefixIcon: const Icon(Icons.edit_outlined),
+                hintText: AppLocalizations.of(context)!.settingsDeletionConfirmKeyword,
               ),
               onChanged: (value) {
                 context.read<AccountDeletionBloc>().add(
@@ -379,7 +380,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '"삭제합니다"를 정확히 입력해주세요',
+                    AppLocalizations.of(context)!.settingsDeletionConfirmMismatch,
                     style: TextStyle(
                       fontSize: 12.5,
                       color: AppColors.error,
@@ -418,7 +419,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '$_countdown초 후 탈퇴 버튼이 활성화됩니다',
+                  AppLocalizations.of(context)!.settingsDeletionCountdown(_countdown),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -455,8 +456,12 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
             ),
             child: Text(
               canPressButton
-                  ? '회원 탈퇴'
-                  : '회원 탈퇴 (${_countdownComplete ? "입력 완료 필요" : "$_countdown초"})',
+                  ? AppLocalizations.of(context)!.settingsAccountDeletion
+                  : AppLocalizations.of(context)!.settingsAccountDeletionButtonDisabled(
+                      _countdownComplete
+                          ? AppLocalizations.of(context)!.settingsDeletionNeedInput
+                          : AppLocalizations.of(context)!.settingsDeletionSeconds(_countdown),
+                    ),
             ),
           ),
         ),
@@ -475,16 +480,16 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
           children: [
             Icon(Icons.warning_amber_rounded, color: AppColors.error),
             const SizedBox(width: 8),
-            const Text('최종 확인'),
+            Text(AppLocalizations.of(context)!.settingsFinalConfirm),
           ],
         ),
-        content: const Text(
-          '정말로 탈퇴하시겠습니까?\n\n모든 데이터가 영구적으로 삭제되며, 이 작업은 되돌릴 수 없습니다.',
+        content: Text(
+          AppLocalizations.of(context)!.settingsDeletionFinalConfirmContent,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -494,7 +499,7 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
                   );
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('탈퇴'),
+            child: Text(AppLocalizations.of(context)!.settingsDeletionConfirmButton),
           ),
         ],
       ),

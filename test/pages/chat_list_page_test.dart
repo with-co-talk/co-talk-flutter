@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,6 +16,7 @@ import 'package:co_talk_flutter/presentation/widgets/skeletons/list_skeleton.dar
 import 'package:co_talk_flutter/domain/entities/chat_room.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockChatListBloc extends MockBloc<ChatListEvent, ChatListState>
     implements ChatListBloc {}
@@ -46,6 +48,9 @@ void main() {
 
   Widget createWidgetUnderTest() {
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: MultiBlocProvider(
         providers: [
           BlocProvider<ChatListBloc>.value(value: mockChatListBloc),
@@ -65,7 +70,7 @@ void main() {
       expect(find.text('채팅'), findsOneWidget);
     });
 
-    testWidgets('shows loading indicator when loading', (tester) async {
+    testWidgets('shows loading skeleton when loading', (tester) async {
       when(() => mockChatListBloc.state).thenReturn(
         const ChatListState(status: ChatListStatus.loading),
       );
@@ -83,9 +88,11 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // Warm Sand 리뉴얼: 빈 상태가 공용 EmptyStateView로 통일되고 카피가 변경됨
+      // Warm Sand 리뉴얼(EmptyStateView) + main i18n: 빈 상태 카피는
+      // 로컬라이즈된 chatListEmpty(title) + 하드코딩된 subtitle 로 렌더된다.
       expect(find.byType(EmptyStateView), findsOneWidget);
-      expect(find.text('아직 대화가 없어요'), findsOneWidget);
+      expect(find.text('채팅방이 없습니다\n친구를 추가하고 대화를 시작해보세요'),
+          findsOneWidget);
       expect(find.text('친구와 첫 대화를 시작해보세요'), findsOneWidget);
     });
 
@@ -99,9 +106,10 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // Warm Sand 리뉴얼: 에러 상태가 공용 EmptyStateView + '다시 시도' 액션으로 변경됨
+      // Warm Sand 리뉴얼(EmptyStateView + '다시 시도' 액션) + main i18n:
+      // 에러 타이틀은 로컬라이즈된 chatListLoadFailed 로 렌더된다.
       expect(find.byType(EmptyStateView), findsOneWidget);
-      expect(find.text('대화를 불러오지 못했어요'), findsOneWidget);
+      expect(find.text('채팅방을 불러오는데 실패했습니다'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });
 
@@ -149,6 +157,37 @@ void main() {
       expect(find.text('OtherUser'), findsOneWidget);
       expect(find.text('안녕하세요'), findsOneWidget);
       expect(find.text('5'), findsOneWidget);
+    });
+
+    testWidgets(
+        'avatar uses CachedNetworkImageProvider (cached + downsampled), '
+        'not raw NetworkImage (P3)', (tester) async {
+      final chatRooms = [
+        ChatRoom(
+          id: 1,
+          name: null,
+          type: ChatRoomType.direct,
+          createdAt: DateTime(2024, 1, 1),
+          unreadCount: 0,
+          otherUserId: 2,
+          otherUserNickname: 'OtherUser',
+          otherUserAvatarUrl: 'https://example.com/avatar.png',
+        ),
+      ];
+
+      when(() => mockChatListBloc.state).thenReturn(
+        ChatListState(
+          status: ChatListStatus.success,
+          chatRooms: chatRooms,
+        ),
+      );
+
+      await tester.pumpWidget(createWidgetUnderTest());
+      await tester.pump();
+
+      final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
+      expect(avatar.backgroundImage, isA<CachedNetworkImageProvider>());
+      expect(avatar.backgroundImage, isNot(isA<NetworkImage>()));
     });
 
     testWidgets('shows 99+ for high unread count', (tester) async {

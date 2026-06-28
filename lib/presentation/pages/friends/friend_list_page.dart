@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -8,6 +9,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/friend.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../blocs/friend/friend_bloc.dart';
@@ -87,9 +89,9 @@ class _FriendListPageState extends State<FriendListPage> {
       child: Scaffold(
         backgroundColor: context.backgroundColor,
         appBar: AppBar(
-          title: const Text(
-            '친구',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context)!.friendsTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 19,
               letterSpacing: -0.4,
@@ -98,12 +100,12 @@ class _FriendListPageState extends State<FriendListPage> {
           actions: [
             IconButton(
               icon: const Icon(Icons.person_add),
-              tooltip: '친구 추가',
+              tooltip: AppLocalizations.of(context)!.friendsAdd,
               onPressed: () => _showAddFriendDialog(context),
             ),
             IconButton(
               icon: const Icon(Icons.settings),
-              tooltip: '친구 관리',
+              tooltip: AppLocalizations.of(context)!.friendsManage,
               onPressed: () async {
                 // Navigate to friend settings and refresh list on return
                 await context.push(AppRoutes.friendSettings);
@@ -120,19 +122,20 @@ class _FriendListPageState extends State<FriendListPage> {
         body: BlocBuilder<FriendBloc, FriendState>(
           builder: (context, state) {
             if (state.status == FriendStatus.loading && state.friends.isEmpty) {
-              return const ListSkeleton();
+              // 친구 목록 아바타는 CircleAvatar(radius: 35) → 지름 70px.
+              return const ListSkeleton(avatarSize: 70);
             }
 
             if (state.status == FriendStatus.failure) {
               return EmptyStateView(
                 icon: Icons.cloud_off_rounded,
-                title: '친구 목록을 불러오지 못했어요',
+                title: AppLocalizations.of(context)!.friendsListLoadError,
                 subtitle: '네트워크 상태를 확인하고 다시 시도해 주세요.',
                 action: SizedBox(
                   width: 160,
                   child: GradientButton(
                     height: 48,
-                    label: '다시 시도',
+                    label: AppLocalizations.of(context)!.commonRetry,
                     icon: Icons.refresh_rounded,
                     onPressed: () {
                       context
@@ -167,7 +170,8 @@ class _FriendListPageState extends State<FriendListPage> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
                       child: Text(
-                        '친구 ${state.friends.length}명',
+                        AppLocalizations.of(context)!
+                            .friendsCount(state.friends.length),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -184,13 +188,13 @@ class _FriendListPageState extends State<FriendListPage> {
                       hasScrollBody: false,
                       child: EmptyStateView(
                         icon: Icons.people_outline_rounded,
-                        title: '아직 친구가 없어요',
-                        subtitle: '친구를 추가하고 대화를 시작해보세요.',
+                        title: AppLocalizations.of(context)!.friendsEmptyTitle,
+                        subtitle: AppLocalizations.of(context)!.friendsEmptyDesc,
                         action: SizedBox(
                           width: 180,
                           child: GradientButton(
                             height: 48,
-                            label: '친구 추가',
+                            label: AppLocalizations.of(context)!.friendsAdd,
                             icon: Icons.person_add_alt_1_rounded,
                             onPressed: () => _showAddFriendDialog(context),
                           ),
@@ -361,21 +365,21 @@ class _FriendTile extends StatelessWidget {
             backgroundColor: Colors.grey,
             foregroundColor: Colors.white,
             icon: Icons.visibility_off,
-            label: '숨김',
+            label: AppLocalizations.of(context)!.friendsHide,
           ),
           SlidableAction(
             onPressed: (_) => _showBlockDialog(context),
             backgroundColor: Colors.orange,
             foregroundColor: Colors.white,
             icon: Icons.block,
-            label: '차단',
+            label: AppLocalizations.of(context)!.friendsBlock,
           ),
           SlidableAction(
             onPressed: (_) => _showDeleteDialog(context),
             backgroundColor: Colors.red,
             foregroundColor: Colors.white,
             icon: Icons.delete,
-            label: '삭제',
+            label: AppLocalizations.of(context)!.commonDelete,
           ),
         ],
       ),
@@ -437,26 +441,28 @@ class _FriendTile extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('친구 숨김'),
-        content: Text('${friend.user.nickname}님을 숨기시겠습니까?\n친구 관리에서 다시 볼 수 있습니다.'),
+        title: Text(AppLocalizations.of(context)!.friendsHideTitle),
+        content: Text(
+          AppLocalizations.of(context)!.friendsHideConfirm(friend.user.nickname),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
               context.read<FriendBloc>().add(HideFriendRequested(friend.user.id));
               Navigator.pop(dialogContext);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('친구를 숨김 처리했습니다'),
+                SnackBar(
+                  content: Text(AppLocalizations.of(context)!.friendsHideSuccess),
                   backgroundColor: Colors.grey,
                 ),
               );
             },
             style: TextButton.styleFrom(foregroundColor: Colors.grey),
-            child: const Text('숨김'),
+            child: Text(AppLocalizations.of(context)!.friendsHide),
           ),
         ],
       ),
@@ -467,26 +473,28 @@ class _FriendTile extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('친구 차단'),
-        content: Text('${friend.user.nickname}님을 차단하시겠습니까?'),
+        title: Text(AppLocalizations.of(context)!.friendsBlockTitle),
+        content: Text(
+          AppLocalizations.of(context)!.friendsBlockConfirm(friend.user.nickname),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
               context.read<FriendBloc>().add(BlockUserRequested(friend.user.id));
               Navigator.pop(dialogContext);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('친구를 차단했습니다'),
+                SnackBar(
+                  content: Text(AppLocalizations.of(context)!.friendsBlockSuccess),
                   backgroundColor: Colors.orange,
                 ),
               );
             },
             style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Text('차단'),
+            child: Text(AppLocalizations.of(context)!.friendsBlock),
           ),
         ],
       ),
@@ -497,12 +505,14 @@ class _FriendTile extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('친구 삭제'),
-        content: Text('${friend.user.nickname}님을 친구에서 삭제하시겠습니까?'),
+        title: Text(AppLocalizations.of(context)!.friendsDeleteTitle),
+        content: Text(
+          AppLocalizations.of(context)!.friendsDeleteConfirm(friend.user.nickname),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -510,7 +520,7 @@ class _FriendTile extends StatelessWidget {
               Navigator.pop(dialogContext);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('삭제'),
+            child: Text(AppLocalizations.of(context)!.commonDelete),
           ),
         ],
       ),
@@ -537,8 +547,9 @@ class _FriendAvatar extends StatelessWidget {
         CircleAvatar(
           radius: 27,
           backgroundColor: AppColors.primaryLight,
-          backgroundImage:
-              avatarUrl != null ? NetworkImage(avatarUrl!) : null,
+          backgroundImage: avatarUrl != null
+              ? CachedNetworkImageProvider(avatarUrl!, maxWidth: 200)
+              : null,
           child: avatarUrl == null
               ? Text(
                   nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
@@ -649,7 +660,7 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                   textInputAction: TextInputAction.search,
                   enableInteractiveSelection: true,
                   decoration: InputDecoration(
-                    hintText: '닉네임으로 검색',
+                    hintText: AppLocalizations.of(context)!.friendsSearchHint,
                     hintStyle: TextStyle(
                       color: context.textSecondaryColor.withValues(alpha: 0.6),
                     ),
@@ -734,7 +745,7 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              '검색 중 오류가 발생했습니다',
+                              AppLocalizations.of(context)!.friendsSearchError,
                               style: TextStyle(
                                 color: context.textSecondaryColor,
                                 fontSize: 16,
@@ -758,7 +769,7 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                                       .add(UserSearchRequested(state.searchQuery!));
                                 }
                               },
-                              child: const Text('다시 시도'),
+                              child: Text(AppLocalizations.of(context)!.commonRetry),
                             ),
                           ],
                         ),
@@ -783,7 +794,7 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              '닉네임을 입력하여 검색하세요',
+                              AppLocalizations.of(context)!.friendsSearchPrompt,
                               style: TextStyle(
                                 color: context.textSecondaryColor,
                                 fontSize: 16,
@@ -806,7 +817,7 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              '검색 결과가 없습니다',
+                              AppLocalizations.of(context)!.friendsSearchNoResults,
                               style: TextStyle(
                                 color: context.textSecondaryColor,
                                 fontSize: 16,
@@ -815,7 +826,8 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                             if (state.searchQuery != null) ...[
                               const SizedBox(height: 8),
                               Text(
-                                '"${state.searchQuery}"에 대한 결과가 없습니다',
+                                AppLocalizations.of(context)!
+                                    .friendsSearchNoResultsFor(state.searchQuery!),
                                 style: TextStyle(
                                   color: context.textSecondaryColor,
                                   fontSize: 12,
@@ -877,7 +889,10 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                                   Navigator.pop(context);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: const Text('친구 요청을 보냈습니다'),
+                                      content: Text(
+                                        AppLocalizations.of(context)!
+                                            .friendsRequestSent,
+                                      ),
                                       backgroundColor: AppColors.primary,
                                       behavior: SnackBarBehavior.floating,
                                       shape: RoundedRectangleBorder(
@@ -888,7 +903,8 @@ class _AddFriendBottomSheetState extends State<_AddFriendBottomSheet> {
                                 },
                                 icon: const Icon(Icons.person_add_alt_1_rounded,
                                     size: 18),
-                                label: const Text('추가'),
+                                label: Text(
+                                    AppLocalizations.of(context)!.friendsAddShort),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primary,
                                   foregroundColor: Colors.white,

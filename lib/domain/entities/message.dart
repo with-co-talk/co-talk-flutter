@@ -4,9 +4,16 @@ enum MessageType { text, image, file, system }
 
 /// 메시지 전송 상태 (카카오톡 스타일 UI용)
 enum MessageSendStatus {
-  /// 전송 중 (로딩 표시)
+  /// 전송 대기 (로컬 큐에 추가됨, WS send() 호출 전/직후 ~ 서버 확인 전)
   pending,
-  /// 전송 완료 (읽지 않음 개수 표시)
+  /// 전송 중 (WS send() 호출은 끝났으나 서버 echo/ack 미수신 — 로딩 표시)
+  ///
+  /// stompClient.send()는 ack를 반환하지 않으므로, send() 직후에는 서버가
+  /// 메시지를 수신했다는 보장이 없다. 따라서 echo/ack가 오기 전까지는
+  /// [sent]가 아닌 [sending] 상태로 두고, echo 수신 시 [sent]로 승격한다.
+  /// (15초 pending-timeout 체커가 실패 백스톱으로 [failed]로 전환한다.)
+  sending,
+  /// 전송 완료 (서버 echo/ack 확인됨 — 읽지 않음 개수 표시)
   sent,
   /// 전송 실패 (재전송/삭제 버튼 표시)
   failed,
@@ -74,8 +81,12 @@ class Message extends Equatable {
     this.localId,
   });
 
-  /// pending 메시지인지 확인
-  bool get isPending => sendStatus == MessageSendStatus.pending;
+  /// 아직 서버 확인(echo/ack)을 받지 못한 미확정 메시지인지 확인.
+  /// [pending](전송 대기)과 [sending](send() 호출 후 echo 대기) 모두 포함한다.
+  /// 로딩 인디케이터 표시 및 전송 타임아웃 백스톱 대상이다.
+  bool get isPending =>
+      sendStatus == MessageSendStatus.pending ||
+      sendStatus == MessageSendStatus.sending;
 
   /// 전송 실패 메시지인지 확인
   bool get isFailed => sendStatus == MessageSendStatus.failed;

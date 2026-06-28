@@ -100,7 +100,13 @@ class NotificationClickHandler {
         if (id is int) return id;
         if (id is String) return int.tryParse(id);
       }
-    } catch (_) {}
+    } catch (e) {
+      // best-effort: payload가 JSON이 아니거나 형식 불일치면 null 반환하되
+      // debug에서는 가시화.
+      if (kDebugMode) {
+        debugPrint('[NotificationClickHandler] Failed to parse chatRoomId from payload: $e');
+      }
+    }
     return null;
   }
 

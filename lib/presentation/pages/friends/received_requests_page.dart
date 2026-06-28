@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/friend.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
@@ -61,9 +63,9 @@ class _ReceivedRequestsView extends StatelessWidget {
               }
             },
           ),
-          title: const Text(
-            '받은 친구 요청',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context)!.friendsReceivedTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 19,
               letterSpacing: -0.4,
@@ -81,13 +83,13 @@ class _ReceivedRequestsView extends StatelessWidget {
             if (state.errorMessage != null && state.receivedRequests.isEmpty) {
               return EmptyStateView(
                 icon: Icons.cloud_off_rounded,
-                title: '요청을 불러오지 못했어요',
+                title: AppLocalizations.of(context)!.friendsReceivedLoadError,
                 subtitle: '네트워크 상태를 확인하고 다시 시도해 주세요.',
                 action: SizedBox(
                   width: 160,
                   child: GradientButton(
                     height: 48,
-                    label: '다시 시도',
+                    label: AppLocalizations.of(context)!.commonRetry,
                     icon: Icons.refresh_rounded,
                     onPressed: () {
                       context.read<FriendBloc>().add(const ReceivedFriendRequestsLoadRequested());
@@ -98,10 +100,10 @@ class _ReceivedRequestsView extends StatelessWidget {
             }
 
             if (state.receivedRequests.isEmpty) {
-              return const EmptyStateView(
+              return EmptyStateView(
                 icon: Icons.inbox_outlined,
-                title: '받은 친구 요청이 없어요',
-                subtitle: '다른 사용자가 요청을 보내면 여기에 표시돼요.',
+                title: AppLocalizations.of(context)!.friendsReceivedEmptyTitle,
+                subtitle: AppLocalizations.of(context)!.friendsReceivedEmptyDesc,
               );
             }
 
@@ -114,7 +116,11 @@ class _ReceivedRequestsView extends StatelessWidget {
                 itemCount: state.receivedRequests.length,
                 itemBuilder: (context, index) {
                   final request = state.receivedRequests[index];
-                  return _ReceivedRequestTile(request: request);
+                  return _ReceivedRequestTile(
+                    request: request,
+                    isProcessing:
+                        state.processingRequestIds.contains(request.id),
+                  );
                 },
               ),
             );
@@ -127,8 +133,12 @@ class _ReceivedRequestsView extends StatelessWidget {
 
 class _ReceivedRequestTile extends StatelessWidget {
   final FriendRequest request;
+  final bool isProcessing;
 
-  const _ReceivedRequestTile({required this.request});
+  const _ReceivedRequestTile({
+    required this.request,
+    this.isProcessing = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +165,10 @@ class _ReceivedRequestTile extends StatelessWidget {
                 radius: 26,
                 backgroundColor: AppColors.primaryLight,
                 backgroundImage: request.requester.avatarUrl != null
-                    ? NetworkImage(request.requester.avatarUrl!)
+                    ? CachedNetworkImageProvider(
+                        request.requester.avatarUrl!,
+                        maxWidth: 200,
+                      )
                     : null,
                 child: request.requester.avatarUrl == null
                     ? Text(
@@ -204,10 +217,18 @@ class _ReceivedRequestTile extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {
-                    AppHaptics.selection();
-                    context.read<FriendBloc>().add(FriendRequestRejected(request.id));
-                  },
+                  // 처리 중에는 비활성화하여 더블탭 중복 호출(거짓 에러)을 막는다.
+                  onPressed: isProcessing
+                      ? null
+                      : () {
+                          // 거절은 가벼운 '선택' 피드백(selection), 수락은 더 분명한
+                          // light() 로 의도적으로 차별화한다. 긍정 액션(수락)에 더
+                          // 또렷한 촉감을 주어 두 버튼의 결과를 손끝으로 구분한다.
+                          AppHaptics.selection();
+                          context
+                              .read<FriendBloc>()
+                              .add(FriendRequestRejected(request.id));
+                        },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: context.textSecondaryColor,
                     side: BorderSide(color: context.dividerColor, width: 1.5),
@@ -216,9 +237,9 @@ class _ReceivedRequestTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    '거절',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                  child: Text(
+                    AppLocalizations.of(context)!.friendsReject,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -226,11 +247,16 @@ class _ReceivedRequestTile extends StatelessWidget {
               Expanded(
                 child: GradientButton(
                   height: 46,
-                  label: '수락',
-                  onPressed: () {
-                    AppHaptics.light();
-                    context.read<FriendBloc>().add(FriendRequestAccepted(request.id));
-                  },
+                  label: AppLocalizations.of(context)!.friendsAccept,
+                  isLoading: isProcessing,
+                  onPressed: isProcessing
+                      ? null
+                      : () {
+                          AppHaptics.light();
+                          context
+                              .read<FriendBloc>()
+                              .add(FriendRequestAccepted(request.id));
+                        },
                 ),
               ),
             ],

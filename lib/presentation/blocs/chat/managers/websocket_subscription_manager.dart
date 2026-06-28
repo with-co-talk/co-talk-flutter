@@ -175,6 +175,9 @@ class WebSocketSubscriptionManager {
       replyToMessageId: wsMessage.replyToMessageId,
       forwardedFromMessageId: wsMessage.forwardedFromMessageId,
       unreadCount: wsMessage.unreadCount,
+      // 서버 echo가 clientMessageId를 실어 보내면 localId 슬롯에 담아
+      // replacePendingMessageWithReal가 정확 ID 매칭에 사용한다 (H1).
+      localId: wsMessage.clientMessageId,
     );
   }
 

@@ -12,6 +12,7 @@ import 'package:co_talk_flutter/presentation/pages/friends/friend_list_page.dart
 import 'package:co_talk_flutter/presentation/widgets/skeletons/list_skeleton.dart';
 import 'package:co_talk_flutter/domain/entities/friend.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockFriendBloc extends Mock implements FriendBloc {}
 
@@ -60,6 +61,9 @@ void main() {
     when(() => mockFriendBloc.close()).thenAnswer((_) async {});
 
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: MultiBlocProvider(
         providers: [
           BlocProvider<FriendBloc>.value(value: mockFriendBloc),
@@ -85,6 +89,11 @@ void main() {
 
       // Warm Sand 리뉴얼: 로딩 상태가 시머 스켈레톤(ListSkeleton)으로 변경
       expect(find.byType(ListSkeleton), findsOneWidget);
+      // 친구 화면 스켈레톤은 친구 아바타 지름(70)에 맞춰야 한다(화면별 회귀 방지).
+      expect(
+        tester.widget<ListSkeleton>(find.byType(ListSkeleton)).avatarSize,
+        70,
+      );
     });
 
     testWidgets('shows empty message when no friends', (tester) async {
@@ -92,9 +101,10 @@ void main() {
         friendState: const FriendState(status: FriendStatus.success),
       ));
 
-      // Warm Sand 리뉴얼: 공용 EmptyStateView 카피로 변경
-      expect(find.text('아직 친구가 없어요'), findsOneWidget);
-      expect(find.text('친구를 추가하고 대화를 시작해보세요.'), findsOneWidget);
+      // Warm Sand 리뉴얼(EmptyStateView) + main i18n: 빈 상태 카피는
+      // 로컬라이즈된 friendsEmptyTitle/friendsEmptyDesc 로 렌더된다.
+      expect(find.text('친구가 없습니다'), findsOneWidget);
+      expect(find.text('친구를 추가하고 대화를 시작해보세요'), findsOneWidget);
     });
 
     testWidgets('shows error message on failure', (tester) async {
@@ -105,8 +115,9 @@ void main() {
         ),
       ));
 
-      // Warm Sand 리뉴얼: 공용 EmptyStateView 에러 카피로 변경
-      expect(find.text('친구 목록을 불러오지 못했어요'), findsOneWidget);
+      // Warm Sand 리뉴얼(EmptyStateView + GradientButton) + main i18n:
+      // 에러 타이틀은 로컬라이즈된 friendsListLoadError 로 렌더된다.
+      expect(find.text('친구 목록을 불러오는데 실패했습니다'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });
 

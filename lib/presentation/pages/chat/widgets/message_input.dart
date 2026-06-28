@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +14,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_motion.dart';
 import '../../../../core/utils/app_haptics.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_event.dart';
@@ -44,16 +47,19 @@ class MessageInput extends StatefulWidget {
 class _MessageInputState extends State<MessageInput> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _isPasteHandling = false;
+  bool _showEmojiPicker = false;
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onTextChanged);
+    widget.focusNode.addListener(_onFocusChanged);
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_onTextChanged);
+    widget.focusNode.removeListener(_onFocusChanged);
     super.dispose();
   }
 
@@ -61,12 +67,73 @@ class _MessageInputState extends State<MessageInput> {
     setState(() {});
   }
 
+  void _onFocusChanged() {
+    // 키보드가 올라오면 이모지 피커 닫기
+    if (widget.focusNode.hasFocus && _showEmojiPicker) {
+      setState(() {
+        _showEmojiPicker = false;
+      });
+    }
+  }
+
+  void _toggleEmojiPicker() {
+    if (_showEmojiPicker) {
+      // 이모지 피커 닫기 → 키보드 열기
+      setState(() {
+        _showEmojiPicker = false;
+      });
+      widget.focusNode.requestFocus();
+    } else {
+      // 키보드 닫기 → 이모지 피커 열기
+      widget.focusNode.unfocus();
+      setState(() {
+        _showEmojiPicker = true;
+      });
+    }
+  }
+
+  void _onEmojiSelected(Category? category, Emoji emoji) {
+    final text = widget.controller.text;
+    final selection = widget.controller.selection;
+    final cursorPos = selection.baseOffset >= 0 ? selection.baseOffset : text.length;
+    final newText = text.substring(0, cursorPos) + emoji.emoji + text.substring(cursorPos);
+    final newCursorPos = cursorPos + emoji.emoji.length;
+    widget.controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursorPos),
+    );
+    widget.onChanged?.call();
+  }
+
+  void _onBackspacePressed() {
+    final text = widget.controller.text;
+    final selection = widget.controller.selection;
+    final cursorPos = selection.baseOffset;
+
+    if (cursorPos > 0) {
+      final newText = text.substring(0, cursorPos - 1) + text.substring(cursorPos);
+      widget.controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: cursorPos - 1),
+      );
+    }
+  }
+
   bool get _hasText => widget.controller.text.trim().isNotEmpty;
 
   void _handleSend() {
-    if (_hasText) {
+    // onSubmitted(키보드 enter) 경로는 send 버튼의 canSend 게이트를
+    // 거치지 않으므로, 여기서도 전송 중(isSending) 여부를 함께 확인해
+    // 전송 중 중복 호출(및 헛 햅틱)을 방어한다.
+    if (_hasText && !context.read<ChatRoomBloc>().state.isSending) {
       AppHaptics.light();
       widget.onSend();
+      // 전송 후 이모지 피커 닫기
+      if (_showEmojiPicker) {
+        setState(() {
+          _showEmojiPicker = false;
+        });
+      }
     }
   }
 
@@ -159,7 +226,7 @@ class _MessageInputState extends State<MessageInput> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지 붙여넣기 실패: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImagePasteFailed('$e'))),
         );
       }
     }
@@ -204,8 +271,8 @@ class _MessageInputState extends State<MessageInput> {
                   ),
                   child: const Icon(Icons.photo_library, color: Colors.blue),
                 ),
-                title: const Text('갤러리에서 선택'),
-                subtitle: const Text('사진 또는 동영상을 선택합니다'),
+                title: Text(AppLocalizations.of(context)!.chatPickFromGallery),
+                subtitle: Text(AppLocalizations.of(context)!.chatPickFromGallerySubtitle),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImageFromGallery();
@@ -220,8 +287,8 @@ class _MessageInputState extends State<MessageInput> {
                   ),
                   child: const Icon(Icons.camera_alt, color: Colors.green),
                 ),
-                title: const Text('카메라'),
-                subtitle: const Text('사진을 촬영합니다'),
+                title: Text(AppLocalizations.of(context)!.chatCamera),
+                subtitle: Text(AppLocalizations.of(context)!.chatCameraSubtitle),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImageFromCamera();
@@ -236,8 +303,8 @@ class _MessageInputState extends State<MessageInput> {
                   ),
                   child: const Icon(Icons.attach_file, color: Colors.orange),
                 ),
-                title: const Text('파일'),
-                subtitle: const Text('문서, PDF 등의 파일을 선택합니다'),
+                title: Text(AppLocalizations.of(context)!.chatFile),
+                subtitle: Text(AppLocalizations.of(context)!.chatFileSubtitle),
                 onTap: () {
                   Navigator.pop(context);
                   _pickFile();
@@ -257,7 +324,7 @@ class _MessageInputState extends State<MessageInput> {
     if (sourcePath.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지 경로를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImagePathUnavailable)),
         );
       }
       return;
@@ -267,7 +334,7 @@ class _MessageInputState extends State<MessageInput> {
     if (!sourceFile.existsSync()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('선택한 이미지 파일을 찾을 수 없습니다.')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImageFileNotFound)),
         );
       }
       return;
@@ -302,7 +369,7 @@ class _MessageInputState extends State<MessageInput> {
       if (path.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+            SnackBar(content: Text(AppLocalizations.of(context)!.chatImageUnavailable)),
           );
         }
         return;
@@ -311,7 +378,7 @@ class _MessageInputState extends State<MessageInput> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('이미지를 선택할 수 없습니다: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatImagePickFailed('$e'))),
         );
       }
     }
@@ -330,7 +397,7 @@ class _MessageInputState extends State<MessageInput> {
       if (path.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('촬영한 이미지를 사용할 수 없습니다. 파일 선택을 이용해 주세요.')),
+            SnackBar(content: Text(AppLocalizations.of(context)!.chatCameraImageUnavailable)),
           );
         }
         return;
@@ -339,7 +406,7 @@ class _MessageInputState extends State<MessageInput> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('카메라를 사용할 수 없습니다: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatCameraFailed('$e'))),
         );
       }
     }
@@ -361,11 +428,14 @@ class _MessageInputState extends State<MessageInput> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('파일을 선택할 수 없습니다: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.chatFilePickFailed('$e'))),
         );
       }
     }
   }
+
+  /// 이모지 피커가 모바일에서만 표시되는지 확인
+  bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
   @override
   Widget build(BuildContext context) {
@@ -402,7 +472,7 @@ class _MessageInputState extends State<MessageInput> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      '파일 업로드 중...',
+                      AppLocalizations.of(context)!.chatFileUploading,
                       style: TextStyle(color: context.textSecondaryColor),
                     ),
                   ],
@@ -448,7 +518,9 @@ class _MessageInputState extends State<MessageInput> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${state.otherUserNickname ?? "상대방"}님이 채팅방을 나갔습니다',
+                              AppLocalizations.of(context)!.chatOtherUserLeft(
+                                state.otherUserNickname ?? AppLocalizations.of(context)!.chatOtherUser,
+                              ),
                               style: TextStyle(
                                 color: context.textPrimaryColor,
                                 fontSize: 14,
@@ -468,8 +540,8 @@ class _MessageInputState extends State<MessageInput> {
                                 final otherUserId = state.otherUserId;
                                 if (otherUserId == null) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('상대방 정보를 찾을 수 없습니다'),
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context)!.chatOtherUserInfoNotFound),
                                     ),
                                   );
                                   return;
@@ -488,7 +560,9 @@ class _MessageInputState extends State<MessageInput> {
                                 ),
                               )
                             : const Icon(Icons.person_add),
-                        label: Text(state.isReinviting ? '초대 중...' : '다시 초대하기'),
+                        label: Text(state.isReinviting
+                            ? AppLocalizations.of(context)!.chatReinviting
+                            : AppLocalizations.of(context)!.chatReinvite),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
@@ -547,7 +621,7 @@ class _MessageInputState extends State<MessageInput> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      widget.replyToMessage!.senderNickname ?? '알 수 없음',
+                                      widget.replyToMessage!.senderNickname ?? AppLocalizations.of(context)!.chatUnknownSender,
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -556,7 +630,7 @@ class _MessageInputState extends State<MessageInput> {
                                     ),
                                     Text(
                                       widget.replyToMessage!.isDeleted
-                                          ? '삭제된 메시지'
+                                          ? AppLocalizations.of(context)!.chatDeletedMessage
                                           : widget.replyToMessage!.content,
                                       style: TextStyle(
                                         fontSize: 12,
@@ -585,6 +659,22 @@ class _MessageInputState extends State<MessageInput> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                  // 이모지 버튼 (모바일만)
+                  if (_isMobile)
+                    IconButton(
+                      icon: Icon(
+                        _showEmojiPicker
+                            ? Icons.keyboard_outlined
+                            : Icons.emoji_emotions_outlined,
+                        color: _showEmojiPicker
+                            ? AppColors.primary
+                            : context.textSecondaryColor,
+                      ),
+                      onPressed: _toggleEmojiPicker,
+                      tooltip: _showEmojiPicker
+                          ? AppLocalizations.of(context)!.chatKeyboard
+                          : AppLocalizations.of(context)!.chatEmoji,
+                    ),
                   IconButton(
                     icon: Icon(
                       Icons.add_rounded,
@@ -592,7 +682,7 @@ class _MessageInputState extends State<MessageInput> {
                       size: 28,
                     ),
                     onPressed: _showAttachmentOptions,
-                    tooltip: '첨부',
+                    tooltip: AppLocalizations.of(context)!.chatAttach,
                   ),
                   const SizedBox(width: 2),
                   Expanded(
@@ -604,7 +694,7 @@ class _MessageInputState extends State<MessageInput> {
                           controller: widget.controller,
                           focusNode: widget.focusNode,
                           decoration: InputDecoration(
-                            hintText: '메시지를 입력하세요',
+                            hintText: AppLocalizations.of(context)!.chatMessageInputHint,
                             hintStyle: TextStyle(
                               color: context.textSecondaryColor.withValues(alpha: 0.6),
                             ),
@@ -657,8 +747,10 @@ class _MessageInputState extends State<MessageInput> {
                   BlocBuilder<ChatRoomBloc, ChatRoomState>(
                     builder: (context, state) {
                       final canSend = _hasText && !state.isSending;
-                      // canSend 전환 시 버튼이 0.85→1.0으로 한 번 스케일업되어
-                      // 활성화되었음을 시각적으로 알린다 (반복 재생 아님).
+                      // 비활성(0.85)↔활성(1.0) 스케일을 end 변경으로 보간한다.
+                      // TweenAnimationBuilder는 begin을 첫 빌드에서만 쓰고 이후엔
+                      // end 변화에만 반응하므로, canSend 토글 시 현재값→새 end로
+                      // 한 번 펄스가 재생된다 (반복 재생 아님).
                       return TweenAnimationBuilder<double>(
                         tween: Tween(begin: 0.85, end: canSend ? 1.0 : 0.85),
                         duration: AppMotion.fast,
@@ -723,6 +815,34 @@ class _MessageInputState extends State<MessageInput> {
                     ],
                   ),
                 ),
+                // 이모지 피커
+                if (_showEmojiPicker)
+                  SizedBox(
+                    height: 260,
+                    child: EmojiPicker(
+                      onEmojiSelected: _onEmojiSelected,
+                      onBackspacePressed: _onBackspacePressed,
+                      config: Config(
+                        emojiViewConfig: EmojiViewConfig(
+                          columns: 8,
+                          emojiSizeMax: 28 * (Platform.isIOS ? 1.20 : 1.0),
+                          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                        ),
+                        categoryViewConfig: CategoryViewConfig(
+                          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                          indicatorColor: AppColors.primary,
+                          iconColorSelected: AppColors.primary,
+                        ),
+                        bottomActionBarConfig: const BottomActionBarConfig(
+                          enabled: false,
+                        ),
+                        searchViewConfig: SearchViewConfig(
+                          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                          hintText: AppLocalizations.of(context)!.chatEmojiSearch,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

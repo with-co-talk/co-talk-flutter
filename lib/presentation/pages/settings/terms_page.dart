@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// 이용약관 페이지
 class TermsPage extends StatelessWidget {
@@ -22,7 +23,7 @@ class TermsPage extends StatelessWidget {
             }
           },
         ),
-        title: const Text('이용약관'),
+        title: Text(AppLocalizations.of(context)!.settingsTerms),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),

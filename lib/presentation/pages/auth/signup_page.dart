@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -71,7 +72,7 @@ class _SignUpPageState extends State<SignUpPage> {
     final isDark = context.isDarkMode;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('회원가입'),
+        title: Text(AppLocalizations.of(context)!.authSignUp),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.go(AppRoutes.login),
@@ -94,7 +95,8 @@ class _SignUpPageState extends State<SignUpPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                content: Text(state.errorMessage ?? '회원가입에 실패했습니다'),
+                content: Text(state.errorMessage ??
+                    AppLocalizations.of(context)!.authSignUpFailed),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -169,10 +171,11 @@ class _SignUpPageState extends State<SignUpPage> {
                         // ── 이메일 ──
                         TextFormField(
                           controller: _emailController,
-                          decoration: const InputDecoration(
-                            labelText: '이메일',
+                          decoration: InputDecoration(
+                            labelText: AppLocalizations.of(context)!.authEmail,
                             hintText: 'name@example.com',
-                            prefixIcon: Icon(Icons.alternate_email_rounded),
+                            prefixIcon:
+                                const Icon(Icons.alternate_email_rounded),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
@@ -182,9 +185,11 @@ class _SignUpPageState extends State<SignUpPage> {
                         // ── 닉네임 ──
                         TextFormField(
                           controller: _nicknameController,
-                          decoration: const InputDecoration(
-                            labelText: '닉네임',
-                            prefixIcon: Icon(Icons.person_outline_rounded),
+                          decoration: InputDecoration(
+                            labelText:
+                                AppLocalizations.of(context)!.authNickname,
+                            prefixIcon:
+                                const Icon(Icons.person_outline_rounded),
                           ),
                           textInputAction: TextInputAction.next,
                           validator: Validators.nickname,
@@ -194,7 +199,8 @@ class _SignUpPageState extends State<SignUpPage> {
                         TextFormField(
                           controller: _passwordController,
                           decoration: InputDecoration(
-                            labelText: '비밀번호',
+                            labelText:
+                                AppLocalizations.of(context)!.authPassword,
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -218,7 +224,8 @@ class _SignUpPageState extends State<SignUpPage> {
                         TextFormField(
                           controller: _confirmPasswordController,
                           decoration: InputDecoration(
-                            labelText: '비밀번호 확인',
+                            labelText: AppLocalizations.of(context)!
+                                .authConfirmPassword,
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -254,7 +261,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  '한글이 입력되어 있습니다. 영문 키보드를 확인하세요.',
+                                  AppLocalizations.of(context)!.authKoreanInputWarning,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: isDark
@@ -270,7 +277,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         GradientButton(
                           onPressed: isLoading ? null : _onSignUp,
                           isLoading: isLoading,
-                          label: '회원가입',
+                          label: AppLocalizations.of(context)!.authSignUp,
                         ),
                         const SizedBox(height: 18),
                         Row(
@@ -291,12 +298,12 @@ class _SignUpPageState extends State<SignUpPage> {
                                 padding:
                                     const EdgeInsets.symmetric(horizontal: 6),
                                 minimumSize: const Size(0, 0),
-                                tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: const Text(
-                                '로그인',
-                                style: TextStyle(fontWeight: FontWeight.w700),
+                              child: Text(
+                                AppLocalizations.of(context)!.authLogin,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700),
                               ),
                             ),
                           ],

@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:co_talk_flutter/core/services/active_room_tracker.dart';
 import 'package:co_talk_flutter/core/network/websocket_service.dart';
 import 'package:co_talk_flutter/core/network/websocket/websocket_events.dart';
+import 'package:co_talk_flutter/domain/entities/chat_room.dart';
+import 'package:co_talk_flutter/domain/entities/chat_settings.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/domain/repositories/chat_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +26,7 @@ void main() {
   late MockDesktopNotificationBridge mockDesktopNotificationBridge;
   late MockActiveRoomTracker mockActiveRoomTracker;
   late MockFriendRepository mockFriendRepository;
+  late MockSettingsRepository mockSettingsRepository;
 
   setUpAll(() {
     // Register fallback values for mocktail
@@ -38,6 +42,7 @@ void main() {
     mockDesktopNotificationBridge = MockDesktopNotificationBridge();
     mockActiveRoomTracker = MockActiveRoomTracker();
     mockFriendRepository = MockFriendRepository();
+    mockSettingsRepository = MockSettingsRepository();
 
     // AuthLocalDataSource mock 기본 설정
     when(() => mockAuthLocalDataSource.getUserId()).thenAnswer((_) async => 1);
@@ -96,6 +101,7 @@ void main() {
     when(() => mockWebSocketService.sendMessage(
           roomId: any(named: 'roomId'),
           content: any(named: 'content'),
+              clientMessageId: any(named: 'clientMessageId'),
         )).thenReturn(true);
     when(() => mockWebSocketService.sendPresenceInactive(
           roomId: any(named: 'roomId'),
@@ -120,6 +126,10 @@ void main() {
     // ActiveRoomTracker mock 기본 설정
     when(() => mockActiveRoomTracker.activeRoomId).thenReturn(null);
     when(() => mockActiveRoomTracker.activeRoomId = any()).thenReturn(null);
+
+    // SettingsRepository mock 기본 설정
+    when(() => mockSettingsRepository.getChatSettings())
+        .thenAnswer((_) async => const ChatSettings());
   });
 
   ChatRoomBloc createBloc() => ChatRoomBloc(
@@ -129,6 +139,7 @@ void main() {
         mockDesktopNotificationBridge,
         mockActiveRoomTracker,
         mockFriendRepository,
+        mockSettingsRepository,
       );
 
   group('ChatRoomBloc', () {
@@ -164,6 +175,7 @@ void main() {
             messages: FakeEntities.messages,
             nextCursor: 123,
             hasMore: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -345,6 +357,100 @@ void main() {
       );
 
       blocTest<ChatRoomBloc, ChatRoomState>(
+        'performs gap recovery only ONCE when foreground reconnect also emits reconnected',
+        build: () {
+          // A real reconnected stream: _onConnected emits on this after a
+          // successful reconnect, which queues ChatRoomRefreshRequested.
+          final reconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => reconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          // Simulate disconnect on background, reconnect on foreground.
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(
+                timeout: any(named: 'timeout'),
+              )).thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Emit reconnected like the real _onConnected does: ensureConnected
+            // resolves FIRST (connection-state transition), then reconnected
+            // fires later from the ~100ms subscriptionDelay timer. Reproducing
+            // that delay is essential — if we emitted synchronously here the
+            // reconnect refresh would always overlap the foreground direct call
+            // (in-flight guard alone would dedup) and the test could not catch
+            // the timing-dependent double-execution. With the delay, the
+            // foreground direct call (fast mock) completes BEFORE reconnected
+            // arrives, so ONLY the coalescing window prevents a 2nd recovery.
+            Timer(const Duration(milliseconds: 100), () {
+              if (!reconnectedController.isClosed) {
+                reconnectedController.add(null);
+              }
+            });
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          clearInteractions(mockWebSocketService);
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+          // Wait past the delayed reconnected emission so its
+          // ChatRoomRefreshRequested is processed within the test window.
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 700),
+        verify: (_) {
+          // Gap recovery server fetch must run exactly once for a single
+          // foreground/reconnect burst — not twice (foreground direct +
+          // reconnected ChatRoomRefreshRequested).
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+          // markAsRead still runs (foreground always marks read).
+          verify(() => mockChatRepository.markAsRead(1)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'still performs gap recovery once when foregrounded while already connected (no reconnect)',
+        build: () {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(
+                roomId: any(named: 'roomId'),
+              )).thenReturn(null);
+          // isConnected stays true the whole time → no reconnect, no reconnected event.
+          when(() => mockWebSocketService.isConnected).thenReturn(true);
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 200));
+          clearInteractions(mockWebSocketService);
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+        },
+        wait: const Duration(milliseconds: 400),
+        verify: (_) {
+          // Even with no reconnect, gap recovery must still run at least once.
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+          verify(() => mockChatRepository.markAsRead(1)).called(1);
+        },
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
         'sends presenceInactive immediately but does NOT disconnect on ViewInactive',
         build: () {
           when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
@@ -451,17 +557,63 @@ void main() {
               .having((s) => s.messages.first.content, 'content', '안녕하세요!')
               .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.pending)
               .having((s) => s.messages.first.senderId, 'senderId', 42),
-          // 2. Fire-and-forget 전송 성공 → 즉시 sent로 전환
+          // 2. Fire-and-forget send() 성공 → 서버 echo 전이므로 sending (H2).
+          //    sent로의 승격은 echo 수신 시(_onMessageReceived)에만 일어난다.
           isA<ChatRoomState>()
               .having((s) => s.messages.length, 'messages length', 1)
               .having((s) => s.messages.first.content, 'content', '안녕하세요!')
-              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sent),
+              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sending),
         ],
         verify: (_) {
           verify(() => mockWebSocketService.sendMessage(
                 roomId: 1,
                 content: '안녕하세요!',
+                clientMessageId: any(named: 'clientMessageId'),
               )).called(1);
+        },
+      );
+
+      // ── H2: send() 후 sending, echo 수신 후에만 sent ──────────────────
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'message is `sending` after send() returns and only `sent` after '
+        'the echo arrives',
+        build: () {
+          when(() => mockAuthLocalDataSource.getUserId())
+              .thenAnswer((_) async => 42);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 42,
+          messages: [],
+        ),
+        act: (bloc) async {
+          // 1) 전송 → fire-and-forget send() 완료 후 sending 이어야 한다.
+          bloc.add(const MessageSent('ping'));
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          final pending = bloc.state.messages.first;
+          expect(pending.sendStatus, MessageSendStatus.sending,
+              reason: 'send() 직후에는 ack가 없으므로 sent가 아닌 sending이어야 한다');
+
+          // 2) 서버 echo 도착(clientMessageId=localId 포함) → 이제서야 sent 승격.
+          bloc.add(MessageReceived(Message(
+            id: 9001,
+            chatRoomId: 1,
+            senderId: 42,
+            content: 'ping',
+            createdAt: DateTime.now(),
+            localId: pending.localId,
+          )));
+          await Future.delayed(const Duration(milliseconds: 100));
+        },
+        verify: (bloc) {
+          final confirmed =
+              bloc.state.messages.firstWhere((m) => m.content == 'ping');
+          expect(confirmed.id, 9001);
+          expect(confirmed.sendStatus, MessageSendStatus.sent,
+              reason: 'echo 수신 후에만 sent로 승격돼야 한다');
         },
       );
 
@@ -480,6 +632,7 @@ void main() {
           verifyNever(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               ));
         },
       );
@@ -490,6 +643,7 @@ void main() {
           when(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               )).thenThrow(Exception('Network error'));
           when(() => mockAuthLocalDataSource.getUserId())
               .thenAnswer((_) async => 42);
@@ -524,6 +678,7 @@ void main() {
           verifyNever(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               ));
         },
       );
@@ -1166,6 +1321,77 @@ void main() {
               .having((s) => s.messages[2].unreadCount, 'first msg unreadCount', 0),
         ],
       );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'should keep most recent read events when processedReadEvents exceeds 500',
+        build: () => createBloc(),
+        seed: () {
+          // Create a LinkedHashSet to guarantee insertion order
+          final orderedEvents = <String>{};
+          for (int i = 0; i < 500; i++) {
+            orderedEvents.add('2_event_$i');
+          }
+          return ChatRoomState(
+            status: ChatRoomStatus.success,
+            roomId: 1,
+            currentUserId: 1,
+            messages: [
+              Message(
+                id: 1,
+                chatRoomId: 1,
+                senderId: 1,
+                content: 'Test message',
+                createdAt: DateTime(2024, 1, 1),
+                unreadCount: 1,
+              ),
+            ],
+            // Seed with 500 existing events in order
+            processedReadEvents: orderedEvents,
+          );
+        },
+        act: (bloc) {
+          // Add one more event to trigger trimming (total = 501)
+          bloc.add(const MessagesReadUpdated(userId: 2, lastReadMessageId: 1));
+        },
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.processedReadEvents.length, 'processedReadEvents size', 250)
+              // The most recent event (added by the event) should be included
+              .having(
+                (s) => s.processedReadEvents.contains('2_1'),
+                'contains newest event',
+                true,
+              )
+              // Recent seeded events should be kept (e.g., event_499)
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_499'),
+                'contains second-newest event',
+                true,
+              )
+              // Old events should be removed (first 250 + 1 should be gone)
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_0'),
+                'old event_0 removed',
+                false,
+              )
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_100'),
+                'old event_100 removed',
+                false,
+              )
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_250'),
+                'event_250 removed',
+                false,
+              )
+              // Events from 251 onwards should be kept
+              .having(
+                (s) => s.processedReadEvents.contains('2_event_251'),
+                'event_251 kept',
+                true,
+              ),
+        ],
+      );
     });
 
     group('Auto read on message received', () {
@@ -1226,6 +1452,7 @@ void main() {
             messages: FakeEntities.messages,
             nextCursor: 123,
             hasMore: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
       );
@@ -1303,6 +1530,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // WebSocket 메시지 추가 (이전 isReadMarked 상태 유지)
           isA<ChatRoomState>()
@@ -1372,6 +1600,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내 메시지 수신: unreadCount=1
           isA<ChatRoomState>()
@@ -1433,6 +1662,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지가 unreadCount=1로 표시됨
           isA<ChatRoomState>()
@@ -1503,6 +1733,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내 메시지 수신: unreadCount=1
           isA<ChatRoomState>()
@@ -1566,6 +1797,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지가 즉시 unreadCount=0으로 표시됨 (상대방이 포커스되어 있었음)
           isA<ChatRoomState>()
@@ -1758,6 +1990,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // _onForegrounded always emits isReadMarked: true even if markAsRead fails
           // because the error is caught silently in MessageHandler.markAsRead
@@ -1769,6 +2002,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -1945,6 +2179,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // markAsRead 성공 후 isReadMarked가 true가 됨
           // 하지만 서버가 chatRoomUpdates를 보내주지 않으면 실제 unreadCount는 업데이트되지 않음
@@ -1956,6 +2191,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true, // markAsRead 성공으로 true
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -2009,6 +2245,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 중요: isReadMarked가 true가 되지 않아야 함!
           // pendingForegrounded가 취소되었으므로 markAsRead가 호출되지 않음
@@ -2068,6 +2305,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 두 번째 ChatRoomForegrounded에서 markAsRead 호출 → isReadMarked = true
           const ChatRoomState(
@@ -2078,6 +2316,7 @@ void main() {
             nextCursor: null,
             hasMore: false,
             isReadMarked: true,
+            roomType: ChatRoomType.direct,
           ),
         ],
         verify: (_) {
@@ -2135,6 +2374,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 수신한 메시지의 unreadCount=1이 그대로 보존되어야 함
           isA<ChatRoomState>()
@@ -2192,6 +2432,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 수신한 메시지의 unreadCount=0이 그대로 보존되어야 함
           isA<ChatRoomState>()
@@ -2253,6 +2494,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // Background 상태에서 수신한 메시지의 unreadCount=1이 그대로 보존되어야 함
           // 이 시나리오가 실패하면 서버에서 0을 보내고 있다는 의미
@@ -2310,6 +2552,7 @@ void main() {
             messages: [],
             nextCursor: null,
             hasMore: false,
+            roomType: ChatRoomType.direct,
           ),
           // 내가 보낸 메시지도 unreadCount=1로 보존 (UI에서 "1" 표시됨)
           isA<ChatRoomState>()
@@ -2892,6 +3135,100 @@ void main() {
           verifyNever(() => mockChatRepository.uploadFile(any()));
         },
       );
+
+      // 회귀 가드: 업로드 결과의 objectId가 전송 요청으로 매핑되고,
+      // 이미지 분기에서 thumbnailObjectId가 원본 objectId로 채워지는지 검증.
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'maps upload objectId to sendFileMessage and fills thumbnailObjectId for image',
+        build: () {
+          when(() => mockChatRepository.uploadFile(any())).thenAnswer(
+            (_) async => const FileUploadResult(
+              objectId: 'obj-123',
+              fileUrl: 'https://example.com/file.jpg',
+              fileName: 'file.jpg',
+              contentType: 'image/jpeg',
+              fileSize: 1024,
+              isImage: true,
+            ),
+          );
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+                objectId: any(named: 'objectId'),
+                thumbnailObjectId: any(named: 'thumbnailObjectId'),
+              )).thenAnswer((_) async => FakeEntities.imageMessage);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(FileAttachmentRequested(tempFilePath)),
+        wait: const Duration(milliseconds: 500),
+        verify: (_) {
+          verify(() => mockChatRepository.sendFileMessage(
+                roomId: 1,
+                fileUrl: 'https://example.com/file.jpg',
+                fileName: 'file.jpg',
+                fileSize: 1024,
+                contentType: 'image/jpeg',
+                thumbnailUrl: 'https://example.com/file.jpg',
+                objectId: 'obj-123',
+                // 이미지이므로 썸네일 식별자가 원본 objectId로 채워진다.
+                thumbnailObjectId: 'obj-123',
+              )).called(1);
+        },
+      );
+
+      // 회귀 가드: 비이미지 파일은 thumbnailObjectId/thumbnailUrl이 null로 전송된다.
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'sends null thumbnailObjectId for non-image file',
+        build: () {
+          when(() => mockChatRepository.uploadFile(any())).thenAnswer(
+            (_) async => const FileUploadResult(
+              objectId: 'obj-456',
+              fileUrl: 'https://example.com/doc.pdf',
+              fileName: 'doc.pdf',
+              contentType: 'application/pdf',
+              fileSize: 2048,
+              isImage: false,
+            ),
+          );
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+                objectId: any(named: 'objectId'),
+                thumbnailObjectId: any(named: 'thumbnailObjectId'),
+              )).thenAnswer((_) async => FakeEntities.imageMessage);
+          return createBloc();
+        },
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+        ),
+        act: (bloc) => bloc.add(FileAttachmentRequested(tempFilePath)),
+        wait: const Duration(milliseconds: 500),
+        verify: (_) {
+          verify(() => mockChatRepository.sendFileMessage(
+                roomId: 1,
+                fileUrl: 'https://example.com/doc.pdf',
+                fileName: 'doc.pdf',
+                fileSize: 2048,
+                contentType: 'application/pdf',
+                thumbnailUrl: null,
+                objectId: 'obj-456',
+                thumbnailObjectId: null,
+              )).called(1);
+        },
+      );
     });
 
     group('MessageRetryRequested', () {
@@ -2905,6 +3242,7 @@ void main() {
           when(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               )).thenAnswer((_) {
             sendCallCount++;
             return sendCallCount >= 3;
@@ -2939,9 +3277,9 @@ void main() {
           // MessageRetryRequested: status changes to pending
           isA<ChatRoomState>()
               .having((s) => s.messages.first.sendStatus, 'sendStatus retry', MessageSendStatus.pending),
-          // Fire-and-forget retry succeeds → sent
+          // Fire-and-forget retry send() 성공 → echo 전이므로 sending (H2)
           isA<ChatRoomState>()
-              .having((s) => s.messages.first.sendStatus, 'sendStatus retry sent', MessageSendStatus.sent),
+              .having((s) => s.messages.first.sendStatus, 'sendStatus retry sending', MessageSendStatus.sending),
         ],
       );
 
@@ -2951,6 +3289,7 @@ void main() {
           when(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               )).thenReturn(false);
           when(() => mockWebSocketService.isConnected).thenReturn(false);
           when(() => mockWebSocketService.ensureConnected(
@@ -3013,6 +3352,7 @@ void main() {
           verifyNever(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               ));
         },
       );
@@ -3048,6 +3388,7 @@ void main() {
           when(() => mockWebSocketService.sendMessage(
                 roomId: any(named: 'roomId'),
                 content: any(named: 'content'),
+                    clientMessageId: any(named: 'clientMessageId'),
               )).thenReturn(false); // Message will fail
           when(() => mockWebSocketService.isConnected).thenReturn(false);
           when(() => mockWebSocketService.ensureConnected(
@@ -3130,6 +3471,7 @@ void main() {
           roomId: 1,
           currentUserId: 1,
           messages: [],
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const UserStartedTyping()),
         wait: const Duration(milliseconds: 100),
@@ -3155,6 +3497,7 @@ void main() {
           roomId: 1,
           currentUserId: 1,
           messages: [],
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const UserStoppedTyping()),
         wait: const Duration(milliseconds: 100),
@@ -3215,6 +3558,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3237,6 +3581,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {2: 'Alice', 3: 'Bob'},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3260,6 +3605,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 2,
@@ -3281,6 +3627,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {3: 'Bob'},
+          showTypingIndicator: true,
         ),
         act: (bloc) => bloc.add(const TypingStatusChanged(
           userId: 999,
@@ -3299,6 +3646,7 @@ void main() {
           currentUserId: 1,
           messages: [],
           typingUsers: {},
+          showTypingIndicator: true,
         ),
         act: (bloc) {
           bloc.add(const TypingStatusChanged(userId: 2, userNickname: 'Alice', isTyping: true));
@@ -3312,6 +3660,111 @@ void main() {
               .having((s) => s.typingUsers[2], 'Alice', 'Alice')
               .having((s) => s.typingUsers[3], 'Bob', 'Bob')
               .having((s) => s.typingUsers[4], 'Charlie', 'Charlie'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'auto-clears typing user after the 5s timeout fires',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: true,
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        // 5초 자동 타임아웃 타이머가 만료되며 isTyping=false 이벤트를 자가 발생시킨다.
+        wait: const Duration(seconds: 6),
+        expect: () => [
+          // 1) typing 시작으로 typingUsers에 추가
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers[2], 'user 2 typing', 'Alice'),
+          // 2) 타임아웃 만료 → 자동 해제
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.containsKey(2), 'auto-cleared', false),
+        ],
+      );
+    });
+
+    group('TypingStatusChanged with showTypingIndicator disabled', () {
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'ignores typing events when showTypingIndicator is false (default)',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: false,
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        expect: () => [],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'processes typing events when showTypingIndicator is true',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: true,
+        ),
+        act: (bloc) => bloc.add(const TypingStatusChanged(
+          userId: 2,
+          userNickname: 'Alice',
+          isTyping: true,
+        )),
+        expect: () => [
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.length, 'typingUsers length', 1)
+              .having((s) => s.typingUsers[2], 'user 2 nickname', 'Alice'),
+        ],
+      );
+
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'typing start followed by explicit stop removes user',
+        build: () => createBloc(),
+        seed: () => const ChatRoomState(
+          status: ChatRoomStatus.success,
+          roomId: 1,
+          currentUserId: 1,
+          messages: [],
+          typingUsers: {},
+          showTypingIndicator: true,
+        ),
+        act: (bloc) {
+          bloc.add(const TypingStatusChanged(
+            userId: 2,
+            userNickname: 'Alice',
+            isTyping: true,
+          ));
+          bloc.add(const TypingStatusChanged(
+            userId: 2,
+            userNickname: 'Alice',
+            isTyping: false,
+          ));
+        },
+        expect: () => [
+          // First: Alice starts typing
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.length, 'typingUsers length', 1),
+          // Then: Alice stops typing
+          isA<ChatRoomState>()
+              .having((s) => s.typingUsers.isEmpty, 'typingUsers empty', true),
         ],
       );
     });
@@ -3523,6 +3976,155 @@ void main() {
           verify(() => mockChatRepository.getMessages(1, size: any(named: 'size'))).called(1);
         },
       );
+
+      // P3 fix (line 499): dedup must be limited to the reconnect source.
+      // A notification-tap / manual ChatRoomRefreshRequested (fromReconnect=false)
+      // must NEVER be deduped, even if a foreground return armed the
+      // paired-reconnect flag. Otherwise a legitimate user refresh is dropped.
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'manual (fromReconnect=false) refresh is NOT deduped even while paired-reconnect flag is armed',
+        build: () {
+          // A reconnected stream whose emission we control, so we can arm the
+          // paired-reconnect flag without consuming it before the manual refresh.
+          final reconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => reconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')))
+              .thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(timeout: any(named: 'timeout')))
+              .thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Do NOT emit `reconnected` — the paired flag stays armed, simulating
+            // the window before the reconnect refresh would arrive.
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 150));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          // Foreground reconnect → arms _expectPairedReconnect (no reconnect
+          // emission), foreground also runs one direct gap recovery.
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 100));
+          clearInteractions(mockChatRepository);
+          // Manual/notification refresh while the flag is armed.
+          bloc.add(const ChatRoomRefreshRequested());
+          await Future.delayed(const Duration(milliseconds: 150));
+        },
+        wait: const Duration(milliseconds: 500),
+        verify: (_) {
+          // The manual refresh must still hit the server (not deduped).
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+        },
+      );
+
+      // P3 fix (line 659): a reconnect-sourced refresh IS deduped against the
+      // foreground that triggered it (exactly-once guarantee preserved).
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'reconnect (fromReconnect=true) refresh IS deduped when paired with a foreground return',
+        build: () {
+          final reconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => reconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')))
+              .thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(timeout: any(named: 'timeout')))
+              .thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Emit reconnected ~100ms later like the real _onConnected.
+            Timer(const Duration(milliseconds: 100), () {
+              if (!reconnectedController.isClosed) reconnectedController.add(null);
+            });
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 150));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          clearInteractions(mockChatRepository);
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        wait: const Duration(milliseconds: 600),
+        verify: (_) {
+          // Foreground-direct ran once; the paired reconnect refresh skipped.
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+        },
+      );
+
+      // P3 fix (line 659): liveness — if the reconnect re-drops during
+      // subscriptionDelay, `reconnected` never fires, so the paired refresh never
+      // arrives to consume _expectPairedReconnect. The timeout must auto-disarm
+      // it so a LATER genuine standalone reconnect's gap recovery is not skipped.
+      late StreamController<void> staleFlagReconnectedController;
+      blocTest<ChatRoomBloc, ChatRoomState>(
+        'stale paired-reconnect flag auto-disarms so a later standalone reconnect still recovers',
+        build: () {
+          staleFlagReconnectedController = StreamController<void>.broadcast();
+          when(() => mockWebSocketService.reconnected)
+              .thenAnswer((_) => staleFlagReconnectedController.stream);
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (FakeEntities.messages, 123, true));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+          when(() => mockWebSocketService.sendPresencePing(roomId: any(named: 'roomId')))
+              .thenReturn(null);
+          when(() => mockWebSocketService.resetReconnectAttempts()).thenReturn(null);
+          when(() => mockWebSocketService.disconnect()).thenAnswer((_) {
+            when(() => mockWebSocketService.isConnected).thenReturn(false);
+          });
+          when(() => mockWebSocketService.ensureConnected(timeout: any(named: 'timeout')))
+              .thenAnswer((_) async {
+            when(() => mockWebSocketService.isConnected).thenReturn(true);
+            // Re-drop case: NEVER emit reconnected for the foreground reconnect.
+            return true;
+          });
+          return createBloc();
+        },
+        act: (bloc) async {
+          bloc.add(const ChatRoomOpened(1));
+          await Future.delayed(const Duration(milliseconds: 150));
+          bloc.add(const ChatRoomBackgrounded());
+          await Future.delayed(const Duration(milliseconds: 50));
+          // Foreground reconnect arms the flag, but reconnected never fires.
+          bloc.add(const ChatRoomForegrounded());
+          await Future.delayed(const Duration(milliseconds: 100));
+          // Wait past the _pairedReconnectWindow (2s) so the flag auto-disarms.
+          await Future.delayed(const Duration(seconds: 2, milliseconds: 200));
+          clearInteractions(mockChatRepository);
+          // A LATER genuine standalone reconnect (network drop while viewing).
+          staleFlagReconnectedController.add(null);
+          await Future.delayed(const Duration(milliseconds: 200));
+        },
+        wait: const Duration(seconds: 3),
+        verify: (_) {
+          // If the stale flag had lingered, this reconnect would be skipped.
+          // It must run gap recovery.
+          verify(() => mockChatRepository.getMessages(1, size: any(named: 'size')))
+              .called(1);
+        },
+      );
     });
 
     group('markAsRead debounce behavior', () {
@@ -3701,9 +4303,9 @@ void main() {
               .having((s) => s.messages.length, 'messages.length', 1)
               .having((s) => s.messages.first.content, 'content', '답장 내용')
               .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.pending),
-          // Second emit: message send completed (success)
+          // Second emit: send 완료 → echo 전이므로 sending (H2)
           isA<ChatRoomState>()
-              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sent),
+              .having((s) => s.messages.first.sendStatus, 'sendStatus', MessageSendStatus.sending),
         ],
         verify: (_) {
           verify(() => mockChatRepository.replyToMessage(1, '답장 내용')).called(1);
@@ -3789,6 +4391,265 @@ void main() {
               .having((s) => s.errorMessage, 'errorMessage', isNotNull),
         ],
       );
+    });
+
+    // ============================================================
+    // Lifecycle safety: emit-after-close & activeRoom race
+    // ============================================================
+    group('생명주기 안전성 (emit-after-close 가드)', () {
+      // emit-after-close는 Bloc 핸들러 내부에서 StateError를 throw하고,
+      // Bloc.onError -> Zone.handleUncaughtError로 전파된다. 가드가 없으면
+      // 이 zone 에러가 잡힌다. runZonedGuarded로 캡처해 단언한다.
+      Future<List<Object>> runCapturingErrors(
+        Future<void> Function() body,
+      ) async {
+        final errors = <Object>[];
+        final done = Completer<void>();
+        runZonedGuarded(() async {
+          await body();
+          done.complete();
+        }, (error, stack) {
+          errors.add(error);
+          if (!done.isCompleted) done.complete();
+        });
+        await done.future;
+        // 비동기 emit-after-close가 늦게 도착할 수 있어 한 틱 더 기다린다.
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        return errors;
+      }
+
+      test(
+          'P1: ChatRoomOpened의 await 도중 close()되어도 emit-after-close StateError가 없다',
+          () async {
+        final errors = await runCapturingErrors(() async {
+          // getMessages를 느리게 만들어 서버 sync await 도중 close를 끼워넣는다.
+          final completer = Completer<(List<Message>, int?, bool)>();
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) => completer.future);
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          // loading emit까지 진행시키고 서버 sync await에 진입하게 한다.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          // await 도중 방을 빠르게 나가 bloc을 close.
+          await bloc.close();
+          expect(bloc.isClosed, isTrue);
+
+          // 이제 서버 응답이 도착해 await가 풀린다 → 가드가 없으면 emit-after-close 크래시.
+          completer.complete((<Message>[], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        // emit-after-close는 bloc 버전에 따라 StateError 또는 AssertionError로
+        // 표면화된다. 어떤 종류든 uncaught error가 없어야 한다.
+        //
+        // 주의(항진성 한계): bloc 8.1.4의 emit은 emitter가 canceled(close 후)
+        // 상태이면 StateError를 던지지 않고 silent no-op으로 처리한다. 따라서
+        // 이 `errors isEmpty` 단언만으로는 "가드가 동작함"을 증명하지 못하며,
+        // 가드를 제거해도 그린으로 통과한다. 가드의 실제 효과(close 후 분기
+        // 스킵)를 검증하는 회귀 가드는 아래의 별도 테스트
+        // ('가드가 close 후 후속 분기를 실제로 스킵한다')에서 다룬다.
+        expect(
+          errors,
+          isEmpty,
+          reason: 'await 이후 emit 가드가 없으면 emit-after-close 크래시 발생',
+        );
+      });
+
+      test(
+          'P1(회귀가드): _onOpened의 await 도중 close()되면 emit 이후 분기가 실제로 스킵된다',
+          () async {
+        // bloc 8.1.4의 emit은 close 후 no-op이라 "state가 안 바뀜"만으로는
+        // 가드 효과를 증명하지 못한다(항진적). 대신 가드(`if (isClosed) return;`,
+        // chat_room_bloc.dart:201)가 막아주는 *emit과 무관한 관찰가능 부수효과*를
+        // 단언한다. 가드 직후 라인(205)은 `_webSocketService.reconnected`에
+        // 접근해 .listen() 구독을 건다. close 도중 서버 sync await가 풀리면:
+        //   - 가드가 있으면: 201에서 early-return → reconnected 접근 없음.
+        //   - 가드를 제거하면: 205가 실행 → reconnected 접근 발생.
+        // 즉 verifyNever(reconnected)는 가드 제거 시 RED가 되어 의미가 있다.
+        final completer = Completer<(List<Message>, int?, bool)>();
+        when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+            .thenAnswer((_) => completer.future);
+        when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+        await runCapturingErrors(() async {
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          // loading emit 후 서버 sync await(getMessages)에 진입할 때까지 진행.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          // 아직 close 전에는 reconnected 구독이 일어나선 안 된다(사전 조건).
+          verifyNever(() => mockWebSocketService.reconnected);
+
+          // await 도중 close.
+          await bloc.close();
+          expect(bloc.isClosed, isTrue);
+
+          // 서버 응답 도착 → await가 풀린다. 가드가 있으면 여기서 early-return.
+          completer.complete((<Message>[], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        // 가드가 동작하면 close 이후 라인 205(reconnected.listen)에 절대
+        // 도달하지 않는다. 가드를 제거하면 이 단언이 실패(RED)한다.
+        verifyNever(() => mockWebSocketService.reconnected);
+      });
+
+      test(
+          'P1: _onRefreshRequested의 await 도중 close()되어도 emit-after-close StateError가 없다',
+          () async {
+        final errors = await runCapturingErrors(() async {
+          when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+              .thenAnswer((_) async => (<Message>[], null, false));
+          when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+          final bloc = createBloc();
+          bloc.add(const ChatRoomOpened(1));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+
+          // refresh의 첫 await(getMessages)를 느리게 만든다.
+          final completer = Completer<(List<Message>, int?, bool)>();
+          when(() => mockChatRepository.getMessages(
+                any(),
+                size: any(named: 'size'),
+                beforeMessageId: any(named: 'beforeMessageId'),
+              )).thenAnswer((_) => completer.future);
+
+          bloc.add(const ChatRoomRefreshRequested());
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          await bloc.close();
+          completer.complete((<Message>[Message(
+            id: 999,
+            chatRoomId: 1,
+            senderId: 2,
+            content: 'late',
+            createdAt: DateTime.now(),
+          )], null, false));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        expect(errors, isEmpty,
+            reason: 'refresh await 이후 emit 가드가 없으면 emit-after-close 크래시');
+      });
+
+      test(
+          'P2: 파일 업로드 progress 콜백이 close() 이후 호출되어도 emit-after-close StateError가 없다',
+          () async {
+        // 실제 임시 파일 생성 (handleFileAttachment가 File.exists()를 검사).
+        final tmp = await File(
+          '${Directory.systemTemp.path}/cotalk_upload_${DateTime.now().microsecondsSinceEpoch}.txt',
+        ).create();
+        await tmp.writeAsString('hello');
+
+        final errors = await runCapturingErrors(() async {
+          // uploadFile을 느리게 만들어, 업로드 도중 close를 끼워넣은 뒤
+          // onProgress(0.5)/onProgress(1.0) 콜백이 closed bloc으로 향하게 한다.
+          final uploadCompleter = Completer<FileUploadResult>();
+          when(() => mockChatRepository.uploadFile(any()))
+              .thenAnswer((_) => uploadCompleter.future);
+          when(() => mockChatRepository.sendFileMessage(
+                roomId: any(named: 'roomId'),
+                fileUrl: any(named: 'fileUrl'),
+                fileName: any(named: 'fileName'),
+                fileSize: any(named: 'fileSize'),
+                contentType: any(named: 'contentType'),
+                thumbnailUrl: any(named: 'thumbnailUrl'),
+              )).thenAnswer((_) async => FakeEntities.textMessage);
+
+          final bloc = createBloc();
+          // roomId가 있어야 업로드가 진행된다.
+          bloc.add(const ChatRoomOpened(1));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+
+          bloc.add(FileAttachmentRequested(tmp.path));
+          // onProgress(0.0) emit까지 진행, uploadFile await에 진입.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          await bloc.close();
+
+          // 업로드 완료 → onProgress(0.5), sendFileMessage, onProgress(1.0)이
+          // closed bloc에서 호출된다. 가드가 없으면 여기서 크래시.
+          uploadCompleter.complete(const FileUploadResult(
+            fileUrl: 'http://x/f.txt',
+            fileName: 'f.txt',
+            contentType: 'text/plain',
+            fileSize: 5,
+            isImage: false,
+          ));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+
+        expect(
+          errors,
+          isEmpty,
+          reason: 'progress 콜백 emit에 isClosed 가드가 없으면 emit-after-close 크래시',
+        );
+        await tmp.delete();
+      });
+    });
+
+    group('P3: activeRoomId 소유권 가드 (방 전환 race)', () {
+      test(
+          'A 닫힘 처리가 이미 B로 설정된 activeRoomId를 지우지 않는다 (소유권 가드)',
+          () async {
+        // 실제 ActiveRoomTracker + 상태를 보유하는 bridge 스텁 사용.
+        final realTracker = ActiveRoomTracker();
+        final statefulBridge = MockDesktopNotificationBridge();
+        int? bridgeRoomId;
+        when(() => statefulBridge.activeRoomId).thenAnswer((_) => bridgeRoomId);
+        when(() => statefulBridge.setActiveRoomId(any())).thenAnswer((inv) {
+          bridgeRoomId = inv.positionalArguments.first as int?;
+        });
+
+        when(() => mockChatRepository.getMessages(any(), size: any(named: 'size')))
+            .thenAnswer((_) async => (<Message>[], null, false));
+        when(() => mockChatRepository.markAsRead(any())).thenAnswer((_) async {});
+
+        ChatRoomBloc buildBloc() => ChatRoomBloc(
+              mockChatRepository,
+              mockWebSocketService,
+              mockAuthLocalDataSource,
+              statefulBridge,
+              realTracker,
+              mockFriendRepository,
+              mockSettingsRepository,
+            );
+
+        // 방 A 진입 → activeRoomId = A(1)
+        final blocA = buildBloc();
+        blocA.add(const ChatRoomOpened(1));
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, 1);
+        expect(bridgeRoomId, 1);
+
+        // 방 B 진입 → activeRoomId = B(2) (B의 ChatRoomOpened가 먼저 실행)
+        final blocB = buildBloc();
+        blocB.add(const ChatRoomOpened(2));
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, 2);
+        expect(bridgeRoomId, 2);
+
+        // 이제 A의 dispose/_onClosed가 뒤늦게 실행됨.
+        blocA.add(const ChatRoomClosed());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+
+        // 소유권 가드: A는 자기 방(1)일 때만 지워야 하므로 B(2)는 유지되어야 한다.
+        expect(realTracker.activeRoomId, 2,
+            reason: 'A의 close가 B의 active 설정을 덮어쓰면 안 된다');
+        expect(bridgeRoomId, 2);
+
+        // B가 정상적으로 닫히면 자기 소유이므로 해제된다.
+        blocB.add(const ChatRoomClosed());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(realTracker.activeRoomId, isNull);
+        expect(bridgeRoomId, isNull);
+
+        await blocA.close();
+        await blocB.close();
+      });
     });
   });
 }

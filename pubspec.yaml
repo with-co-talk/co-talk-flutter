@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
 
@@ -21,6 +23,8 @@ dependencies:
   dio: ^5.7.0
   http_parser: ^4.0.0
   json_annotation: ^4.9.0
+  # 인증서 피닝: 인증서 DER의 SHA-256 지문 계산에 사용 (C1)
+  crypto: ^3.0.0
 
   # WebSocket (STOMP)
   stomp_dart_client: ^2.0.0
@@ -141,6 +145,7 @@ msix_config:
 
 flutter:
   uses-material-design: true
+  generate: true
 
   assets:
     - assets/images/

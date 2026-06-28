@@ -5,4 +5,6 @@
 export 'message_cache_manager.dart';
 export 'message_handler.dart';
 export 'presence_manager.dart';
+export 'reaction_handler.dart';
+export 'read_receipt_calculator.dart';
 export 'websocket_subscription_manager.dart';

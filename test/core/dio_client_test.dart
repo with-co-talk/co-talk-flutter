@@ -15,13 +15,14 @@ void main() {
   late DioClient dioClient;
   late MockAuthLocalDataSource mockAuthLocalDataSource;
   late AuthInterceptor authInterceptor;
-  late CertificatePinningInterceptor certificatePinningInterceptor;
+  late CertificatePinningService certificatePinningService;
 
   setUp(() {
     mockAuthLocalDataSource = MockAuthLocalDataSource();
-    authInterceptor = AuthInterceptor(mockAuthLocalDataSource);
-    certificatePinningInterceptor = CertificatePinningInterceptor();
-    dioClient = DioClient(authInterceptor, certificatePinningInterceptor);
+    certificatePinningService = const CertificatePinningService();
+    authInterceptor =
+        AuthInterceptor(mockAuthLocalDataSource, certificatePinningService);
+    dioClient = DioClient(authInterceptor, certificatePinningService);
   });
 
   group('DioClient', () {

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/date_utils.dart';
 import '../../domain/entities/message.dart';
+import '../../l10n/app_localizations.dart';
 import '../blocs/chat/message_search/message_search_bloc.dart';
 import '../blocs/chat/message_search/message_search_event.dart';
 import '../blocs/chat/message_search/message_search_state.dart';
@@ -89,7 +90,7 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
               color: context.textPrimaryColor,
             ),
             decoration: InputDecoration(
-              hintText: '메시지 검색',
+              hintText: AppLocalizations.of(context)!.widgetMessageSearchHint,
               hintStyle: TextStyle(color: context.textSecondaryColor),
               prefixIcon: const Icon(
                 Icons.search_rounded,
@@ -152,7 +153,8 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                state.errorMessage ?? '검색 중 오류가 발생했습니다',
+                state.errorMessage ??
+                    AppLocalizations.of(context)!.widgetSearchError,
                 style: TextStyle(
                   color: AppColors.error,
                   fontSize: 14,
@@ -168,7 +170,7 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
           return _buildPlaceholder(
             context,
             icon: Icons.search_off_rounded,
-            message: '검색 결과가 없습니다',
+            message: AppLocalizations.of(context)!.widgetSearchNoResults,
           );
         }
 
@@ -177,7 +179,7 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
           return _buildPlaceholder(
             context,
             icon: Icons.search_rounded,
-            message: '검색어를 입력하세요',
+            message: AppLocalizations.of(context)!.widgetSearchPrompt,
           );
         }
 
@@ -260,7 +262,8 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
                       children: [
                         // 발신자 이름
                         Text(
-                          message.senderNickname ?? '알 수 없음',
+                          message.senderNickname ??
+                              AppLocalizations.of(context)!.widgetUnknownSender,
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 14,

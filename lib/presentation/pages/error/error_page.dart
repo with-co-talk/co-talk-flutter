@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../widgets/gradient_button.dart';
 
 class ErrorPage extends StatelessWidget {
@@ -17,7 +18,7 @@ class ErrorPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: context.backgroundColor,
       appBar: AppBar(
-        title: const Text('오류'),
+        title: Text(AppLocalizations.of(context)!.errorTitle),
       ),
       body: SafeArea(
         child: Center(
@@ -55,7 +56,7 @@ class ErrorPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    message ?? '페이지를 불러올 수 없습니다',
+                    message ?? AppLocalizations.of(context)!.errorPageLoadFailed,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -66,7 +67,7 @@ class ErrorPage extends StatelessWidget {
                   const SizedBox(height: 28),
                   GradientButton(
                     onPressed: () => context.go(AppRoutes.friends),
-                    label: '홈으로 돌아가기',
+                    label: AppLocalizations.of(context)!.errorGoHome,
                     icon: Icons.home_rounded,
                   ),
                 ],

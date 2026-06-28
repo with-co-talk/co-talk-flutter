@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../domain/entities/chat_room.dart';
 import '../../../domain/entities/message.dart';
 
 enum ChatRoomStatus { initial, loading, success, failure }
@@ -18,6 +19,8 @@ class ChatRoomState extends Equatable {
   final bool isOtherUserLeft; // 상대방이 채팅방을 나갔는지 여부
   final int? otherUserId; // 1:1 채팅에서 상대방 ID
   final String? otherUserNickname; // 1:1 채팅에서 상대방 닉네임
+  final String? roomName; // 채팅방 이름 (그룹 채팅)
+  final ChatRoomType? roomType; // 채팅방 타입 (direct, group, self)
   final bool isReinviting; // 재초대 진행 중 여부
   final bool reinviteSuccess; // 재초대 성공 여부
   final bool isUploadingFile; // 파일 업로드 중 여부
@@ -31,6 +34,7 @@ class ChatRoomState extends Equatable {
   final Message? replyToMessage; // 답장 대상 메시지
   final bool isForwarding; // 메시지 전달 진행 중 여부
   final bool forwardSuccess; // 메시지 전달 성공 여부
+  final bool showTypingIndicator; // 입력중 표시 설정
 
   const ChatRoomState({
     this.status = ChatRoomStatus.initial,
@@ -47,6 +51,8 @@ class ChatRoomState extends Equatable {
     this.isOtherUserLeft = false,
     this.otherUserId,
     this.otherUserNickname,
+    this.roomName,
+    this.roomType,
     this.isReinviting = false,
     this.reinviteSuccess = false,
     this.isUploadingFile = false,
@@ -60,7 +66,18 @@ class ChatRoomState extends Equatable {
     this.replyToMessage,
     this.isForwarding = false,
     this.forwardSuccess = false,
+    this.showTypingIndicator = false,
   });
+
+  /// 채팅방 AppBar에 표시할 제목
+  String get displayTitle {
+    if (roomType == ChatRoomType.self) return '나와의 채팅';
+    if (roomType == ChatRoomType.direct && otherUserNickname != null) {
+      return otherUserNickname!;
+    }
+    if (roomName != null && roomName!.isNotEmpty) return roomName!;
+    return '채팅';
+  }
 
   /// 누군가 타이핑 중인지 여부
   bool get isAnyoneTyping => typingUsers.isNotEmpty;
@@ -91,6 +108,8 @@ class ChatRoomState extends Equatable {
     bool? isOtherUserLeft,
     int? otherUserId,
     String? otherUserNickname,
+    String? roomName,
+    ChatRoomType? roomType,
     bool? isReinviting,
     bool? reinviteSuccess,
     bool? isUploadingFile,
@@ -105,6 +124,7 @@ class ChatRoomState extends Equatable {
     bool clearReplyToMessage = false,
     bool? isForwarding,
     bool? forwardSuccess,
+    bool? showTypingIndicator,
   }) {
     return ChatRoomState(
       status: status ?? this.status,
@@ -121,6 +141,8 @@ class ChatRoomState extends Equatable {
       isOtherUserLeft: isOtherUserLeft ?? this.isOtherUserLeft,
       otherUserId: otherUserId ?? this.otherUserId,
       otherUserNickname: otherUserNickname ?? this.otherUserNickname,
+      roomName: roomName ?? this.roomName,
+      roomType: roomType ?? this.roomType,
       isReinviting: isReinviting ?? this.isReinviting,
       reinviteSuccess: reinviteSuccess ?? this.reinviteSuccess,
       isUploadingFile: isUploadingFile ?? this.isUploadingFile,
@@ -134,6 +156,7 @@ class ChatRoomState extends Equatable {
       replyToMessage: clearReplyToMessage ? null : (replyToMessage ?? this.replyToMessage),
       isForwarding: isForwarding ?? this.isForwarding,
       forwardSuccess: forwardSuccess ?? this.forwardSuccess,
+      showTypingIndicator: showTypingIndicator ?? this.showTypingIndicator,
     );
   }
 
@@ -153,6 +176,8 @@ class ChatRoomState extends Equatable {
         isOtherUserLeft,
         otherUserId,
         otherUserNickname,
+        roomName,
+        roomType,
         isReinviting,
         reinviteSuccess,
         isUploadingFile,
@@ -166,5 +191,6 @@ class ChatRoomState extends Equatable {
         replyToMessage,
         isForwarding,
         forwardSuccess,
+        showTypingIndicator,
       ];
 }

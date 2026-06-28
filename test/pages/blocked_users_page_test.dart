@@ -8,6 +8,7 @@ import 'package:co_talk_flutter/presentation/blocs/friend/friend_state.dart';
 import 'package:co_talk_flutter/presentation/pages/friends/blocked_users_page.dart';
 import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:co_talk_flutter/di/injection.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 
 class MockFriendBloc extends MockBloc<FriendEvent, FriendState>
     implements FriendBloc {}
@@ -33,8 +34,11 @@ void main() {
   });
 
   Widget createWidgetUnderTest() {
-    return const MaterialApp(
-      home: BlockedUsersPage(),
+    return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: const BlockedUsersPage(),
     );
   }
 
@@ -98,10 +102,10 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // Warm Sand 리뉴얼: 공용 EmptyStateView 카피로 변경
+      // Warm Sand 리뉴얼: 공용 EmptyStateView + i18n 카피(friendsBlockedEmpty*)로 변경
       expect(find.byIcon(Icons.block_outlined), findsOneWidget);
-      expect(find.text('차단한 사용자가 없어요'), findsOneWidget);
-      expect(find.text('차단한 사용자가 생기면 여기에서 관리할 수 있어요.'), findsOneWidget);
+      expect(find.text('차단한 사용자가 없습니다'), findsOneWidget);
+      expect(find.text('차단한 사용자가 여기에 표시됩니다'), findsOneWidget);
     });
 
     testWidgets('shows error state when error occurs with empty list', (tester) async {
@@ -114,9 +118,9 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // Warm Sand 리뉴얼: 공용 EmptyStateView 에러 스타일(cloud_off_rounded + 새 카피)
+      // Warm Sand 리뉴얼: 공용 EmptyStateView 에러 스타일(cloud_off_rounded + i18n friendsBlockedLoadError)
       expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
-      expect(find.text('차단 목록을 불러오지 못했어요'), findsOneWidget);
+      expect(find.text('차단 목록을 불러오는데 실패했습니다'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });
 

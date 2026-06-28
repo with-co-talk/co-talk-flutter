@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:bloc_test/bloc_test.dart';
@@ -19,6 +20,9 @@ void main() {
 
   Widget createWidgetUnderTest() {
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: BlocProvider<AuthBloc>.value(
         value: mockAuthBloc,
         child: const LoginPage(),
@@ -36,9 +40,9 @@ void main() {
       expect(find.text('이메일'), findsOneWidget);
       expect(find.text('비밀번호'), findsOneWidget);
       expect(find.text('로그인'), findsOneWidget);
-      // Sign-up prompt is now split into a label + tappable link.
-      expect(find.text('계정이 없으신가요?'), findsOneWidget);
-      expect(find.text('회원가입'), findsOneWidget);
+      // Warm Sand merge: sign-up prompt is a single combined i18n string
+      // (authNoAccountSignUp = "계정이 없으신가요? 회원가입") in one TextButton.
+      expect(find.text('계정이 없으신가요? 회원가입'), findsOneWidget);
     });
 
     testWidgets('shows validation error for empty email', (tester) async {

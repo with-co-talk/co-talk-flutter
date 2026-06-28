@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -79,7 +80,8 @@ class _LoginPageState extends State<LoginPage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  content: Text(state.errorMessage ?? '로그인에 실패했습니다'),
+                  content: Text(state.errorMessage ??
+                      AppLocalizations.of(context)!.authLoginFailed),
                   backgroundColor: AppColors.error,
                 ),
               );
@@ -150,10 +152,11 @@ class _LoginPageState extends State<LoginPage> {
                         // ── 이메일 ──
                         TextFormField(
                           controller: _emailController,
-                          decoration: const InputDecoration(
-                            labelText: '이메일',
+                          decoration: InputDecoration(
+                            labelText: AppLocalizations.of(context)!.authEmail,
                             hintText: 'name@example.com',
-                            prefixIcon: Icon(Icons.alternate_email_rounded),
+                            prefixIcon:
+                                const Icon(Icons.alternate_email_rounded),
                           ),
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
@@ -164,7 +167,8 @@ class _LoginPageState extends State<LoginPage> {
                         TextFormField(
                           controller: _passwordController,
                           decoration: InputDecoration(
-                            labelText: '비밀번호',
+                            labelText:
+                                AppLocalizations.of(context)!.authPassword,
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -196,7 +200,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  '한글이 입력되어 있습니다. 영문 키보드를 확인하세요.',
+                                  AppLocalizations.of(context)!.authKoreanInputWarning,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: isDark
@@ -212,31 +216,42 @@ class _LoginPageState extends State<LoginPage> {
                         GradientButton(
                           onPressed: isLoading ? null : _onLogin,
                           isLoading: isLoading,
-                          label: '로그인',
+                          label: AppLocalizations.of(context)!.authLogin,
                         ),
                         const SizedBox(height: 18),
+                        TextButton(
+                          onPressed: () => context.go(AppRoutes.signUp),
+                          child: Text(
+                            AppLocalizations.of(context)!.authNoAccountSignUp,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        // ── 이메일/비밀번호 찾기 (main 추가 동선) ──
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Flexible(
+                            TextButton(
+                              onPressed: () => context.go(AppRoutes.findEmail),
+                              style: TextButton.styleFrom(
+                                foregroundColor: context.textSecondaryColor,
+                              ),
                               child: Text(
-                                '계정이 없으신가요?',
-                                style: TextStyle(
-                                  color: context.textSecondaryColor,
-                                  fontSize: 14,
-                                ),
+                                AppLocalizations.of(context)!.authForgotEmail,
                               ),
                             ),
+                            Text(
+                              '|',
+                              style: TextStyle(color: context.dividerColor),
+                            ),
                             TextButton(
-                              onPressed: () => context.go(AppRoutes.signUp),
+                              onPressed: () =>
+                                  context.go(AppRoutes.forgotPassword),
                               style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 6),
-                                minimumSize: const Size(0, 0),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                foregroundColor: context.textSecondaryColor,
                               ),
-                              child: const Text(
-                                '회원가입',
-                                style: TextStyle(fontWeight: FontWeight.w700),
+                              child: Text(
+                                AppLocalizations.of(context)!.authForgotPassword,
                               ),
                             ),
                           ],

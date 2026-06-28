@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/message_search/message_search_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/message_search/message_search_event.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/message_search/message_search_state.dart';
@@ -32,6 +33,9 @@ void main() {
     when(() => mockMessageSearchBloc.close()).thenAnswer((_) async {});
 
     return MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: BlocProvider<MessageSearchBloc>.value(
           value: mockMessageSearchBloc,
@@ -157,6 +161,9 @@ void main() {
           .thenAnswer((_) => const Stream.empty());
 
       await tester.pumpWidget(MaterialApp(
+        locale: const Locale('ko'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: BlocProvider<MessageSearchBloc>.value(
             value: mockMessageSearchBloc,

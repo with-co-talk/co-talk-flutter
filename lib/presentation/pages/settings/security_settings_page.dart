@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/app_haptics.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/settings/biometric_settings_cubit.dart';
 import '../../blocs/settings/biometric_settings_state.dart';
 
@@ -13,7 +14,7 @@ class SecuritySettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.backgroundColor,
-      appBar: AppBar(title: const Text('보안')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.settingsSecurity)),
       body: BlocBuilder<BiometricSettingsCubit, BiometricSettingsState>(
         builder: (context, state) {
           if (state.status == BiometricSettingsStatus.loading ||
@@ -29,7 +30,7 @@ class SecuritySettingsPage extends StatelessWidget {
               if (!state.isSupported)
                 _InfoBanner(
                   icon: Icons.info_outline_rounded,
-                  text: '이 기기는 생체 인증을 지원하지 않습니다.',
+                  text: AppLocalizations.of(context)!.settingsBiometricNotSupported,
                   tone: context.textSecondaryColor,
                 ),
               if (!state.isSupported) const SizedBox(height: 16),
@@ -77,7 +78,7 @@ class SecuritySettingsPage extends StatelessWidget {
                     ),
                   ),
                   title: Text(
-                    '생체 인증',
+                    AppLocalizations.of(context)!.settingsBiometric,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
@@ -88,8 +89,8 @@ class SecuritySettingsPage extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       state.isSupported
-                          ? '앱 잠금 해제 시 생체 인증을 사용합니다'
-                          : '이 기기에서 사용할 수 없습니다',
+                          ? AppLocalizations.of(context)!.settingsBiometricEnabledDesc
+                          : AppLocalizations.of(context)!.settingsBiometricUnavailable,
                       style: TextStyle(
                         fontSize: 12.5,
                         color: context.textSecondaryColor,
@@ -109,8 +110,7 @@ class SecuritySettingsPage extends StatelessWidget {
                 const SizedBox(height: 14),
                 _InfoBanner(
                   icon: Icons.lock_clock_outlined,
-                  text:
-                      '앱을 30초 이상 백그라운드에 둔 후 복귀하면 생체 인증을 요청합니다.',
+                  text: AppLocalizations.of(context)!.settingsBiometricBackgroundNotice,
                   tone: context.textSecondaryColor,
                 ),
               ],

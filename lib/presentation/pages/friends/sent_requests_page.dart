@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/friend.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
@@ -60,9 +62,9 @@ class _SentRequestsView extends StatelessWidget {
               }
             },
           ),
-          title: const Text(
-            '보낸 친구 요청',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context)!.friendsSentTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 19,
               letterSpacing: -0.4,
@@ -80,13 +82,13 @@ class _SentRequestsView extends StatelessWidget {
             if (state.errorMessage != null && state.sentRequests.isEmpty) {
               return EmptyStateView(
                 icon: Icons.cloud_off_rounded,
-                title: '요청을 불러오지 못했어요',
+                title: AppLocalizations.of(context)!.friendsSentLoadError,
                 subtitle: '네트워크 상태를 확인하고 다시 시도해 주세요.',
                 action: SizedBox(
                   width: 160,
                   child: GradientButton(
                     height: 48,
-                    label: '다시 시도',
+                    label: AppLocalizations.of(context)!.commonRetry,
                     icon: Icons.refresh_rounded,
                     onPressed: () {
                       context.read<FriendBloc>().add(const SentFriendRequestsLoadRequested());
@@ -97,10 +99,10 @@ class _SentRequestsView extends StatelessWidget {
             }
 
             if (state.sentRequests.isEmpty) {
-              return const EmptyStateView(
+              return EmptyStateView(
                 icon: Icons.send_outlined,
-                title: '보낸 친구 요청이 없어요',
-                subtitle: '친구를 검색해서 먼저 요청을 보내보세요.',
+                title: AppLocalizations.of(context)!.friendsSentEmptyTitle,
+                subtitle: AppLocalizations.of(context)!.friendsSentEmptyDesc,
               );
             }
 
@@ -152,7 +154,10 @@ class _SentRequestTile extends StatelessWidget {
             radius: 26,
             backgroundColor: AppColors.primaryLight,
             backgroundImage: request.receiver.avatarUrl != null
-                ? NetworkImage(request.receiver.avatarUrl!)
+                ? CachedNetworkImageProvider(
+                    request.receiver.avatarUrl!,
+                    maxWidth: 200,
+                  )
                 : null,
             child: request.receiver.avatarUrl == null
                 ? Text(
@@ -201,8 +206,8 @@ class _SentRequestTile extends StatelessWidget {
               color: AppColors.primary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text(
-              '대기 중',
+            child: Text(
+              AppLocalizations.of(context)!.friendsSentPending,
               style: TextStyle(
                 color: AppColors.primary,
                 fontSize: 12,

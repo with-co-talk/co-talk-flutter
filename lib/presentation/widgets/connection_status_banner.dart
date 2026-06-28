@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/network/websocket/websocket_events.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_motion.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Banner widget that displays WebSocket connection status and provides reconnect functionality.
 ///
@@ -90,8 +91,10 @@ class ConnectionStatusBanner extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 _isFailed
-                                    ? '연결 실패 - 재시도가 중단되었습니다'
-                                    : '연결이 끊어졌습니다',
+                                    ? AppLocalizations.of(context)!
+                                        .widgetConnectionFailed
+                                    : AppLocalizations.of(context)!
+                                        .widgetConnectionLost,
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
@@ -108,9 +111,9 @@ class ConnectionStatusBanner extends StatelessWidget {
                                 color: Colors.white,
                                 size: 18,
                               ),
-                              label: const Text(
-                                '재연결',
-                                style: TextStyle(
+                              label: Text(
+                                AppLocalizations.of(context)!.widgetReconnect,
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: -0.2,

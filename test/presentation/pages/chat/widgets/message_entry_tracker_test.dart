@@ -28,5 +28,13 @@ void main() {
       expect(t.registerAndCheckNew('a'), isTrue);
       expect(t.registerAndCheckNew('a'), isFalse);
     });
+
+    test('빈 대화방: 빈 집합으로 시드해도 첫 도착 메시지는 새 것으로 본다', () {
+      // 빈 방으로 진입 → 시드할 메시지 없음(empty seed).
+      final t = MessageEntryTracker()..seedIfNeeded(const <String>[]);
+      // 이후 도착한 첫 말풍선은 진입 애니메이션 대상(새 것)이어야 한다.
+      expect(t.registerAndCheckNew('first'), isTrue);
+      expect(t.registerAndCheckNew('first'), isFalse); // 재빌드 시 재생 안 함
+    });
   });
 }

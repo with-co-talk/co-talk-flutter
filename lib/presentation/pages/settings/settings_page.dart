@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/app_haptics.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -49,20 +50,20 @@ class _SettingsPageState extends State<SettingsPage> {
             }
           },
         ),
-        title: const Text('설정'),
+        title: Text(AppLocalizations.of(context)!.settingsTitle),
       ),
       body: ListView(
         padding: const EdgeInsets.only(top: 8),
         children: [
           // 프로필 섹션
           _SettingsSection(
-            title: '프로필',
+            title: AppLocalizations.of(context)!.settingsProfile,
             children: [
               BlocBuilder<AuthBloc, AuthState>(
                 builder: (context, state) {
                   return _SettingsTile(
                     icon: Icons.person_outline,
-                    title: '내 프로필',
+                    title: AppLocalizations.of(context)!.settingsMyProfile,
                     subtitle: state.user?.nickname ?? '',
                     onTap: () {
                       final userId = state.user?.id;
@@ -77,56 +78,56 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           // 알림 섹션
           _SettingsSection(
-            title: '알림',
+            title: AppLocalizations.of(context)!.settingsNotification,
             children: [
               _SettingsTile(
                 icon: Icons.notifications_outlined,
-                title: '알림 설정',
-                subtitle: '메시지, 친구 요청, 그룹 초대 알림',
+                title: AppLocalizations.of(context)!.settingsNotificationSettings,
+                subtitle: AppLocalizations.of(context)!.settingsNotificationDesc,
                 onTap: () => context.push(AppRoutes.notificationSettings),
               ),
             ],
           ),
           // 채팅 섹션
           _SettingsSection(
-            title: '채팅',
+            title: AppLocalizations.of(context)!.settingsChat,
             children: [
               _SettingsTile(
                 icon: Icons.chat_outlined,
-                title: '채팅 설정',
-                subtitle: '글꼴 크기, 미디어 자동 다운로드',
+                title: AppLocalizations.of(context)!.settingsChatSettings,
+                subtitle: AppLocalizations.of(context)!.settingsChatDesc,
                 onTap: () => context.push(AppRoutes.chatSettings),
               ),
             ],
           ),
           // 친구 섹션
           _SettingsSection(
-            title: '친구',
+            title: AppLocalizations.of(context)!.settingsFriends,
             children: [
               _SettingsTile(
                 icon: Icons.people_outline,
-                title: '친구 관리',
-                subtitle: '친구 요청, 숨김, 차단 관리',
+                title: AppLocalizations.of(context)!.settingsFriendManagement,
+                subtitle: AppLocalizations.of(context)!.settingsFriendManagementDesc,
                 onTap: () => context.push(AppRoutes.friendSettings),
               ),
             ],
           ),
           // 일반 섹션
           _SettingsSection(
-            title: '일반',
+            title: AppLocalizations.of(context)!.settingsGeneral,
             children: [
               // 언어 설정: 현재 한국어만 지원하므로 설정 변경 불가
               _SettingsTile(
                 icon: Icons.language,
-                title: '언어',
-                subtitle: '한국어 (기본)',
+                title: AppLocalizations.of(context)!.settingsLanguage,
+                subtitle: AppLocalizations.of(context)!.settingsLanguageKorean,
               ),
               BlocBuilder<ThemeCubit, ThemeMode>(
                 builder: (context, themeMode) {
                   final isDark = context.read<ThemeCubit>().isDarkMode(context);
                   return _SettingsTile(
                     icon: Icons.dark_mode_outlined,
-                    title: '다크 모드',
+                    title: AppLocalizations.of(context)!.settingsDarkMode,
                     trailing: Switch(
                       value: isDark,
                       onChanged: (value) {
@@ -141,28 +142,28 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           // 보안 섹션
           _SettingsSection(
-            title: '보안',
+            title: AppLocalizations.of(context)!.settingsSecurity,
             children: [
               _SettingsTile(
                 icon: Icons.fingerprint,
-                title: '생체 인증',
-                subtitle: '앱 잠금 해제 시 생체 인증 사용',
+                title: AppLocalizations.of(context)!.settingsBiometric,
+                subtitle: AppLocalizations.of(context)!.settingsBiometricDesc,
                 onTap: () => context.push(AppRoutes.securitySettings),
               ),
             ],
           ),
           // 계정 섹션
           _SettingsSection(
-            title: '계정',
+            title: AppLocalizations.of(context)!.settingsAccount,
             children: [
               _SettingsTile(
                 icon: Icons.lock_outline,
-                title: '비밀번호 변경',
+                title: AppLocalizations.of(context)!.settingsChangePassword,
                 onTap: () => context.push(AppRoutes.changePassword),
               ),
               _SettingsTile(
                 icon: Icons.person_remove_outlined,
-                title: '회원 탈퇴',
+                title: AppLocalizations.of(context)!.settingsAccountDeletion,
                 titleColor: AppColors.error,
                 onTap: () => context.push(AppRoutes.accountDeletion),
               ),
@@ -170,26 +171,26 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           // 정보 섹션
           _SettingsSection(
-            title: '정보',
+            title: AppLocalizations.of(context)!.settingsInfo,
             children: [
               _SettingsTile(
                 icon: Icons.info_outline,
-                title: '앱 버전',
+                title: AppLocalizations.of(context)!.settingsAppVersion,
                 subtitle: _version,
               ),
               _SettingsTile(
                 icon: Icons.description_outlined,
-                title: '이용약관',
+                title: AppLocalizations.of(context)!.settingsTerms,
                 onTap: () => context.push(AppRoutes.terms),
               ),
               _SettingsTile(
                 icon: Icons.privacy_tip_outlined,
-                title: '개인정보 처리방침',
+                title: AppLocalizations.of(context)!.settingsPrivacyPolicy,
                 onTap: () => context.push(AppRoutes.privacyPolicy),
               ),
               _SettingsTile(
                 icon: Icons.code,
-                title: '오픈소스 라이선스',
+                title: AppLocalizations.of(context)!.settingsOpenSourceLicense,
                 onTap: () => showLicensePage(
                   context: context,
                   applicationName: 'Co-Talk',
@@ -208,9 +209,9 @@ class _SettingsPageState extends State<SettingsPage> {
               child: OutlinedButton.icon(
                 onPressed: () => _showLogoutDialog(context),
                 icon: const Icon(Icons.logout_rounded, size: 20),
-                label: const Text(
-                  '로그아웃',
-                  style: TextStyle(
+                label: Text(
+                  AppLocalizations.of(context)!.settingsLogout,
+                  style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                   ),
@@ -237,12 +238,12 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('로그아웃'),
-        content: const Text('정말 로그아웃하시겠습니까?'),
+        title: Text(AppLocalizations.of(context)!.settingsLogout),
+        content: Text(AppLocalizations.of(context)!.settingsLogoutConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('취소'),
+            child: Text(AppLocalizations.of(context)!.commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -251,7 +252,7 @@ class _SettingsPageState extends State<SettingsPage> {
               context.go(AppRoutes.login);
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('로그아웃'),
+            child: Text(AppLocalizations.of(context)!.settingsLogout),
           ),
         ],
       ),

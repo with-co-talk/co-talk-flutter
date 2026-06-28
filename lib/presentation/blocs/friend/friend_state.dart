@@ -20,6 +20,11 @@ class FriendState extends Equatable {
   final bool isBlockedUsersLoading;
   final String? successMessage;
 
+  /// 처리 중인 친구요청 ID 집합. 수락/거절이 in-flight 인 동안 해당 ID 가 들어
+  /// 있어, 같은 요청에 대한 더블탭 중복 호출(→ 409/400 거짓 에러)을 막고
+  /// UI 가 버튼을 비활성/스피너 처리할 수 있게 한다.
+  final Set<int> processingRequestIds;
+
   const FriendState({
     this.status = FriendStatus.initial,
     this.friends = const [],
@@ -35,6 +40,7 @@ class FriendState extends Equatable {
     this.isHiddenFriendsLoading = false,
     this.isBlockedUsersLoading = false,
     this.successMessage,
+    this.processingRequestIds = const {},
   });
 
   FriendState copyWith({
@@ -55,6 +61,7 @@ class FriendState extends Equatable {
     bool? isBlockedUsersLoading,
     String? successMessage,
     bool clearSuccessMessage = false,
+    Set<int>? processingRequestIds,
   }) {
     return FriendState(
       status: status ?? this.status,
@@ -71,6 +78,7 @@ class FriendState extends Equatable {
       isHiddenFriendsLoading: isHiddenFriendsLoading ?? this.isHiddenFriendsLoading,
       isBlockedUsersLoading: isBlockedUsersLoading ?? this.isBlockedUsersLoading,
       successMessage: clearSuccessMessage ? null : (successMessage ?? this.successMessage),
+      processingRequestIds: processingRequestIds ?? this.processingRequestIds,
     );
   }
 
@@ -90,5 +98,6 @@ class FriendState extends Equatable {
         isHiddenFriendsLoading,
         isBlockedUsersLoading,
         successMessage,
+        processingRequestIds,
       ];
 }

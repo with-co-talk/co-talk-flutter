@@ -1,6 +1,7 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import '../../../../l10n/app_localizations.dart';
 
 /// Full-screen video player page using Chewie.
 class VideoPlayerPage extends StatefulWidget {
@@ -52,7 +53,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 const Icon(Icons.error_outline, color: Colors.white, size: 48),
                 const SizedBox(height: 16),
                 Text(
-                  '비디오를 재생할 수 없습니다',
+                  AppLocalizations.of(context)!.chatVideoPlaybackFailed,
                   style: const TextStyle(color: Colors.white),
                 ),
               ],
@@ -93,14 +94,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       extendBodyBehindAppBar: true,
       body: Center(
         child: _hasError
-            ? const Column(
+            ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, color: Colors.white54, size: 64),
-                  SizedBox(height: 16),
+                  const Icon(Icons.error_outline, color: Colors.white54, size: 64),
+                  const SizedBox(height: 16),
                   Text(
-                    '비디오를 재생할 수 없습니다',
-                    style: TextStyle(color: Colors.white54, fontSize: 16),
+                    AppLocalizations.of(context)!.chatVideoPlaybackFailed,
+                    style: const TextStyle(color: Colors.white54, fontSize: 16),
                   ),
                 ],
               )

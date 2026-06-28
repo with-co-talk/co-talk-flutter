@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:co_talk_flutter/presentation/blocs/friend/friend_bloc.dart';
@@ -38,8 +39,11 @@ void main() {
   });
 
   Widget createWidgetUnderTest() {
-    return const MaterialApp(
-      home: HiddenFriendsPage(),
+    return MaterialApp(
+      home: const HiddenFriendsPage(),
+      locale: const Locale('ko'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
     );
   }
 
@@ -76,10 +80,10 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // Warm Sand 리뉴얼: 공용 EmptyStateView 카피로 변경
+      // Warm Sand 리뉴얼: 공용 EmptyStateView + i18n 카피(friendsHiddenEmpty*)로 변경
       expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
-      expect(find.text('숨긴 친구가 없어요'), findsOneWidget);
-      expect(find.text('친구 목록에서 숨긴 친구가 여기에 표시돼요.'), findsOneWidget);
+      expect(find.text('숨긴 친구가 없습니다'), findsOneWidget);
+      expect(find.text('친구 목록에서 숨긴 친구가 여기에 표시됩니다'), findsOneWidget);
     });
 
     testWidgets('should display list of hidden friends', (tester) async {
@@ -198,9 +202,9 @@ void main() {
 
       await tester.pumpWidget(createWidgetUnderTest());
 
-      // Warm Sand 리뉴얼: 공용 EmptyStateView 에러 스타일(cloud_off_rounded + 새 카피)
+      // Warm Sand 리뉴얼: 공용 EmptyStateView 에러 스타일(cloud_off_rounded + i18n friendsHiddenLoadError)
       expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
-      expect(find.text('숨김 친구를 불러오지 못했어요'), findsOneWidget);
+      expect(find.text('숨김 친구 목록을 불러오는데 실패했습니다'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
     });
 

@@ -41,6 +41,10 @@ class _AnimatedTypingDotsState extends State<AnimatedTypingDots>
 
     _dotAnimations = List.generate(3, (index) {
       final start = _staggerOffsets[index];
+      // 상한 보호용 clamp. 현재 상수(max offset 0.4 + interval 0.4 = 0.8)에선
+      // 1.0을 넘지 않아 항상 no-op이다. 도트 수/오프셋/interval을 늘릴 때는
+      // 마지막 도트의 활성 구간이 잘려 모션이 비대칭이 되지 않도록
+      // `_staggerOffsets` 최대값 + `_dotInterval` ≤ 1.0 을 유지할 것.
       final end = (start + _dotInterval).clamp(0.0, 1.0);
       return TweenSequence<double>([
         TweenSequenceItem(

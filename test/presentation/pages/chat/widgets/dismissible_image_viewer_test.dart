@@ -22,7 +22,7 @@ void main() {
     test('zoom in → scale > 1.0 → panEnabled true', () {
       final controller = TransformationController();
       // 2× zoom 을 직접 주입
-      controller.value = Matrix4.identity()..scale(2.0);
+      controller.value = Matrix4.identity()..scaleByDouble(2.0, 2.0, 2.0, 1.0);
       final scale = controller.value.getMaxScaleOnAxis();
       expect(scale, closeTo(2.0, 0.001));
       // panEnabled 조건: scale > 1.0 → true
@@ -32,12 +32,57 @@ void main() {
 
     test('zoom back to 1.0 → panEnabled false again', () {
       final controller = TransformationController();
-      controller.value = Matrix4.identity()..scale(2.0);
+      controller.value = Matrix4.identity()..scaleByDouble(2.0, 2.0, 2.0, 1.0);
       // 다시 1× 로 되돌림
       controller.value = Matrix4.identity();
       final scale = controller.value.getMaxScaleOnAxis();
       expect(scale, closeTo(1.0, 0.001));
       expect(scale > 1.0, isFalse);
+      controller.dispose();
+    });
+
+    test(
+        'boolean 게이팅: scale 이 같은 boolean 구간 안에서 변해도 panEnabled 는 바뀌지 않는다 '
+        '(불필요한 setState 방지)', () {
+      // 프로덕션 _onInteractionUpdate 의 게이팅 로직을 그대로 재현.
+      final controller = TransformationController();
+      bool panEnabled = false;
+      int transitions = 0;
+
+      void onUpdate() {
+        final next = controller.value.getMaxScaleOnAxis() > 1.0;
+        if (next != panEnabled) {
+          panEnabled = next;
+          transitions++; // setState 가 호출되는 시점
+        }
+      }
+
+      // 1.0 → 1.0(미세 변화): false 유지, 전환 없음
+      controller.value = Matrix4.identity()..scaleByDouble(1.0, 1.0, 1.0, 1.0);
+      onUpdate();
+      expect(panEnabled, isFalse);
+      expect(transitions, 0);
+
+      // 1.0 → 1.5: false → true, 전환 1회
+      controller.value = Matrix4.identity()..scaleByDouble(1.5, 1.5, 1.5, 1.0);
+      onUpdate();
+      expect(panEnabled, isTrue);
+      expect(transitions, 1);
+
+      // 1.5 → 2.0 → 3.0: 모두 true 구간 → 추가 전환 없음
+      controller.value = Matrix4.identity()..scaleByDouble(2.0, 2.0, 2.0, 1.0);
+      onUpdate();
+      controller.value = Matrix4.identity()..scaleByDouble(3.0, 3.0, 3.0, 1.0);
+      onUpdate();
+      expect(panEnabled, isTrue);
+      expect(transitions, 1);
+
+      // 3.0 → 1.0: true → false, 전환 1회 추가
+      controller.value = Matrix4.identity();
+      onUpdate();
+      expect(panEnabled, isFalse);
+      expect(transitions, 2);
+
       controller.dispose();
     });
   });

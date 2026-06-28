@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/error_message_mapper.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../domain/entities/chat_room.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/chat/chat_list_bloc.dart';
@@ -67,7 +69,7 @@ class _ChatListPageState extends State<ChatListPage> {
   String _selfChatDisplayName(BuildContext context) {
     final user = context.read<AuthBloc>().state.user;
     final nickname = (user?.nickname ?? '').trim();
-    return nickname.isNotEmpty ? nickname : '나';
+    return nickname.isNotEmpty ? nickname : AppLocalizations.of(context)!.chatSelfName;
   }
 
   /// 채팅방 목록 표시명 (나와의 채팅은 내 이름/나)
@@ -90,9 +92,9 @@ class _ChatListPageState extends State<ChatListPage> {
   AppBar _buildNormalAppBar() {
     return AppBar(
       backgroundColor: context.surfaceColor,
-      title: const Text(
-        '채팅',
-        style: TextStyle(
+      title: Text(
+        AppLocalizations.of(context)!.chatTitle,
+        style: const TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: 22,
           letterSpacing: -0.5,
@@ -125,7 +127,7 @@ class _ChatListPageState extends State<ChatListPage> {
         controller: _searchController,
         autofocus: true,
         decoration: InputDecoration(
-          hintText: '채팅방 검색',
+          hintText: AppLocalizations.of(context)!.chatSearchHint,
           hintStyle: TextStyle(
             color: context.textSecondaryColor,
             fontSize: 16,
@@ -187,7 +189,7 @@ class _ChatListPageState extends State<ChatListPage> {
           if (state.status == ChatListStatus.failure) {
             return EmptyStateView(
               icon: Icons.cloud_off_rounded,
-              title: '대화를 불러오지 못했어요',
+              title: AppLocalizations.of(context)!.chatListLoadFailed,
               subtitle: '잠시 후 다시 시도해주세요',
               action: ElevatedButton(
                 onPressed: () {
@@ -195,15 +197,15 @@ class _ChatListPageState extends State<ChatListPage> {
                       .read<ChatListBloc>()
                       .add(const ChatListLoadRequested());
                 },
-                child: const Text('다시 시도'),
+                child: Text(AppLocalizations.of(context)!.commonRetry),
               ),
             );
           }
 
           if (state.chatRooms.isEmpty) {
-            return const EmptyStateView(
+            return EmptyStateView(
               icon: Icons.forum_outlined,
-              title: '아직 대화가 없어요',
+              title: AppLocalizations.of(context)!.chatListEmpty,
               subtitle: '친구와 첫 대화를 시작해보세요',
             );
           }
@@ -216,7 +218,7 @@ class _ChatListPageState extends State<ChatListPage> {
             return EmptyStateView(
               icon: Icons.search_off_rounded,
               title: '검색 결과가 없어요',
-              subtitle: '"$_searchQuery"와 일치하는 대화를 찾지 못했어요',
+              subtitle: AppLocalizations.of(context)!.chatSearchNoResults(_searchQuery),
             );
           }
 
@@ -249,14 +251,24 @@ class _ChatRoomTile extends StatelessWidget {
 
   const _ChatRoomTile({required this.chatRoom, required this.displayName});
 
+  /// 아바타는 작은 원형으로만 표시되므로 디스크 캐시 + 다운샘플(maxWidth)을
+  /// 적용해 raw NetworkImage 의 풀해상도 디코딩/재다운로드를 막는다.
+  static const int _avatarCacheWidth = 200;
+
   ImageProvider? _getAvatarImage(ChatRoom chatRoom) {
     // 1:1 채팅 - 상대방 아바타
     if (chatRoom.type == ChatRoomType.direct && chatRoom.otherUserAvatarUrl != null) {
-      return NetworkImage(chatRoom.otherUserAvatarUrl!);
+      return CachedNetworkImageProvider(
+        chatRoom.otherUserAvatarUrl!,
+        maxWidth: _avatarCacheWidth,
+      );
     }
     // 그룹 채팅 - 그룹 이미지
     if (chatRoom.type == ChatRoomType.group && chatRoom.imageUrl != null) {
-      return NetworkImage(chatRoom.imageUrl!);
+      return CachedNetworkImageProvider(
+        chatRoom.imageUrl!,
+        maxWidth: _avatarCacheWidth,
+      );
     }
     return null;
   }

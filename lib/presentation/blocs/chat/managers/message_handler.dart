@@ -43,6 +43,7 @@ class MessageHandler {
     required int roomId,
     required String content,
     int? userId,
+    String? clientMessageId,
   }) async {
     if (userId == null) {
       userId = await _authLocalDataSource.getUserId();
@@ -69,6 +70,7 @@ class MessageHandler {
     var success = _webSocketService.sendMessage(
       roomId: roomId,
       content: content,
+      clientMessageId: clientMessageId,
     );
 
     // Retry once: the STOMP connection may have dropped between isConnected
@@ -82,6 +84,7 @@ class MessageHandler {
         success = _webSocketService.sendMessage(
           roomId: roomId,
           content: content,
+          clientMessageId: clientMessageId,
         );
       }
       if (!success) {
@@ -162,8 +165,18 @@ class MessageHandler {
 
       onProgress(0.5);
 
+      // 신규 방식 우선: 업로드가 발급한 불투명 식별자(objectId)를 보낸다. 서버(co-talk
+      // feat/file-message-opaque-id 이후)가 이 값으로 URL/메타를 재구성한다. fileUrl은
+      // 하위호환(구버전 서버)을 위해 함께 전송된다. objectId가 없으면(구버전 서버 응답)
+      // 기존 fileUrl 경로로 동작한다.
+      // 업로드 응답(FileUploadResult)에는 썸네일 전용 식별자가 없다(objectId 단일). 따라서
+      // 이미지일 때 썸네일 식별자도 원본 objectId를 그대로 보낸다 — 기존 thumbnailUrl이
+      // 이미지일 때 fileUrl을 재사용하던 동작과 동일한 의미다. 서버(co-talk #170)가 별도
+      // 썸네일 객체 키를 발급하게 되면 그 값으로 교체한다.
       await _chatRepository.sendFileMessage(
         roomId: roomId,
+        objectId: uploadResult.objectId,
+        thumbnailObjectId: uploadResult.isImage ? uploadResult.objectId : null,
         fileUrl: uploadResult.fileUrl,
         fileName: uploadResult.fileName,
         fileSize: uploadResult.fileSize,

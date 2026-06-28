@@ -18,10 +18,10 @@ class AppDateUtils {
     }
 
     if (dateTime.year == now.year) {
-      return DateFormat('M월 d일', 'ko_KR').format(dateTime);
+      return DateFormat('M월 d일 a h:mm', 'ko_KR').format(dateTime);
     }
 
-    return DateFormat('yyyy년 M월 d일', 'ko_KR').format(dateTime);
+    return DateFormat('yyyy년 M월 d일 a h:mm', 'ko_KR').format(dateTime);
   }
 
   static String formatChatListTime(DateTime dateTime) {

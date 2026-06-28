@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../di/injection.dart';
 import '../../../domain/entities/friend.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/friend/friend_bloc.dart';
 import '../../blocs/friend/friend_event.dart';
 import '../../blocs/friend/friend_state.dart';
@@ -59,9 +61,9 @@ class _HiddenFriendsView extends StatelessWidget {
               }
             },
           ),
-          title: const Text(
-            '숨김 친구',
-            style: TextStyle(
+          title: Text(
+            AppLocalizations.of(context)!.friendsHiddenTitle,
+            style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 19,
               letterSpacing: -0.4,
@@ -79,13 +81,13 @@ class _HiddenFriendsView extends StatelessWidget {
             if (state.errorMessage != null && state.hiddenFriends.isEmpty) {
               return EmptyStateView(
                 icon: Icons.cloud_off_rounded,
-                title: '숨김 친구를 불러오지 못했어요',
+                title: AppLocalizations.of(context)!.friendsHiddenLoadError,
                 subtitle: '네트워크 상태를 확인하고 다시 시도해 주세요.',
                 action: SizedBox(
                   width: 160,
                   child: GradientButton(
                     height: 48,
-                    label: '다시 시도',
+                    label: AppLocalizations.of(context)!.commonRetry,
                     icon: Icons.refresh_rounded,
                     onPressed: () {
                       context.read<FriendBloc>().add(const HiddenFriendsLoadRequested());
@@ -96,10 +98,10 @@ class _HiddenFriendsView extends StatelessWidget {
             }
 
             if (state.hiddenFriends.isEmpty) {
-              return const EmptyStateView(
+              return EmptyStateView(
                 icon: Icons.visibility_off_outlined,
-                title: '숨긴 친구가 없어요',
-                subtitle: '친구 목록에서 숨긴 친구가 여기에 표시돼요.',
+                title: AppLocalizations.of(context)!.friendsHiddenEmptyTitle,
+                subtitle: AppLocalizations.of(context)!.friendsHiddenEmptyDesc,
               );
             }
 
@@ -151,7 +153,10 @@ class _HiddenFriendTile extends StatelessWidget {
             radius: 26,
             backgroundColor: AppColors.primaryLight,
             backgroundImage: friend.user.avatarUrl != null
-                ? NetworkImage(friend.user.avatarUrl!)
+                ? CachedNetworkImageProvider(
+                    friend.user.avatarUrl!,
+                    maxWidth: 200,
+                  )
                 : null,
             child: friend.user.avatarUrl == null
                 ? Text(
@@ -199,7 +204,10 @@ class _HiddenFriendTile extends StatelessWidget {
               context.read<FriendBloc>().add(UnhideFriendRequested(friend.user.id));
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('${friend.user.nickname}님을 숨김 해제했습니다'),
+                  content: Text(
+                    AppLocalizations.of(context)!
+                        .friendsUnhideSuccess(friend.user.nickname),
+                  ),
                   backgroundColor: AppColors.primary,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
@@ -209,9 +217,9 @@ class _HiddenFriendTile extends StatelessWidget {
               );
             },
             icon: const Icon(Icons.visibility_rounded, size: 18),
-            label: const Text(
-              '숨김 해제',
-              style: TextStyle(fontWeight: FontWeight.w600),
+            label: Text(
+              AppLocalizations.of(context)!.friendsUnhide,
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,

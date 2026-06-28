@@ -251,9 +251,24 @@ class PendingMessagesTimeoutChecked extends ChatRoomEvent {
   const PendingMessagesTimeoutChecked();
 }
 
-/// 같은 채팅방의 푸시알림 클릭 시 갭 복구 요청 이벤트
+/// 갭 복구(새로고침) 요청 이벤트
+///
+/// 두 출처에서 발행된다:
+/// - 같은 채팅방의 푸시알림 클릭(수동 새로고침): [fromReconnect] = false (기본)
+/// - WebSocket 재연결(`reconnected` 스트림): [fromReconnect] = true
+///
+/// [fromReconnect]는 dedup 대상을 재연결 출처로만 한정하기 위해 사용된다.
+/// 알림/수동 새로고침은 절대 dedup되지 않아야 정당한 새로고침이 누락되지 않는다.
 class ChatRoomRefreshRequested extends ChatRoomEvent {
-  const ChatRoomRefreshRequested();
+  /// 이 새로고침이 WebSocket 재연결에서 비롯된 것인지 여부.
+  ///
+  /// true인 경우에만 포그라운드 복귀의 paired-reconnect dedup 대상이 된다.
+  final bool fromReconnect;
+
+  const ChatRoomRefreshRequested({this.fromReconnect = false});
+
+  @override
+  List<Object?> get props => [fromReconnect];
 }
 
 /// 리액션 추가 요청

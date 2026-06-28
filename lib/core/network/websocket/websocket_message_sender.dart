@@ -22,6 +22,7 @@ class WebSocketMessageSender {
     required StompClient? stompClient,
     required int roomId,
     required String content,
+    String? clientMessageId,
   }) {
     if (stompClient == null || !stompClient.connected) {
       if (kDebugMode) {
@@ -35,6 +36,12 @@ class WebSocketMessageSender {
       body: jsonEncode({
         'roomId': roomId,
         'content': content,
+        // 낙관적 전송 중복제거용 클라이언트 메시지 ID(UUID).
+        // 백엔드는 broadcast/echo 메시지에 이 값을 그대로 다시 실어 보내야
+        // 클라이언트가 content+시간 매칭이 아닌 정확한 ID 매칭으로 pending
+        // 메시지를 교체할 수 있다. (백엔드 echo 미지원 시에도 무해 — 기존
+        // content+window fallback으로 동작한다. 백엔드 PR 예정.)
+        if (clientMessageId != null) 'clientMessageId': clientMessageId,
       }),
     );
     return true;
@@ -43,6 +50,10 @@ class WebSocketMessageSender {
   /// Sends a file message.
   ///
   /// Returns false if not connected.
+  ///
+  /// NOTE: 실제 파일 메시지 전송은 REST(`SendFileMessageRequest`) 경로를 사용한다.
+  /// [objectId]/[thumbnailObjectId]는 현재 이 WS 경로에서 미사용이며(호출부 전부 null),
+  /// 향후 WS 파일 전송 시 REST 경로와의 일관성을 위해 옵셔널로 미리 배선해 둔 것이다.
   bool sendFileMessage({
     required StompClient? stompClient,
     required int roomId,
@@ -51,6 +62,8 @@ class WebSocketMessageSender {
     required int fileSize,
     required String contentType,
     String? thumbnailUrl,
+    String? objectId,
+    String? thumbnailObjectId,
   }) {
     if (stompClient == null || !stompClient.connected) {
       if (kDebugMode) {
@@ -63,6 +76,9 @@ class WebSocketMessageSender {
       destination: WebSocketConfig.sendFileMessageDestination,
       body: jsonEncode({
         'roomId': roomId,
+        // 신규 방식: object-id (서버가 존재 시 우선 사용). 하위호환을 위해 fileUrl도 함께 전송.
+        if (objectId != null) 'objectId': objectId,
+        if (thumbnailObjectId != null) 'thumbnailObjectId': thumbnailObjectId,
         'fileUrl': fileUrl,
         'fileName': fileName,
         'fileSize': fileSize,

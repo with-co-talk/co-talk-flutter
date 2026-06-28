@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_utils.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../../domain/entities/message.dart';
 import '../../../blocs/chat/chat_room_bloc.dart';
 import '../../../blocs/chat/chat_room_state.dart';
+import '../../../widgets/empty_state_view.dart';
 import '../../../widgets/entry_animation.dart';
 import 'animated_typing_dots.dart';
 import 'date_separator.dart';
@@ -26,35 +28,6 @@ class MessageList extends StatelessWidget {
       builder: (context, state) {
         if (state.status == ChatRoomStatus.loading) {
           return const Center(child: CircularProgressIndicator());
-        }
-
-        if (state.messages.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.chat_bubble_outline,
-                  size: 64,
-                  color: context.textSecondaryColor.withValues(alpha: 0.5),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '메시지가 없습니다',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: context.textSecondaryColor,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '대화를 시작해보세요',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: context.textSecondaryColor.withValues(alpha: 0.7),
-                      ),
-                ),
-              ],
-            ),
-          );
         }
 
         return Column(
@@ -102,6 +75,11 @@ class MessageList extends StatelessWidget {
 /// 최초 빌드 시 현재 메시지들을 모두 "본 것"으로 시드하므로 초기 로드분은
 /// 애니메이션되지 않고, 이후 도착하는 메시지만 [EntryAnimation] 으로 등장한다.
 /// 스크롤로 항목이 재생성돼도 이미 본 id 는 다시 애니메이션되지 않는다.
+///
+/// 빈 대화방으로 진입하면 빈 집합으로 시드되므로(시드할 메시지 없음),
+/// 첫 말풍선도 "새 메시지"로 판정돼 진입 애니메이션이 재생된다.
+/// 따라서 빈/비어있지 않음 전환과 무관하게 이 뷰가 마운트를 유지하도록
+/// 빈 상태 플레이스홀더도 여기서 렌더링한다.
 class _MessageListView extends StatefulWidget {
   final List<Message> messages;
   final int? currentUserId;
@@ -133,6 +111,17 @@ class _MessageListViewState extends State<_MessageListView> {
   @override
   Widget build(BuildContext context) {
     final messages = widget.messages;
+
+    // 빈/비어있지 않음 전환과 무관하게 이 뷰의 마운트를 유지하기 위해
+    // 빈 상태 플레이스홀더도 여기서 렌더링한다(origin/main 라이프사이클 수정).
+    // 시각은 표준 EmptyStateView, 문자열은 i18n 사용.
+    if (messages.isEmpty) {
+      return EmptyStateView(
+        icon: Icons.chat_bubble_outline,
+        title: AppLocalizations.of(context)!.chatNoMessages,
+        subtitle: AppLocalizations.of(context)!.chatStartConversation,
+      );
+    }
 
     return ListView.builder(
       controller: widget.scrollController,

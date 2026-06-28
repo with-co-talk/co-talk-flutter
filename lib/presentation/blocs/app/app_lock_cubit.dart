@@ -76,6 +76,24 @@ class AppLockCubit extends Cubit<AppLockState> {
     await authenticate();
   }
 
+  /// 앱 최초 실행 시 잠금 체크 (grace period 무시)
+  ///
+  /// [checkLockOnResume]와 동일하게 다음 조건을 모두 만족할 때만 잠근다:
+  /// 1) 생체 인증이 켜져 있음
+  /// 2) 로그인 상태임(access token 존재)
+  ///
+  /// 로그아웃 후 재실행처럼 미로그인 상태에서는 잠그지 않는다.
+  Future<void> checkLockOnLaunch() async {
+    final isEnabled = await _securitySettings.isBiometricEnabled();
+    if (!isEnabled) return;
+
+    // 로그인 상태에서만 잠금 적용(미로그인 시 잠금 화면을 띄우지 않는다).
+    final accessToken = await _authLocalDataSource.getAccessToken();
+    if (accessToken == null || accessToken.isEmpty) return;
+
+    emit(const AppLockState.locked());
+  }
+
   /// 생체 인증 시도
   Future<void> authenticate() async {
     emit(const AppLockState.authenticating());

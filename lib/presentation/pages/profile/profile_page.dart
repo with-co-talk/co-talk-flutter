@@ -1,8 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 
@@ -14,18 +16,17 @@ class ProfilePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: context.backgroundColor,
       appBar: AppBar(
-        title: const Text('프로필'),
+        title: Text(AppLocalizations.of(context)!.profileTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined),
-            tooltip: '프로필 편집',
+            tooltip: AppLocalizations.of(context)!.profileEditTitle,
             onPressed: () {
               context.push(AppRoutes.editProfile);
             },
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: '설정',
             onPressed: () {
               context.push(AppRoutes.settings);
             },
@@ -60,21 +61,22 @@ class ProfilePage extends StatelessWidget {
                   children: [
                     _ProfileInfoRow(
                       icon: Icons.badge_outlined,
-                      label: '상태',
-                      value: _getStatusText(user.status),
+                      label: AppLocalizations.of(context)!.profileStatusLabel,
+                      value: _getStatusText(context, user.status),
                     ),
                     const _RowDivider(),
                     _ProfileInfoRow(
                       icon: Icons.circle,
-                      label: '온라인 상태',
-                      value: _getOnlineStatusText(user.onlineStatus),
+                      label: AppLocalizations.of(context)!
+                          .profileOnlineStatusLabel,
+                      value: _getOnlineStatusText(context, user.onlineStatus),
                       valueColor: _getOnlineStatusColor(user.onlineStatus),
                       iconColor: _getOnlineStatusColor(user.onlineStatus),
                     ),
                     const _RowDivider(),
                     _ProfileInfoRow(
                       icon: Icons.calendar_today_outlined,
-                      label: '가입일',
+                      label: AppLocalizations.of(context)!.profileJoinDateLabel,
                       value: _formatDate(user.createdAt),
                     ),
                   ],
@@ -87,27 +89,29 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  String _getStatusText(status) {
+  String _getStatusText(BuildContext context, status) {
+    final l10n = AppLocalizations.of(context)!;
     switch (status.toString()) {
       case 'UserStatus.active':
-        return '활성';
+        return l10n.profileStatusActive;
       case 'UserStatus.inactive':
-        return '비활성';
+        return l10n.profileStatusInactive;
       case 'UserStatus.suspended':
-        return '정지됨';
+        return l10n.profileStatusSuspended;
       default:
-        return '알 수 없음';
+        return l10n.profileStatusUnknown;
     }
   }
 
-  String _getOnlineStatusText(onlineStatus) {
+  String _getOnlineStatusText(BuildContext context, onlineStatus) {
+    final l10n = AppLocalizations.of(context)!;
     switch (onlineStatus.toString()) {
       case 'OnlineStatus.online':
-        return '온라인';
+        return l10n.profileOnlineStatusOnline;
       case 'OnlineStatus.away':
-        return '자리 비움';
+        return l10n.profileOnlineStatusAway;
       default:
-        return '오프라인';
+        return l10n.profileOnlineStatusOffline;
     }
   }
 
@@ -185,8 +189,12 @@ class _ProfileHeader extends StatelessWidget {
                   child: CircleAvatar(
                     radius: 56,
                     backgroundColor: AppColors.primaryLight,
-                    backgroundImage:
-                        avatarUrl != null ? NetworkImage(avatarUrl!) : null,
+                    backgroundImage: avatarUrl != null
+                        ? CachedNetworkImageProvider(
+                            avatarUrl!,
+                            maxWidth: 400,
+                          )
+                        : null,
                     child: avatarUrl == null
                         ? Text(
                             nickname.isNotEmpty
