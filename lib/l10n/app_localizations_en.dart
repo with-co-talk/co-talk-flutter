@@ -256,6 +256,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatDeletedMessage => 'Deleted message';
 
   @override
+  String get chatDeletedMessageBubble => 'This message was deleted';
+
+  @override
   String get chatOriginalMessageNotFound => 'Original message not found';
 
   @override

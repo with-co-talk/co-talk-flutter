@@ -554,6 +554,12 @@ abstract class AppLocalizations {
   /// **'삭제된 메시지'**
   String get chatDeletedMessage;
 
+  /// No description provided for @chatDeletedMessageBubble.
+  ///
+  /// In ko, this message translates to:
+  /// **'삭제된 메시지입니다'**
+  String get chatDeletedMessageBubble;
+
   /// No description provided for @chatOriginalMessageNotFound.
   ///
   /// In ko, this message translates to:
