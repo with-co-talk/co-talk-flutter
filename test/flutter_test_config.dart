@@ -6,6 +6,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// golden 픽셀 비교 허용 오차.
+///
+/// 동일 golden PNG를 macOS(개발)와 Linux(CI) 양쪽에서 검증하는데, 두 OS의
+/// 글리프 안티앨리어싱 차이로 텍스트가 많은 이미지에서 ~1-2%의 픽셀 diff가
+/// 불가피하다(관측값 1.49%). 폰트를 적재해도 서브픽셀 렌더 차이는 남는다.
+/// 레이아웃/색상 등 실질적 UI 회귀는 이 임계값을 크게 초과하므로 여전히 잡힌다.
+const double _goldenDiffTolerance = 0.03;
+
 /// 모든 테스트 실행 전 공통 설정.
 ///
 /// golden 테스트가 환경(플러터 SDK·렌더 엔진)에 따라 픽셀이 흔들리지 않도록,

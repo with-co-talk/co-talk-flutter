@@ -389,15 +389,19 @@ class MessageCacheManager {
   ///    로컬 메시지를 정확히 교체한다. 동일 내용("ㅇㅇ" 등) 메시지가 여러 개
   ///    pending 상태여도 올바른 버블을 교체한다.
   /// 2) FALLBACK by content + 시간 window: echo에 clientMessageId가 없을 때만
-  ///    (백엔드 미지원) 기존 방식으로 매칭한다.
+  ///    (예: 구버전 서버) 기존 방식으로 매칭한다.
   ///    - Locally originated (negative ID)
   ///    - Same content
   ///    - Created within 60 seconds of the real message
   ///    - If multiple matches, select the OLDEST one (FIFO)
   ///
-  /// NOTE(backend): 정확 매칭을 위해 백엔드가 broadcast/echo 메시지에
-  /// `clientMessageId`를 그대로 되돌려줘야 한다 (백엔드 PR 예정). 그 전까지는
-  /// fallback이 동작하므로 무회귀(no-regression) 개선이다.
+  /// NOTE(backend): 백엔드가 broadcast/echo 메시지에 `clientMessageId`를
+  /// 그대로 되돌려주는 동작이 적용되어, 현재 정확(exact) 매칭이 활성화되어 있다.
+  /// (수신/파싱 경로: websocket_events.dart에서 `json['clientMessageId']`를 파싱 →
+  /// websocket_subscription_manager.dart에서 Message.localId 슬롯에 매핑 →
+  /// 본 메서드의 1) 단계에서 localId 정확 매칭에 사용.)
+  /// echo에 clientMessageId가 없는 경우(예: 구버전 서버)에는 2) content+window
+  /// fallback이 계속 동작한다.
   bool replacePendingMessageWithReal(String content, Message realMessage) {
     final maxTimeDiff = const Duration(seconds: 60);
     int? localIndex;

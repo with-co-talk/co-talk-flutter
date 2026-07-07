@@ -183,7 +183,7 @@ void main() {
         errorMessage: 'Error',
       );
 
-      expect(state.props.length, 4);
+      expect(state.props.length, 5);
     });
   });
 

@@ -3,6 +3,27 @@ import '../errors/exceptions.dart';
 
 /// Exception을 사용자 친화적인 메시지로 변환하는 유틸리티
 class ErrorMessageMapper {
+  /// 매핑되지 않은(알 수 없는) 에러의 기본 메시지.
+  /// 단일 소스로 유지해 호출부가 문자열을 하드코딩하지 않도록 한다.
+  static const String unknownErrorMessage =
+      '알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+
+  /// 인식된 예외 타입 중 어느 것에도 해당하지 않아
+  /// [unknownErrorMessage] 폴백으로 떨어지는 "알 수 없는 오류"인지 여부.
+  ///
+  /// 호출부가 사용자 표시용 메시지를 `contains('알 수 없는 오류')`로
+  /// 부분 문자열 매칭하던 취약한 방식을 대체한다(타입 기반 판별).
+  static bool isUnknownError(dynamic error) {
+    return error is! AuthException &&
+        error is! ServerException &&
+        error is! NetworkException &&
+        error is! CacheException &&
+        error is! ValidationException &&
+        error is! ConflictException &&
+        error is! PasswordMismatchException &&
+        error is! PlatformException;
+  }
+
   /// Exception을 사용자 친화적인 메시지로 변환
   static String toUserFriendlyMessage(dynamic error) {
     if (error is AuthException) {
@@ -38,7 +59,7 @@ class ErrorMessageMapper {
     }
 
     // 알 수 없는 에러의 경우
-    return '알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+    return unknownErrorMessage;
   }
   
   static String _getAuthErrorMessage(AuthException error) {

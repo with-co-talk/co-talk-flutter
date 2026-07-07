@@ -76,6 +76,7 @@
   "chatFileFallback": "File",
   "chatLinkFallback": "Link",
   "chatDeletedMessage": "Deleted message",
+  "chatDeletedMessageBubble": "This message was deleted",
   "chatOriginalMessageNotFound": "Original message not found",
   "chatUnknownSender": "Unknown",
   "chatForwarded": "Forwarded",
