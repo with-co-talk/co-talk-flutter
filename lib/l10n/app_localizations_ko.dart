@@ -813,9 +813,6 @@ class AppLocalizationsKo extends AppLocalizations {
   String get profileStatusSuspended => '정지됨';
 
   @override
-  String get profileStatusUnknown => '알 수 없음';
-
-  @override
   String get profileOnlineStatusOnline => '온라인';
 
   @override
