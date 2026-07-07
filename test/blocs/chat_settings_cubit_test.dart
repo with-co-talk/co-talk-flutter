@@ -188,7 +188,6 @@ void main() {
           const ChatSettingsState(
             status: ChatSettingsStatus.error,
             settings: ChatSettings(fontSize: 1.3),
-            errorMessage: '캐시 삭제에 실패했습니다',
           ),
           // 다시 loaded로 전이할 때 errorMessage는 남지 않아야 한다.
           const ChatSettingsState(

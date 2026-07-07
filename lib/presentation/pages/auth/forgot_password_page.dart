@@ -79,11 +79,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       ),
       body: BlocConsumer<ForgotPasswordBloc, ForgotPasswordState>(
         listener: (context, state) {
-          if (state.status == ForgotPasswordStatus.failure &&
-              state.errorMessage != null) {
+          if (state.status == ForgotPasswordStatus.failure) {
+            final l10n = AppLocalizations.of(context)!;
+            final message = state.isInvalidCode
+                ? l10n.authInvalidCode
+                : (state.errorMessage ?? l10n.authErrorOccurred);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage!),
+                content: Text(message),
                 backgroundColor: AppColors.error,
               ),
             );

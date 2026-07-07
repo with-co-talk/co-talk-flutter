@@ -57,12 +57,30 @@
   "authCodeRequired": "인증 코드를 입력해주세요",
   "authCodeLengthInvalid": "6자리 코드를 입력해주세요",
   "authVerifyCode": "인증 코드 확인",
+  "authInvalidCode": "인증 코드가 유효하지 않습니다. 다시 확인해주세요.",
   "authResendCode": "인증 코드 재발송",
   "authNewPasswordGuide": "새로운 비밀번호를 입력해주세요.",
   "authNewPassword": "새 비밀번호",
   "authConfirmNewPassword": "새 비밀번호 확인",
   "authChangePassword": "비밀번호 변경",
   "chatTitle": "채팅",
+  "chatSelfChatTitle": "나와의 채팅",
+  "chatTypingSingle": "{nickname}님이 입력 중...",
+  "@chatTypingSingle": {
+    "placeholders": {
+      "nickname": {
+        "type": "String"
+      }
+    }
+  },
+  "chatTypingMultiple": "{count}명이 입력 중...",
+  "@chatTypingMultiple": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatSearchHint": "채팅방 검색",
   "chatListLoadFailed": "채팅방을 불러오는데 실패했습니다",
   "chatListEmpty": "채팅방이 없습니다\n친구를 추가하고 대화를 시작해보세요",
@@ -110,6 +128,14 @@
     }
   },
   "chatMessageForwarded": "메시지가 전달되었습니다",
+  "chatForwardFailed": "메시지 전달에 실패했습니다: {error}",
+  "@chatForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
   "chatOtherUser": "상대방",
   "chatMediaTabPhotos": "사진",
   "chatMediaTabFiles": "파일",
@@ -277,6 +303,7 @@
   },
   "friendsBlockSuccess": "친구를 차단했습니다",
   "friendsDeleteTitle": "친구 삭제",
+  "friendsDeleteSuccess": "친구를 삭제했습니다",
   "friendsDeleteConfirm": "{name}님을 친구에서 삭제하시겠습니까?",
   "@friendsDeleteConfirm": {
     "placeholders": {
@@ -461,6 +488,11 @@
   "profileAvatarDeleted": "프로필 사진이 삭제되었습니다",
   "profileUpdated": "프로필이 수정되었습니다",
   "profileUpdateFailed": "프로필 수정에 실패했습니다",
+  "profileUpdateSuccess": "프로필이 업데이트되었습니다.",
+  "profileSetPrivateSuccess": "나만보기로 설정되었습니다.",
+  "profileSetPublicSuccess": "공개로 설정되었습니다.",
+  "profileHistoryDeleteSuccess": "프로필 이력이 삭제되었습니다.",
+  "profileSetCurrentSuccess": "현재 프로필로 설정되었습니다.",
   "profileBackgroundChanged": "배경이 변경되었습니다",
   "profileAvatarChanged": "프로필 사진이 변경되었습니다",
   "profileImageChangeFailed": "이미지 변경에 실패했습니다",
@@ -611,8 +643,14 @@
   "settingsBiometricNotSupported": "이 기기는 생체 인증을 지원하지 않습니다.",
   "settingsBiometricEnabledDesc": "앱 잠금 해제 시 생체 인증을 사용합니다",
   "settingsBiometricUnavailable": "이 기기에서 사용할 수 없습니다",
+  "settingsBiometricAuthReason": "생체 인증을 활성화하려면 인증해주세요",
   "settingsBiometricBackgroundNotice": "앱을 30초 이상 백그라운드에 둔 후 복귀하면 생체 인증을 요청합니다.",
+  "settingsBiometricLoadFailed": "생체 인증 설정을 불러오는데 실패했습니다.",
   "settingsAccountDeletionComplete": "회원 탈퇴가 완료되었습니다",
+  "settingsAccountDeletionInvalidConfirmation": "올바른 확인 텍스트를 입력해주세요",
+  "settingsAccountDeletionEmptyPassword": "비밀번호를 입력해주세요",
+  "settingsAccountDeletionUserNotFound": "사용자 정보를 찾을 수 없습니다",
+  "settingsAccountDeletionUnknownError": "회원 탈퇴 처리 중 오류가 발생했습니다. 비밀번호를 확인해주세요.",
   "settingsAccountDeletionProcessing": "탈퇴 처리 중...",
   "settingsWarning": "주의",
   "settingsDeletionWarningTitle": "회원 탈퇴 시 다음 데이터가 영구적으로 삭제됩니다:",
@@ -657,6 +695,7 @@
   "settingsDeletionConfirmButton": "탈퇴",
   "settingsClearingCache": "캐시를 삭제하는 중...",
   "settingsCacheCleared": "캐시가 삭제되었습니다",
+  "settingsCacheClearFailed": "캐시 삭제에 실패했습니다",
   "settingsFontSize": "글꼴 크기",
   "settingsMediaAutoDownload": "미디어 자동 다운로드",
   "settingsImage": "이미지",
@@ -682,6 +721,7 @@
   "settingsFontSizeVeryLarge": "아주 크게",
   "settingsFontSizeExtraLarge": "매우 크게",
   "settingsPasswordChangeSuccess": "비밀번호가 성공적으로 변경되었습니다.",
+  "settingsPasswordChangeFailed": "비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해주세요.",
   "settingsNewPassword": "새 비밀번호",
   "settingsConfirmNewPassword": "새 비밀번호 확인",
   "settingsCurrentPasswordRequired": "현재 비밀번호를 입력해주세요",

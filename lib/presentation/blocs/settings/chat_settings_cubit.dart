@@ -68,9 +68,9 @@ class ChatSettingsCubit extends Cubit<ChatSettingsState> {
       await _repository.clearCache();
       emit(state.copyWith(status: ChatSettingsStatus.loaded));
     } catch (e) {
+      // 표시 문자열은 위젯 레이어에서 status 기반으로 지역화한다.
       emit(state.copyWith(
         status: ChatSettingsStatus.error,
-        errorMessage: '캐시 삭제에 실패했습니다',
       ));
       // 에러 표시 후 다시 loaded로 전이할 때 errorMessage를 정리한다.
       // copyWith는 errorMessage ?? this.errorMessage 패턴이라 null을 넘겨도

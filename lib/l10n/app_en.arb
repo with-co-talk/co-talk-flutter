@@ -40,12 +40,30 @@
   "authCodeRequired": "Please enter the verification code",
   "authCodeLengthInvalid": "Please enter a 6-digit code",
   "authVerifyCode": "Verify Code",
+  "authInvalidCode": "The verification code is invalid. Please check again.",
   "authResendCode": "Resend Code",
   "authNewPasswordGuide": "Please enter a new password.",
   "authNewPassword": "New Password",
   "authConfirmNewPassword": "Confirm New Password",
   "authChangePassword": "Change Password",
   "chatTitle": "Chat",
+  "chatSelfChatTitle": "My Chat",
+  "chatTypingSingle": "{nickname} is typing...",
+  "@chatTypingSingle": {
+    "placeholders": {
+      "nickname": {
+        "type": "String"
+      }
+    }
+  },
+  "chatTypingMultiple": "{count} people are typing...",
+  "@chatTypingMultiple": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatSearchHint": "Search chats",
   "chatListLoadFailed": "Failed to load chats",
   "chatListEmpty": "No chats yet\nAdd friends and start a conversation",
@@ -65,6 +83,14 @@
   "chatReinviteSuccess": "Re-invited {nickname}",
   "chatReinviteFailed": "Re-invite failed: {error}",
   "chatMessageForwarded": "Message forwarded",
+  "chatForwardFailed": "Failed to forward message: {error}",
+  "@chatForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
   "chatOtherUser": "The other user",
   "chatMediaTabPhotos": "Photos",
   "chatMediaTabFiles": "Files",
@@ -148,6 +174,7 @@
   "friendsBlockConfirm": "Block {name}?",
   "friendsBlockSuccess": "Friend blocked",
   "friendsDeleteTitle": "Delete Friend",
+  "friendsDeleteSuccess": "Friend deleted",
   "friendsDeleteConfirm": "Remove {name} from your friends?",
   "friendsSearchHint": "Search by nickname",
   "friendsSearchPrompt": "Enter a nickname to search",
@@ -262,6 +289,11 @@
   "profileAvatarDeleted": "Profile photo deleted",
   "profileUpdated": "Profile updated",
   "profileUpdateFailed": "Failed to update profile",
+  "profileUpdateSuccess": "Profile updated.",
+  "profileSetPrivateSuccess": "Set to private.",
+  "profileSetPublicSuccess": "Set to public.",
+  "profileHistoryDeleteSuccess": "Profile history deleted.",
+  "profileSetCurrentSuccess": "Set as current profile.",
   "profileBackgroundChanged": "Background changed",
   "profileAvatarChanged": "Profile photo changed",
   "profileImageChangeFailed": "Failed to change image",
@@ -391,8 +423,14 @@
   "settingsBiometricNotSupported": "This device does not support biometric authentication.",
   "settingsBiometricEnabledDesc": "Use biometrics to unlock the app",
   "settingsBiometricUnavailable": "Not available on this device",
+  "settingsBiometricAuthReason": "Please authenticate to enable biometrics",
   "settingsBiometricBackgroundNotice": "Biometric authentication is required when you return after the app has been in the background for over 30 seconds.",
+  "settingsBiometricLoadFailed": "Failed to load biometric settings.",
   "settingsAccountDeletionComplete": "Your account has been deleted",
+  "settingsAccountDeletionInvalidConfirmation": "Please enter the correct confirmation text",
+  "settingsAccountDeletionEmptyPassword": "Please enter your password",
+  "settingsAccountDeletionUserNotFound": "User information not found",
+  "settingsAccountDeletionUnknownError": "An error occurred while deleting your account. Please check your password.",
   "settingsAccountDeletionProcessing": "Processing deletion...",
   "settingsWarning": "Warning",
   "settingsDeletionWarningTitle": "The following data will be permanently deleted when you delete your account:",
@@ -416,6 +454,7 @@
   "settingsDeletionConfirmButton": "Delete",
   "settingsClearingCache": "Clearing cache...",
   "settingsCacheCleared": "Cache cleared",
+  "settingsCacheClearFailed": "Failed to clear cache",
   "settingsFontSize": "Font Size",
   "settingsMediaAutoDownload": "Media Auto-Download",
   "settingsImage": "Image",
@@ -441,6 +480,7 @@
   "settingsFontSizeVeryLarge": "Very Large",
   "settingsFontSizeExtraLarge": "Extra Large",
   "settingsPasswordChangeSuccess": "Your password has been changed successfully.",
+  "settingsPasswordChangeFailed": "Failed to change password. Please check your current password.",
   "settingsNewPassword": "New Password",
   "settingsConfirmNewPassword": "Confirm New Password",
   "settingsCurrentPasswordRequired": "Please enter your current password",

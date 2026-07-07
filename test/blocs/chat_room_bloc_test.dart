@@ -4388,7 +4388,8 @@ void main() {
           isA<ChatRoomState>()
               .having((s) => s.isForwarding, 'isForwarding', false)
               .having((s) => s.forwardSuccess, 'forwardSuccess', false)
-              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+              .having((s) => s.isForwardFailed, 'isForwardFailed', true)
+              .having((s) => s.forwardErrorDetail, 'forwardErrorDetail', isNotNull),
         ],
       );
     });

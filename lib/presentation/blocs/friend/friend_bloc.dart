@@ -253,7 +253,7 @@ class FriendBloc extends Bloc<FriendEvent, FriendState> {
           .toList();
       emit(state.copyWith(
         friends: updatedFriends,
-        successMessage: '친구를 삭제했습니다',
+        successType: FriendSuccess.deleted,
       ));
     } catch (e) {
       emit(state.copyWith(errorMessage: _extractErrorMessage(e)));

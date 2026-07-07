@@ -89,7 +89,7 @@ class FindEmailBloc extends Bloc<FindEmailEvent, FindEmailState> {
       } else {
         emit(state.copyWith(
           status: FindEmailStatus.notFound,
-          message: message ?? '일치하는 계정을 찾을 수 없습니다.',
+          message: message,
         ));
       }
     } catch (e) {

@@ -57,7 +57,7 @@ void main() {
         isEnabled: false,
         status: BiometricSettingsStatus.loaded,
       ),
-      act: (cubit) => cubit.toggle(),
+      act: (cubit) => cubit.toggle(reason: 'Please authenticate to enable biometrics'),
       expect: () => [
         const BiometricSettingsState(
           isSupported: true,
@@ -79,7 +79,7 @@ void main() {
         isEnabled: true,
         status: BiometricSettingsStatus.loaded,
       ),
-      act: (cubit) => cubit.toggle(),
+      act: (cubit) => cubit.toggle(reason: 'Please authenticate to enable biometrics'),
       expect: () => [
         const BiometricSettingsState(
           isSupported: true,

@@ -193,7 +193,7 @@ void main() {
             step: ForgotPasswordStep.code,
             status: ForgotPasswordStatus.failure,
             email: testEmail,
-            errorMessage: '인증 코드가 유효하지 않습니다. 다시 확인해주세요.',
+            isInvalidCode: true,
           ),
         ],
       );
@@ -289,7 +289,7 @@ void main() {
             step: ForgotPasswordStep.code,
             status: ForgotPasswordStatus.failure,
             email: testEmail,
-            errorMessage: '인증 코드가 유효하지 않습니다. 다시 확인해주세요.',
+            isInvalidCode: true,
           ),
         ],
       );

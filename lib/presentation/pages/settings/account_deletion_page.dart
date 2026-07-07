@@ -103,13 +103,25 @@ class _AccountDeletionPageState extends State<AccountDeletionPage> {
             );
             context.go(AppRoutes.login);
           } else if (state.status == AccountDeletionStatus.error) {
+            final l10n = AppLocalizations.of(context)!;
+            final message = switch (state.errorType) {
+              AccountDeletionError.invalidConfirmation =>
+                l10n.settingsAccountDeletionInvalidConfirmation,
+              AccountDeletionError.emptyPassword =>
+                l10n.settingsAccountDeletionEmptyPassword,
+              AccountDeletionError.userNotFound =>
+                l10n.settingsAccountDeletionUserNotFound,
+              AccountDeletionError.unknown =>
+                l10n.settingsAccountDeletionUnknownError,
+              null => state.errorMessage ?? l10n.settingsErrorOccurred,
+            };
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsErrorOccurred),
+                content: Text(message),
                 backgroundColor: AppColors.error,
               ),
             );

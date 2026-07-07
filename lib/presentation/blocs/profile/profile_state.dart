@@ -13,12 +13,21 @@ enum ProfileStatus {
   failure,
 }
 
+/// 프로필 관련 성공 알림 종류. 표시 문자열은 위젯 레이어에서 [AppLocalizations]로 해석한다.
+enum ProfileSuccess {
+  updated,
+  setPrivate,
+  setPublic,
+  historyDeleted,
+  setCurrent,
+}
+
 class ProfileState extends Equatable {
   final ProfileStatus status;
   final List<ProfileHistory> histories;
   final ProfileHistoryType? filterType;
   final String? errorMessage;
-  final String? successMessage;
+  final ProfileSuccess? successType;
   final User? viewingUser;
 
   const ProfileState({
@@ -26,7 +35,7 @@ class ProfileState extends Equatable {
     this.histories = const [],
     this.filterType,
     this.errorMessage,
-    this.successMessage,
+    this.successType,
     this.viewingUser,
   });
 
@@ -37,18 +46,18 @@ class ProfileState extends Equatable {
     List<ProfileHistory>? histories,
     ProfileHistoryType? filterType,
     String? errorMessage,
-    String? successMessage,
+    ProfileSuccess? successType,
     User? viewingUser,
     bool clearFilterType = false,
     bool clearErrorMessage = false,
-    bool clearSuccessMessage = false,
+    bool clearSuccessType = false,
   }) {
     return ProfileState(
       status: status ?? this.status,
       histories: histories ?? this.histories,
       filterType: clearFilterType ? null : (filterType ?? this.filterType),
       errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
-      successMessage: clearSuccessMessage ? null : (successMessage ?? this.successMessage),
+      successType: clearSuccessType ? null : (successType ?? this.successType),
       viewingUser: viewingUser ?? this.viewingUser,
     );
   }
@@ -75,7 +84,7 @@ class ProfileState extends Equatable {
         histories,
         filterType,
         errorMessage,
-        successMessage,
+        successType,
         viewingUser,
       ];
 }

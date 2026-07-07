@@ -62,7 +62,6 @@ void main() {
         const GroupImageState(status: GroupImageStatus.uploading),
         const GroupImageState(
           status: GroupImageStatus.error,
-          errorMessage: '이미지 변경에 실패했습니다.',
         ),
       ],
     );

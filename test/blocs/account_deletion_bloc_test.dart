@@ -131,7 +131,7 @@ void main() {
         build: createBloc,
         act: (bloc) => bloc.add(const AccountDeletionRequested()),
         expect: () => [
-          const AccountDeletionState.error('올바른 확인 텍스트를 입력해주세요'),
+          const AccountDeletionState.failure(AccountDeletionError.invalidConfirmation),
         ],
       );
 
@@ -146,7 +146,7 @@ void main() {
         build: createBloc,
         act: (bloc) => bloc.add(const AccountDeletionRequested()),
         expect: () => [
-          const AccountDeletionState.error('비밀번호를 입력해주세요'),
+          const AccountDeletionState.failure(AccountDeletionError.emptyPassword),
         ],
       );
 
@@ -161,7 +161,7 @@ void main() {
         build: createBloc,
         act: (bloc) => bloc.add(const AccountDeletionRequested()),
         expect: () => [
-          const AccountDeletionState.error('비밀번호를 입력해주세요'),
+          const AccountDeletionState.failure(AccountDeletionError.emptyPassword),
         ],
         verify: (_) {
           verifyNever(() => mockSettingsRepository.deleteAccount(any(), any()));
@@ -216,7 +216,7 @@ void main() {
         act: (bloc) => bloc.add(const AccountDeletionRequested()),
         expect: () => [
           const AccountDeletionState.deleting(),
-          const AccountDeletionState.error('사용자 정보를 찾을 수 없습니다'),
+          const AccountDeletionState.failure(AccountDeletionError.userNotFound),
         ],
       );
 
@@ -238,12 +238,13 @@ void main() {
           const AccountDeletionState.deleting(),
           isA<AccountDeletionState>()
               .having((s) => s.status, 'status', AccountDeletionStatus.error)
-              .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+              .having((s) => s.errorType, 'errorType',
+                  AccountDeletionError.unknown),
         ],
       );
 
       blocTest<AccountDeletionBloc, AccountDeletionState>(
-        'provides specific error message when generic error occurs',
+        'provides specific error type when generic error occurs',
         seed: () => const AccountDeletionState.waitingConfirmation(
           password: 'myPassword',
           confirmationText: '삭제합니다',
@@ -260,11 +261,8 @@ void main() {
           const AccountDeletionState.deleting(),
           isA<AccountDeletionState>()
               .having((s) => s.status, 'status', AccountDeletionStatus.error)
-              .having(
-                (s) => s.errorMessage,
-                'errorMessage',
-                contains('회원 탈퇴 처리 중 오류가 발생했습니다'),
-              ),
+              .having((s) => s.errorType, 'errorType',
+                  AccountDeletionError.unknown),
         ],
       );
     });
@@ -326,7 +324,7 @@ void main() {
         act: (bloc) => bloc.add(const AccountDeletionRequested()),
         expect: () => [
           const AccountDeletionState.deleting(),
-          const AccountDeletionState.error('사용자 정보를 찾을 수 없습니다'),
+          const AccountDeletionState.failure(AccountDeletionError.userNotFound),
         ],
       );
     });

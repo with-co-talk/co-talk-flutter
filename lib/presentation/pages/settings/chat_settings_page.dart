@@ -88,7 +88,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsErrorOccurred),
+                  content: Text(state.errorMessage ?? AppLocalizations.of(context)!.settingsCacheClearFailed),
                   backgroundColor: AppColors.error,
                 ),
               );
