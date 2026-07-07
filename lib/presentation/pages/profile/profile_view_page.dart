@@ -71,13 +71,9 @@ class _ProfileViewContent extends StatelessWidget {
       builder: (context, profileState) {
         final user = profileState.viewingUser;
 
-        if (profileState.status == ProfileStatus.loading || user == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (profileState.status == ProfileStatus.failure) {
+        // failure를 loading/user-null보다 먼저 검사한다.
+        // 최초 로드 실패 시(user == null) 무한 로딩에 빠지지 않기 위함.
+        if (profileState.status == ProfileStatus.failure && user == null) {
           return Scaffold(
             appBar: AppBar(
               backgroundColor: Colors.transparent,
@@ -91,15 +87,31 @@ class _ProfileViewContent extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                  Icon(Icons.error_outline,
+                      size: 48, color: context.textSecondaryColor),
                   const SizedBox(height: 16),
                   Text(
                     profileState.errorMessage ?? AppLocalizations.of(context)!.profileLoadFailed,
-                    style: const TextStyle(color: Colors.grey),
+                    style: TextStyle(color: context.textSecondaryColor),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      context.read<ProfileBloc>()
+                        ..add(ProfileUserLoadRequested(userId: userId))
+                        ..add(ProfileHistoryLoadRequested(userId: userId));
+                    },
+                    child: Text(AppLocalizations.of(context)!.commonRetry),
                   ),
                 ],
               ),
             ),
+          );
+        }
+
+        if (profileState.status == ProfileStatus.loading || user == null) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
