@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../domain/entities/user.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -152,39 +153,39 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  String _getStatusText(BuildContext context, status) {
+  String _getStatusText(BuildContext context, UserStatus status) {
     final l10n = AppLocalizations.of(context)!;
-    switch (status.toString()) {
-      case 'UserStatus.active':
+    switch (status) {
+      case UserStatus.active:
         return l10n.profileStatusActive;
-      case 'UserStatus.inactive':
+      case UserStatus.inactive:
         return l10n.profileStatusInactive;
-      case 'UserStatus.suspended':
+      case UserStatus.suspended:
         return l10n.profileStatusSuspended;
-      default:
-        return l10n.profileStatusUnknown;
     }
   }
 
-  String _getOnlineStatusText(BuildContext context, onlineStatus) {
+  String _getOnlineStatusText(BuildContext context, OnlineStatus onlineStatus) {
     final l10n = AppLocalizations.of(context)!;
-    switch (onlineStatus.toString()) {
-      case 'OnlineStatus.online':
+    switch (onlineStatus) {
+      case OnlineStatus.online:
         return l10n.profileOnlineStatusOnline;
-      case 'OnlineStatus.away':
+      case OnlineStatus.away:
         return l10n.profileOnlineStatusAway;
-      default:
+      case OnlineStatus.offline:
+      case OnlineStatus.doNotDisturb:
         return l10n.profileOnlineStatusOffline;
     }
   }
 
-  Color _getOnlineStatusColor(onlineStatus) {
-    switch (onlineStatus.toString()) {
-      case 'OnlineStatus.online':
+  Color _getOnlineStatusColor(OnlineStatus onlineStatus) {
+    switch (onlineStatus) {
+      case OnlineStatus.online:
         return AppColors.online;
-      case 'OnlineStatus.away':
+      case OnlineStatus.away:
         return AppColors.away;
-      default:
+      case OnlineStatus.offline:
+      case OnlineStatus.doNotDisturb:
         return AppColors.offline;
     }
   }

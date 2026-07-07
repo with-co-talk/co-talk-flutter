@@ -277,7 +277,6 @@
   "profileStatusActive": "Active",
   "profileStatusInactive": "Inactive",
   "profileStatusSuspended": "Suspended",
-  "profileStatusUnknown": "Unknown",
   "profileOnlineStatusOnline": "Online",
   "profileOnlineStatusAway": "Away",
   "profileOnlineStatusOffline": "Offline",

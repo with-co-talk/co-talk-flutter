@@ -60,6 +60,8 @@ class AppColors {
   static const Color success = Color(0xFF4CAF50);
   static const Color error = Color(0xFFF44336);
   static const Color warning = Color(0xFFFFC107);
+  // 밝은 배경 위 경고 텍스트용 — warning(amber)은 라이트 모드에서 대비 부족
+  static const Color warningDark = Color(0xFFF57C00); // orange-700
   static const Color info = Color(0xFF8B5CF6); // primary 보라색으로 변경
 
   // Divider - 더 부드러운 톤

@@ -30,7 +30,7 @@ class ProfileFormFields extends StatelessWidget {
             decoration: InputDecoration(
               hintText: AppLocalizations.of(context)!.profileNicknameHint,
               hintStyle: TextStyle(
-                color: Colors.grey[400],
+                color: context.textSecondaryColor,
                 fontSize: 16,
               ),
               border: InputBorder.none,
@@ -67,7 +67,7 @@ class ProfileFormFields extends StatelessWidget {
             decoration: InputDecoration(
               hintText: AppLocalizations.of(context)!.profileStatusMessageOptionalHint,
               hintStyle: TextStyle(
-                color: Colors.grey[400],
+                color: context.textSecondaryColor,
                 fontSize: 16,
               ),
               border: InputBorder.none,
@@ -90,8 +90,8 @@ class ProfileFormFields extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: statusMessageController.text.length > 50
-                  ? Colors.orange.withValues(alpha: 0.1)
-                  : Colors.grey[100],
+                  ? AppColors.warning.withValues(alpha: 0.15)
+                  : context.dividerColor.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -100,8 +100,10 @@ class ProfileFormFields extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: statusMessageController.text.length > 50
-                    ? Colors.orange[700]
-                    : Colors.grey[500],
+                    ? (context.isDarkMode
+                        ? AppColors.warning
+                        : AppColors.warningDark)
+                    : context.textSecondaryColor,
               ),
             ),
           ),
@@ -115,7 +117,7 @@ class ProfileFormFields extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
+            color: context.textSecondaryColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -181,10 +183,10 @@ class ProfileFormFields extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: context.backgroundColor,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: Colors.grey[200]!,
+                color: context.dividerColor,
                 width: 1.5,
               ),
             ),
@@ -204,19 +206,19 @@ class ProfileFormFields extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: context.backgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[100]!),
+        border: Border.all(color: context.dividerColor),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.grey[200],
+              color: context.dividerColor,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 16, color: Colors.grey[500]),
+            child: Icon(icon, size: 16, color: context.textSecondaryColor),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -228,7 +230,7 @@ class ProfileFormFields extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey[500],
+                    color: context.textSecondaryColor,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -236,7 +238,7 @@ class ProfileFormFields extends StatelessWidget {
                   value,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey[600],
+                    color: context.textPrimaryColor,
                   ),
                 ),
               ],
@@ -245,19 +247,19 @@ class ProfileFormFields extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.grey[200],
+              color: context.dividerColor,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline, size: 12, color: Colors.grey[500]),
+                Icon(Icons.lock_outline, size: 12, color: context.textSecondaryColor),
                 const SizedBox(width: 4),
                 Text(
                   AppLocalizations.of(context)!.profileNotEditable,
                   style: TextStyle(
                     fontSize: 10,
-                    color: Colors.grey[500],
+                    color: context.textSecondaryColor,
                   ),
                 ),
               ],

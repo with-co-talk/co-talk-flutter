@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 import '../../../domain/repositories/settings_repository.dart';
@@ -82,13 +83,10 @@ class AccountDeletionBloc extends Bloc<AccountDeletionEvent, AccountDeletionStat
       emit(const AccountDeletionState.deleted());
     } catch (e, stackTrace) {
       // 디버그 모드에서 상세 에러 로깅
-      assert(() {
-        // ignore: avoid_print
-        print('[AccountDeletionBloc] Error: $e');
-        // ignore: avoid_print
-        print('[AccountDeletionBloc] StackTrace: $stackTrace');
-        return true;
-      }());
+      if (kDebugMode) {
+        debugPrint('[AccountDeletionBloc] Error: $e');
+        debugPrint('[AccountDeletionBloc] StackTrace: $stackTrace');
+      }
 
       // 인식되지 않은(알 수 없는) 에러면 더 구체적인 안내로 대체한다.
       // 사용자 표시 메시지의 부분 문자열 매칭 대신 타입 기반으로 판별한다.
