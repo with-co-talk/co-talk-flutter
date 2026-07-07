@@ -9,6 +9,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/error_message_mapper.dart';
 import '../../../domain/entities/friend.dart';
+import '../../../domain/entities/user.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
@@ -398,7 +399,7 @@ class _FriendTile extends StatelessWidget {
                         : null,
                   ),
                   // Online status indicator
-                  if (friend.user.onlineStatus.toString() == 'OnlineStatus.online')
+                  if (friend.user.onlineStatus == OnlineStatus.online)
                     Positioned(
                       right: 0,
                       bottom: 0,
