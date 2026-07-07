@@ -1,4 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:co_talk_flutter/core/theme/app_theme.dart';
 import 'package:co_talk_flutter/domain/entities/chat_settings.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/l10n/app_localizations.dart';
@@ -71,7 +72,8 @@ void main() {
       locale: const Locale('ko'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      theme: ThemeData(brightness: Brightness.light, useMaterial3: true),
+      // 실제 앱 테마(Pretendard 포함)로 렌더링해야 golden이 의미를 가진다.
+      theme: AppTheme.lightTheme,
       home: Scaffold(
         backgroundColor: Colors.white,
         body: MultiBlocProvider(

@@ -234,7 +234,13 @@ class _ChatListPageState extends State<ChatListPage> {
               itemBuilder: (context, index) {
                 final chatRoom = filteredChatRooms[index];
                 final displayName = _roomDisplayName(context, chatRoom);
-                return _ChatRoomTile(chatRoom: chatRoom, displayName: displayName);
+                return _ChatRoomTile(
+                  chatRoom: chatRoom,
+                  displayName: displayName,
+                  selfAvatarUrl: chatRoom.type == ChatRoomType.self
+                      ? context.read<AuthBloc>().state.user?.avatarUrl
+                      : null,
+                );
               },
             ),
           );
@@ -249,7 +255,14 @@ class _ChatRoomTile extends StatelessWidget {
   final ChatRoom chatRoom;
   final String displayName;
 
-  const _ChatRoomTile({required this.chatRoom, required this.displayName});
+  /// 나와의 채팅(self) 방에서 보여줄 내 아바타 URL
+  final String? selfAvatarUrl;
+
+  const _ChatRoomTile({
+    required this.chatRoom,
+    required this.displayName,
+    this.selfAvatarUrl,
+  });
 
   /// 아바타는 작은 원형으로만 표시되므로 디스크 캐시 + 다운샘플(maxWidth)을
   /// 적용해 raw NetworkImage 의 풀해상도 디코딩/재다운로드를 막는다.
@@ -270,12 +283,20 @@ class _ChatRoomTile extends StatelessWidget {
         maxWidth: _avatarCacheWidth,
       );
     }
+    // 나와의 채팅 - 내 아바타
+    if (chatRoom.type == ChatRoomType.self && selfAvatarUrl != null) {
+      return CachedNetworkImageProvider(
+        selfAvatarUrl!,
+        maxWidth: _avatarCacheWidth,
+      );
+    }
     return null;
   }
 
   Widget? _getAvatarChild(ChatRoom chatRoom, String displayName) {
-    // 1:1 채팅 - 아바타 없으면 이니셜
-    if (chatRoom.type == ChatRoomType.direct && chatRoom.otherUserAvatarUrl == null) {
+    // 1:1 채팅 - 아바타 없으면 이니셜 / 나와의 채팅 - 내 아바타 없으면 이니셜
+    if ((chatRoom.type == ChatRoomType.direct && chatRoom.otherUserAvatarUrl == null) ||
+        (chatRoom.type == ChatRoomType.self && selfAvatarUrl == null)) {
       return Text(
         displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
         style: const TextStyle(

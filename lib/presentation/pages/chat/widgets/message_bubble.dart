@@ -764,8 +764,9 @@ class MessageBubble extends StatelessWidget {
         children: [
           ForwardedIndicator(message: message, isMe: isMe),
           ReplyPreview(message: message, isMe: isMe),
-          RichText(
-            text: TextSpan(
+          // Text.rich는 RichText와 달리 DefaultTextStyle(테마 폰트)을 상속한다.
+          Text.rich(
+            TextSpan(
               children: _buildTextSpans(context, displayText, textColor),
             ),
           ),
