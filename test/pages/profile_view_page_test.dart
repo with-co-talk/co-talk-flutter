@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:co_talk_flutter/di/injection.dart';
+import 'package:co_talk_flutter/domain/entities/user.dart';
 import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_bloc.dart';
 import 'package:co_talk_flutter/presentation/blocs/auth/auth_event.dart';
@@ -109,5 +110,41 @@ void main() {
     verify(
       () => mockProfileBloc.add(const ProfileHistoryLoadRequested(userId: 1)),
     ).called(1);
+  });
+
+  testWidgets('프로필 표시 중 액션 실패 시(user!=null) 콘텐츠를 유지하며 SnackBar로 에러를 알린다',
+      (tester) async {
+    // 아바타/배경 업로드·삭제 실패처럼 user가 이미 로드된 뒤의 failure는
+    // 전체 화면 에러가 아니라 SnackBar 피드백이어야 한다 (무음 실패 방지).
+    const user = User(id: 1, email: 'me@test.com', nickname: '나');
+    const loadedState = ProfileState(
+      status: ProfileStatus.success,
+      viewingUser: user,
+    );
+    const failureState = ProfileState(
+      status: ProfileStatus.failure,
+      errorMessage: '업로드에 실패했습니다',
+      viewingUser: user,
+    );
+
+    whenListen(
+      mockProfileBloc,
+      Stream<ProfileState>.fromIterable([failureState]),
+      initialState: loadedState,
+    );
+    whenListen(
+      mockAuthBloc,
+      const Stream<AuthState>.empty(),
+      initialState: const AuthState(),
+    );
+
+    await tester.pumpWidget(createWidget());
+    await tester.pump(); // failure 상태 반영
+    await tester.pump(); // SnackBar 애니메이션 시작
+
+    // 전체 화면 에러가 아니라 프로필 콘텐츠 유지 + SnackBar 노출
+    expect(find.text('나'), findsWidgets);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text('업로드에 실패했습니다'), findsOneWidget);
   });
 }

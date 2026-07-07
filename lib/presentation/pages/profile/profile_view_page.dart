@@ -56,6 +56,16 @@ class _ProfileViewContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<ProfileBloc, ProfileState>(
       listener: (context, profileState) {
+        // 프로필이 이미 표시된 상태에서의 실패(아바타/배경 업로드·삭제 등)는
+        // 전체 화면 에러 대신 SnackBar로 알린다 (무음 실패 방지).
+        if (profileState.status == ProfileStatus.failure &&
+            profileState.viewingUser != null &&
+            profileState.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(profileState.errorMessage!)),
+          );
+        }
+
         // 프로필 변경 성공 시 AuthBloc의 user도 업데이트
         if (profileState.status == ProfileStatus.success && isMyProfile) {
           final viewingUser = profileState.viewingUser;
