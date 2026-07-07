@@ -100,7 +100,9 @@ class ProfileFormFields extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: statusMessageController.text.length > 50
-                    ? AppColors.warning
+                    ? (context.isDarkMode
+                        ? AppColors.warning
+                        : AppColors.warningDark)
                     : context.textSecondaryColor,
               ),
             ),
