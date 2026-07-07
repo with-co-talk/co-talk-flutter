@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -16,42 +15,43 @@ const double _goldenDiffTolerance = 0.03;
 
 /// 모든 테스트 실행 전 공통 설정.
 ///
-/// golden 테스트가 환경(플러터 SDK·렌더 엔진)에 따라 픽셀이 흔들리지 않도록,
-/// 앱이 번들하는 Pretendard 폰트를 테스트 폰트 레지스트리에 미리 적재한다.
-/// 폰트를 적재하지 않으면 기본 테스트 폰트(Ahem, 네모 박스)로 렌더되어
-/// 베이스라인이 toolchain 종속적으로 깨질 수 있다.
-///
-/// 또한 golden 비교에 작은 허용 오차(3%)를 둔다. 폰트를 고정해도
-/// macOS(개발)와 Linux(CI)의 안티앨리어싱·서브픽셀 렌더 차이로 1~2% 수준의
-/// 픽셀 드리프트가 발생하기 때문이다. 실제 디자인 변경은 두 자릿수% 차이라
-/// 이 임계값으로 충분히 구분된다.
+/// 1. golden 테스트가 환경(플러터 SDK·렌더 엔진)에 따라 픽셀이 흔들리지 않도록,
+///    앱이 번들하는 Pretendard 폰트를 테스트 폰트 레지스트리에 미리 적재한다.
+///    폰트를 적재하지 않으면 기본 테스트 폰트(Ahem, 네모 박스)로 렌더되어
+///    베이스라인이 toolchain 종속적으로 깨질 수 있다.
+/// 2. 남는 OS 간 서브픽셀 차이를 흡수하도록 golden comparator에 허용 오차를 둔다.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   TestWidgetsFlutterBinding.ensureInitialized();
   await _loadPretendard();
-  if (goldenFileComparator is LocalFileComparator) {
-    final basedir = (goldenFileComparator as LocalFileComparator).basedir;
-    goldenFileComparator = _TolerantGoldenComparator(basedir, threshold: 0.03);
+
+  // flutter_test_config는 테스트 파일마다 실행되므로, 이 시점의 기본
+  // LocalFileComparator.basedir는 해당 파일 디렉토리로 올바르게 설정돼 있다.
+  final GoldenFileComparator base = goldenFileComparator;
+  if (base is LocalFileComparator) {
+    goldenFileComparator = _TolerantGoldenComparator(base.basedir);
   }
+
   await testMain();
 }
 
-/// 플랫폼별 AA 드리프트를 흡수하기 위해 임계값 이하 픽셀 차이는 통과시키는 비교기.
+/// [_goldenDiffTolerance] 이하의 픽셀 차이는 통과로 처리하는 golden comparator.
 class _TolerantGoldenComparator extends LocalFileComparator {
-  final double threshold;
-
-  _TolerantGoldenComparator(Uri basedir, {required this.threshold})
-      : super(Uri.parse('$basedir/placeholder_test.dart'));
+  /// [LocalFileComparator]는 생성자 인자를 "테스트 파일"로 보고 basedir로
+  /// 그 파일의 디렉토리(`resolve('./')`)를 쓴다. 디렉토리 Uri를 그대로 주면
+  /// 마지막 세그먼트가 잘리므로, 더미 파일명을 붙여 basedir를 보존한다.
+  _TolerantGoldenComparator(Uri basedir)
+      : super(basedir.resolve('flutter_test_config.dart'));
 
   @override
   Future<bool> compare(Uint8List imageBytes, Uri golden) async {
-    final result = await GoldenFileComparator.compareLists(
+    final ComparisonResult result = await GoldenFileComparator.compareLists(
       imageBytes,
       await getGoldenBytes(golden),
     );
-    if (result.passed || result.diffPercent <= threshold) {
+    if (result.passed || result.diffPercent <= _goldenDiffTolerance) {
       return true;
     }
-    final error = await generateFailureOutput(result, golden, basedir);
+    final String error = await generateFailureOutput(result, golden, basedir);
     throw FlutterError(error);
   }
 }
