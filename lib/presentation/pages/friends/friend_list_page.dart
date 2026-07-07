@@ -266,7 +266,7 @@ class _FriendListPageState extends State<FriendListPage> {
 }
 
 class _MyProfileCard extends StatelessWidget {
-  final dynamic user;
+  final User user;
 
   const _MyProfileCard({required this.user});
 
