@@ -462,7 +462,6 @@
   "profileStatusActive": "활성",
   "profileStatusInactive": "비활성",
   "profileStatusSuspended": "정지됨",
-  "profileStatusUnknown": "알 수 없음",
   "profileOnlineStatusOnline": "온라인",
   "profileOnlineStatusAway": "자리 비움",
   "profileOnlineStatusOffline": "오프라인",
