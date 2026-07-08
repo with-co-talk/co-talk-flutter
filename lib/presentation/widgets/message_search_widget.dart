@@ -354,13 +354,14 @@ class _MessageSearchWidgetState extends State<MessageSearchWidget> {
       start = index + query.length;
     }
 
-    return RichText(
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      text: TextSpan(
+    // Text.rich는 RichText와 달리 DefaultTextStyle(테마 폰트·색상)을 상속한다.
+    return Text.rich(
+      TextSpan(
         style: const TextStyle(fontSize: 14, height: 1.35),
         children: spans,
       ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

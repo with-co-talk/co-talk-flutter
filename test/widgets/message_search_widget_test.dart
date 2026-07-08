@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:co_talk_flutter/core/theme/app_theme.dart';
 import 'package:co_talk_flutter/domain/entities/message.dart';
 import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:co_talk_flutter/presentation/blocs/chat/message_search/message_search_bloc.dart';
@@ -25,7 +26,7 @@ void main() {
     registerFallbackValue(const MessageSearchCleared());
   });
 
-  Widget createWidgetUnderTest({MessageSearchState? initialState}) {
+  Widget createWidgetUnderTest({MessageSearchState? initialState, ThemeData? theme}) {
     when(() => mockMessageSearchBloc.state)
         .thenReturn(initialState ?? const MessageSearchState());
     when(() => mockMessageSearchBloc.stream)
@@ -33,6 +34,7 @@ void main() {
     when(() => mockMessageSearchBloc.close()).thenAnswer((_) async {});
 
     return MaterialApp(
+      theme: theme,
       locale: const Locale('ko'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -223,6 +225,42 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest());
 
       expect(find.text('메시지 검색'), findsOneWidget);
+    });
+
+    testWidgets('검색 결과 하이라이트가 테마 폰트(Pretendard)를 상속한다', (tester) async {
+      // RichText를 직접 쓰면 DefaultTextStyle(테마 fontFamily)을 상속하지 않아
+      // 검색 결과 본문만 시스템 폰트로 렌더링된다. Text.rich 기반이어야 한다.
+      const content = '안녕하세요 반갑습니다';
+      await tester.pumpWidget(createWidgetUnderTest(
+        theme: AppTheme.lightTheme,
+        initialState: MessageSearchState(
+          status: MessageSearchStatus.success,
+          query: '안녕',
+          chatRoomId: 1,
+          results: [
+            Message(
+              id: 1,
+              chatRoomId: 1,
+              senderId: 1,
+              senderNickname: '홍길동',
+              content: content,
+              createdAt: DateTime(2024, 1, 1, 10, 30),
+            ),
+          ],
+        ),
+      ));
+      await tester.pump();
+
+      final highlighted = tester
+          .widgetList<RichText>(find.byType(RichText))
+          .where((rt) => rt.text.toPlainText().contains(content))
+          .toList();
+
+      expect(highlighted, isNotEmpty, reason: '하이라이트 RichText를 찾지 못함');
+      for (final rt in highlighted) {
+        expect(rt.text.style?.fontFamily, 'Pretendard',
+            reason: '검색 결과 본문이 테마 폰트를 상속해야 한다');
+      }
     });
   });
 }
