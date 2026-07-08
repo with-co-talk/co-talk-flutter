@@ -78,6 +78,8 @@ class AppColors {
   static const Color success = Color(0xFF7FB069);
   static const Color error = Color(0xFFD9685A); // 웜 레드
   static const Color warning = Color(0xFFE0A458);
+  // 밝은 배경 위 경고 텍스트용 — warning(웜 앰버)은 라이트 모드에서 대비 부족
+  static const Color warningDark = Color(0xFF8F6224); // 딥 오커
   static const Color info = Color(0xFFE3744D);
 
   // ── Divider ─────────────────────────────────────────────────────

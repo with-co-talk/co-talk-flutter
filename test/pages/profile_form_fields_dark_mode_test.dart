@@ -6,14 +6,14 @@ import 'package:co_talk_flutter/l10n/app_localizations.dart';
 import 'package:co_talk_flutter/presentation/pages/profile/widgets/profile_form_fields.dart';
 
 void main() {
-  Widget createWidget({required ThemeData theme}) {
+  Widget createWidget({required ThemeData theme, String statusText = ''}) {
     return MaterialApp(
       theme: theme,
       home: Scaffold(
         body: SingleChildScrollView(
           child: ProfileFormFields(
             nicknameController: TextEditingController(),
-            statusMessageController: TextEditingController(),
+            statusMessageController: TextEditingController(text: statusText),
             email: 'test@test.com',
           ),
         ),
@@ -62,5 +62,26 @@ void main() {
     await tester.pump();
 
     expect(containersWithColor(tester, AppColors.background), isNotEmpty);
+  });
+
+  testWidgets('라이트 모드 글자수 초과 경고는 어두운 경고색(warningDark)을 쓴다', (tester) async {
+    // warning(0xFFE0A458)은 밝은 샌드 앰버라 라이트 모드의 옅은 틴트 배경 위에서
+    // 대비가 부족하다. 라이트에서는 warningDark, 다크에서는 warning을 써야 한다.
+    final longText = 'a' * 55;
+
+    await tester.pumpWidget(
+        createWidget(theme: AppTheme.lightTheme, statusText: longText));
+    await tester.pump();
+
+    final counter = tester.widget<Text>(find.text('55/60'));
+    expect(counter.style?.color?.toARGB32(), AppColors.warningDark.toARGB32());
+
+    await tester.pumpWidget(
+        createWidget(theme: AppTheme.darkTheme, statusText: longText));
+    // 같은 트리에서 테마 교체 시 AnimatedTheme 전환이 끝나야 brightness가 바뀐다.
+    await tester.pumpAndSettle();
+
+    final darkCounter = tester.widget<Text>(find.text('55/60'));
+    expect(darkCounter.style?.color?.toARGB32(), AppColors.warning.toARGB32());
   });
 }
