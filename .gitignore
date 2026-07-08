@@ -87,3 +87,6 @@ coverage/
 
 # OMC 에이전트 런타임 상태 파일
 .omc/
+
+# Flutter golden 테스트 실패 덤프 (커밋 금지)
+test/**/failures/
