@@ -37,6 +37,14 @@ iOS와 macOS 업로드만 (빌드 스킵)
 
 iOS와 macOS 모두 빌드만 (업로드 X)
 
+### setup_ios_signing
+
+```sh
+[bundle exec] fastlane setup_ios_signing
+```
+
+iOS 코드 서명 설정 (인증서 + 프로비저닝 프로필)
+
 ### deploy_ios
 
 ```sh
@@ -117,7 +125,7 @@ macOS 빌드 (App Store 서명 포함)
 [bundle exec] fastlane upload_macos
 ```
 
-macOS TestFlight 업로드 (이미 빌드된 앱)
+macOS TestFlight 업로드 (이미 빌드된 pkg)
 
 ### bump_build
 

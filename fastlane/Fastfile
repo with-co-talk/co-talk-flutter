@@ -156,7 +156,7 @@ lane :build_ios do
 
   # xcodebuild로 archive
   archive_path = "#{project_root}/build/ios/Runner.xcarchive"
-  sh("xcodebuild -workspace '#{project_root}/ios/Runner.xcworkspace' -scheme Runner -configuration Release -archivePath '#{archive_path}' archive DEVELOPMENT_TEAM=QW7DJ7FBDT CODE_SIGN_IDENTITY='Apple Distribution' CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES -allowProvisioningUpdates 2>&1 | xcpretty; exit ${PIPESTATUS[0]}")
+  sh("xcodebuild -workspace '#{project_root}/ios/Runner.xcworkspace' -scheme Runner -configuration Release -archivePath '#{archive_path}' archive -allowProvisioningUpdates 2>&1 | xcpretty; exit ${PIPESTATUS[0]}")
 
   # xcodebuild로 IPA export
   ipa_output = "#{project_root}/build/ios/ipa"
@@ -345,7 +345,7 @@ lane :build_macos_signed do
 
   # xcodebuild로 archive (프로필은 위에서 Runner 타깃에만 설정했으므로 전역 지정하지 않는다)
   archive_path = "#{project_root}/build/macos/Runner.xcarchive"
-  sh("xcodebuild -workspace '#{project_root}/macos/Runner.xcworkspace' -scheme Runner -configuration Release -archivePath '#{archive_path}' archive DEVELOPMENT_TEAM=QW7DJ7FBDT CODE_SIGN_IDENTITY='Apple Distribution' CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES -allowProvisioningUpdates 2>&1 | xcpretty; exit ${PIPESTATUS[0]}")
+  sh("xcodebuild -workspace '#{project_root}/macos/Runner.xcworkspace' -scheme Runner -configuration Release -archivePath '#{archive_path}' archive -allowProvisioningUpdates 2>&1 | xcpretty; exit ${PIPESTATUS[0]}")
 
   # xcodebuild로 pkg export
   pkg_output = "#{project_root}/build/macos/ipa"
