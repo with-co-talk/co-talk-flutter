@@ -32,7 +32,7 @@ android {
 
     defaultConfig {
         applicationId = "com.cotalk.co_talk_flutter"
-        minSdk = 23  // super_native_extensions 라이브러리 요구사항
+        minSdk = flutter.minSdkVersion  // super_native_extensions 라이브러리 요구사항
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
