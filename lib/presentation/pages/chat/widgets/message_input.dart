@@ -249,6 +249,21 @@ class _MessageInputState extends State<MessageInput> {
     return KeyEventResult.ignored;
   }
 
+  /// 데스크톱(macOS/Windows/Linux)의 image_picker는 ImageSource.camera를
+  /// 지원하지 않아 탭 즉시 에러가 노출된다(App Store 심사 2.1(a) 반려 사유).
+  bool get _supportsCameraCapture {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+        return true;
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
   /// Shows attachment options bottom sheet
   void _showAttachmentOptions() {
     showModalBottomSheet(
@@ -278,22 +293,23 @@ class _MessageInputState extends State<MessageInput> {
                   _pickImageFromGallery();
                 },
               ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+              if (_supportsCameraCapture)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt, color: Colors.green),
                   ),
-                  child: const Icon(Icons.camera_alt, color: Colors.green),
+                  title: Text(AppLocalizations.of(context)!.chatCamera),
+                  subtitle: Text(AppLocalizations.of(context)!.chatCameraSubtitle),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImageFromCamera();
+                  },
                 ),
-                title: Text(AppLocalizations.of(context)!.chatCamera),
-                subtitle: Text(AppLocalizations.of(context)!.chatCameraSubtitle),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImageFromCamera();
-                },
-              ),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
